@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/standing_onefoot_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 538,
+  "fps": 29.97002997002997,
+  "duration_s": 17.918,
+  "frames_with_pose": 538,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      371.5,
+      856.5
+    ],
+    "std": [
+      23.25,
+      13.03
+    ],
+    "range": [
+      159.2,
+      79.5
+    ]
+  },
+  "mean_confidence": 0.978,
+  "com_world_m": {
+    "mean": [
+      0.0128,
+      -0.118,
+      -0.054
+    ],
+    "std": [
+      0.0233,
+      0.0346,
+      0.0237
+    ]
+  }
+}

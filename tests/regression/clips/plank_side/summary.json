@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/plank_side.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 500,
+  "fps": 29.20026562944692,
+  "duration_s": 16.635,
+  "frames_with_pose": 500,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      513.8,
+      1225.8
+    ],
+    "std": [
+      30.66,
+      19.31
+    ],
+    "range": [
+      111.7,
+      96.4
+    ]
+  },
+  "mean_confidence": 0.764,
+  "com_world_m": {
+    "mean": [
+      -0.0982,
+      0.0633,
+      0.0003
+    ],
+    "std": [
+      0.0034,
+      0.03,
+      0.0077
+    ]
+  }
+}

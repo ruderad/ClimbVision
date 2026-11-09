@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/pistol_squat_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 845,
+  "fps": 29.97002997002997,
+  "duration_s": 28.161,
+  "frames_with_pose": 845,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      319.9,
+      805.7
+    ],
+    "std": [
+      10.29,
+      68.87
+    ],
+    "range": [
+      62.5,
+      187.3
+    ]
+  },
+  "mean_confidence": 0.934,
+  "com_world_m": {
+    "mean": [
+      -0.0449,
+      -0.1068,
+      -0.0374
+    ],
+    "std": [
+      0.0735,
+      0.046,
+      0.0468
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/lunge_side.mov",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 365,
+  "fps": 29.272110618314635,
+  "duration_s": 12.145,
+  "frames_with_pose": 365,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      315.8,
+      1376.1
+    ],
+    "std": [
+      102.22,
+      84.84
+    ],
+    "range": [
+      525.7,
+      290.1
+    ]
+  },
+  "mean_confidence": 0.915,
+  "com_world_m": {
+    "mean": [
+      -0.0257,
+      -0.0942,
+      0.005
+    ],
+    "std": [
+      0.0269,
+      0.0219,
+      0.0255
+    ]
+  }
+}

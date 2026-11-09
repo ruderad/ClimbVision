@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/knee_raise_hold_front.mov",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 341,
+  "fps": 29.97002997002997,
+  "duration_s": 11.345,
+  "frames_with_pose": 340,
+  "detection_rate": 0.9970674486803519,
+  "com_px": {
+    "mean": [
+      512.5,
+      633.7
+    ],
+    "std": [
+      2.07,
+      16.32
+    ],
+    "range": [
+      9.0,
+      61.6
+    ]
+  },
+  "mean_confidence": 0.96,
+  "com_world_m": {
+    "mean": [
+      0.0057,
+      -0.189,
+      -0.1079
+    ],
+    "std": [
+      0.0055,
+      0.0213,
+      0.0479
+    ]
+  }
+}

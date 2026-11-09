@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/standing_onefoot_side.mov",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 611,
+  "fps": 29.97002997002997,
+  "duration_s": 20.354,
+  "frames_with_pose": 611,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      333.3,
+      873.7
+    ],
+    "std": [
+      8.08,
+      4.93
+    ],
+    "range": [
+      31.1,
+      26.2
+    ]
+  },
+  "mean_confidence": 0.903,
+  "com_world_m": {
+    "mean": [
+      -0.0092,
+      -0.0783,
+      -0.0091
+    ],
+    "std": [
+      0.0123,
+      0.0151,
+      0.0171
+    ]
+  }
+}

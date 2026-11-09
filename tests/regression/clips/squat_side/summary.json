@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/squat_side.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 760,
+  "fps": 29.97002997002997,
+  "duration_s": 25.325,
+  "frames_with_pose": 760,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      315.3,
+      811.7
+    ],
+    "std": [
+      3.31,
+      67.0
+    ],
+    "range": [
+      19.8,
+      172.4
+    ]
+  },
+  "mean_confidence": 0.783,
+  "com_world_m": {
+    "mean": [
+      -0.0937,
+      -0.0946,
+      -0.0172
+    ],
+    "std": [
+      0.0753,
+      0.0425,
+      0.0063
+    ]
+  }
+}

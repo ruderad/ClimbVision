@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/tree_pose_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 419,
+  "fps": 29.97002997002997,
+  "duration_s": 13.947,
+  "frames_with_pose": 419,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      332.2,
+      722.5
+    ],
+    "std": [
+      7.69,
+      11.47
+    ],
+    "range": [
+      30.5,
+      33.1
+    ]
+  },
+  "mean_confidence": 0.981,
+  "com_world_m": {
+    "mean": [
+      0.0159,
+      -0.13,
+      -0.0429
+    ],
+    "std": [
+      0.0144,
+      0.0446,
+      0.0106
+    ]
+  }
+}

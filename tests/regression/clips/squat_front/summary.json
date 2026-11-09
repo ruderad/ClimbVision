@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/squat_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 826,
+  "fps": 29.97002997002997,
+  "duration_s": 27.527,
+  "frames_with_pose": 826,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      365.6,
+      787.2
+    ],
+    "std": [
+      7.55,
+      46.3
+    ],
+    "range": [
+      51.1,
+      133.0
+    ]
+  },
+  "mean_confidence": 0.992,
+  "com_world_m": {
+    "mean": [
+      -0.0032,
+      -0.0941,
+      -0.0636
+    ],
+    "std": [
+      0.0046,
+      0.0375,
+      0.045
+    ]
+  }
+}

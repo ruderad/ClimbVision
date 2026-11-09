@@ -1,20 +1,18 @@
-"""Video -> pose -> COM -> files. The `analyze` function is what the CLI calls."""
+"""Video -> pose -> COM -> files (the slow pass; everything else reads its CSVs)."""
 
 from __future__ import annotations
 
 import csv
 import json
-from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
 from climbvision.com import Sex, com_confidence, whole_body_com
-from climbvision.draw import draw_com, draw_label, draw_skeleton
 from climbvision.pose import PoseEstimator
 from climbvision.skeleton import LM, Frame
-from climbvision.video import VideoReader, VideoWriter
+from climbvision.video import VideoReader
 
 NAN2 = np.full(2, np.nan)
 NAN3 = np.full(3, np.nan)
@@ -76,7 +74,7 @@ def summarize(results: list[FrameResult], fps: float) -> dict:
     out: dict = {
         "frames": n,
         "fps": fps,
-        "duration_s": n / fps if fps else None,
+        "duration_s": round(results[-1].frame.time_s, 3) if results else 0.0,
         "frames_with_pose": len(detected),
         "detection_rate": len(detected) / n if n else 0.0,
     }
@@ -104,41 +102,27 @@ def analyze(
     out_dir: str | Path,
     estimator: PoseEstimator,
     sex: Sex = "male",
-    write_video: bool = True,
     max_frames: int | None = None,
-    trail_seconds: float = 2.0,
 ) -> dict:
-    """Run the full pipeline on one video. Returns the summary dict."""
+    """Pose + COM pass over one video: writes landmarks.csv, com.csv, summary.json.
+
+    Drawing happens later in `render`, once metrics (contacts, support) are known.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[FrameResult] = []
 
     with VideoReader(video_path) as reader:
         info = reader.info
-        writer = (VideoWriter(out_dir / "annotated.mp4", info.fps, (info.width, info.height))
-                  if write_video else None)
-        trail: deque[np.ndarray] = deque(maxlen=max(1, int(trail_seconds * info.fps)))
-        try:
-            for idx, t, img in reader.frames():
-                if max_frames is not None and idx >= max_frames:
-                    break
-                sk = estimator.estimate(img, int(round(t * 1000)))
-                res = process_frame(Frame(idx, t, sk), sex)
-                results.append(res)
-                trail.append(res.com_px)
-                if writer:
-                    if sk is not None:
-                        draw_skeleton(img, sk)
-                        draw_com(img, res.com_px, list(trail))
-                    draw_label(img, f"t={t:5.2f}s  " +
-                               (f"COM conf {res.com_conf:.2f}" if sk else "no pose"))
-                    writer.write(img)
-        finally:
-            if writer:
-                writer.close()
+        for idx, t, img in reader.frames():
+            if max_frames is not None and idx >= max_frames:
+                break
+            sk = estimator.estimate(img, int(round(t * 1000)))
+            results.append(process_frame(Frame(idx, t, sk), sex))
 
     _write_landmarks(out_dir / "landmarks.csv", results)
     _write_com(out_dir / "com.csv", results)
-    summary = {"video": str(video_path), "sex_model": sex, **summarize(results, info.fps)}
+    summary = {"video": str(video_path), "sex_model": sex,
+               "frame_size": [info.width, info.height], **summarize(results, info.fps)}
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     return summary

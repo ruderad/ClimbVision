@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/leg_raise_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 573,
+  "fps": 29.97002997002997,
+  "duration_s": 19.086,
+  "frames_with_pose": 572,
+  "detection_rate": 0.9982547993019197,
+  "com_px": {
+    "mean": [
+      511.5,
+      637.2
+    ],
+    "std": [
+      2.0,
+      25.03
+    ],
+    "range": [
+      13.5,
+      91.3
+    ]
+  },
+  "mean_confidence": 0.919,
+  "com_world_m": {
+    "mean": [
+      0.0065,
+      -0.173,
+      -0.0696
+    ],
+    "std": [
+      0.0069,
+      0.0452,
+      0.0575
+    ]
+  }
+}

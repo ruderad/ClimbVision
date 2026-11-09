@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/narrow_pullup_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 607,
+  "fps": 29.97002997002997,
+  "duration_s": 20.22,
+  "frames_with_pose": 607,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      515.3,
+      575.3
+    ],
+    "std": [
+      3.87,
+      76.31
+    ],
+    "range": [
+      14.7,
+      213.0
+    ]
+  },
+  "mean_confidence": 0.959,
+  "com_world_m": {
+    "mean": [
+      0.0089,
+      -0.1162,
+      -0.0061
+    ],
+    "std": [
+      0.009,
+      0.031,
+      0.0285
+    ]
+  }
+}

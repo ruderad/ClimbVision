@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/lunge_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 367,
+  "fps": 28.789776998246055,
+  "duration_s": 12.212,
+  "frames_with_pose": 367,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      531.8,
+      1383.8
+    ],
+    "std": [
+      15.02,
+      87.44
+    ],
+    "range": [
+      72.9,
+      293.2
+    ]
+  },
+  "mean_confidence": 0.953,
+  "com_world_m": {
+    "mean": [
+      0.0005,
+      -0.0781,
+      -0.0495
+    ],
+    "std": [
+      0.0157,
+      0.0133,
+      0.0297
+    ]
+  }
+}

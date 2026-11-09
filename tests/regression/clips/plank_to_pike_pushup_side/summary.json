@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/plank_to_pike_pushup_side.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 588,
+  "fps": 29.97002997002997,
+  "duration_s": 19.586,
+  "frames_with_pose": 588,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      288.9,
+      896.2
+    ],
+    "std": [
+      21.59,
+      46.93
+    ],
+    "range": [
+      90.9,
+      204.4
+    ]
+  },
+  "mean_confidence": 0.845,
+  "com_world_m": {
+    "mean": [
+      -0.1348,
+      0.1619,
+      0.0105
+    ],
+    "std": [
+      0.0293,
+      0.0714,
+      0.0158
+    ]
+  }
+}

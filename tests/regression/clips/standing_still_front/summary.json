@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/standing_still_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 429,
+  "fps": 29.505977893074668,
+  "duration_s": 14.278,
+  "frames_with_pose": 429,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      443.0,
+      1304.0
+    ],
+    "std": [
+      21.28,
+      3.33
+    ],
+    "range": [
+      139.0,
+      21.2
+    ]
+  },
+  "mean_confidence": 0.972,
+  "com_world_m": {
+    "mean": [
+      0.0015,
+      -0.0645,
+      -0.0068
+    ],
+    "std": [
+      0.0026,
+      0.0021,
+      0.0137
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/crow_pose_side.mov",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 557,
+  "fps": 29.97002997002997,
+  "duration_s": 18.552,
+  "frames_with_pose": 557,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      305.3,
+      808.1
+    ],
+    "std": [
+      36.83,
+      9.58
+    ],
+    "range": [
+      113.4,
+      97.9
+    ]
+  },
+  "mean_confidence": 0.771,
+  "com_world_m": {
+    "mean": [
+      -0.157,
+      0.1956,
+      0.0112
+    ],
+    "std": [
+      0.0461,
+      0.0301,
+      0.0098
+    ]
+  }
+}

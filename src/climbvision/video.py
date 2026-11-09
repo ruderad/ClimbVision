@@ -35,13 +35,23 @@ class VideoReader:
         )
 
     def frames(self) -> Iterator[tuple[int, float, np.ndarray]]:
-        """Yield (index, time in seconds, BGR frame)."""
+        """Yield (index, time in seconds, BGR frame).
+
+        Times come from the container's presentation timestamps, so phone videos
+        with a variable frame rate get real times. Falls back to index / fps when
+        timestamps are missing or don't increase.
+        """
         i = 0
+        last_t = -1.0
         while True:
             ok, frame = self._cap.read()
             if not ok:
                 break
-            yield i, i / self.info.fps, frame
+            t = self._cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            if not (t > last_t):
+                t = max(i / self.info.fps, last_t + 1e-3)
+            last_t = t
+            yield i, t, frame
             i += 1
 
     def close(self) -> None:

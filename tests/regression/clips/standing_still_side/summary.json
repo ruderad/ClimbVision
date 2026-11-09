@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/standing_still_side.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 381,
+  "fps": 29.09450766947056,
+  "duration_s": 12.677,
+  "frames_with_pose": 381,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      458.6,
+      1303.5
+    ],
+    "std": [
+      3.74,
+      2.6
+    ],
+    "range": [
+      18.5,
+      24.9
+    ]
+  },
+  "mean_confidence": 0.778,
+  "com_world_m": {
+    "mean": [
+      0.0093,
+      -0.067,
+      -0.0003
+    ],
+    "std": [
+      0.0033,
+      0.0016,
+      0.0012
+    ]
+  }
+}

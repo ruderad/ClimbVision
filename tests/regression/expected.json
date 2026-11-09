@@ -1,0 +1,655 @@
+{
+  "squat_side": {
+    "exercise": "squat",
+    "verified": "Watched: 4 full squats, all below parallel.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 4
+      },
+      {
+        "path": [
+          "reps_below_parallel"
+        ],
+        "eq": 4
+      },
+      {
+        "path": [
+          "min_thigh_deg_mean"
+        ],
+        "approx": -35.5,
+        "tol": 5
+      },
+      {
+        "path": [
+          "min_knee_deg_mean"
+        ],
+        "approx": 36.28,
+        "tol": 6
+      },
+      {
+        "path": [
+          "max_trunk_lean_deg_mean"
+        ],
+        "approx": 35.1,
+        "tol": 5
+      },
+      {
+        "path": [
+          "stability",
+          "com_sway",
+          "sd_cm"
+        ],
+        "approx": 1.08,
+        "tol": 1.0
+      }
+    ]
+  },
+  "squat_front": {
+    "exercise": "squat",
+    "verified": "Watched: 4 full squats + a 5th cut off by the end of the clip (not counted).",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 4
+      },
+      {
+        "path": [
+          "reps_below_parallel"
+        ],
+        "eq": 4
+      },
+      {
+        "path": [
+          "min_knee_deg_mean"
+        ],
+        "approx": 49.35,
+        "tol": 8
+      }
+    ]
+  },
+  "pistol_squat_front": {
+    "exercise": "pistol_squat",
+    "verified": "Watched: 6 pistol squats, all deep; person turns side-on mid-clip.",
+    "checks": [
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 6
+      },
+      {
+        "path": [
+          "reps_below_parallel"
+        ],
+        "eq": 6
+      },
+      {
+        "path": [
+          "min_thigh_deg_mean"
+        ],
+        "approx": -35.0,
+        "tol": 8
+      }
+    ]
+  },
+  "plank_side": {
+    "exercise": "plank",
+    "verified": "Watched: forearm plank for the whole clip, mild pike, clear pike at 10-12 s.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "hold_s"
+        ],
+        "approx": 16.64,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "hip_offset_pct_mean"
+        ],
+        "approx": -8.66,
+        "tol": 3.0
+      },
+      {
+        "path": [
+          "pct_time_pike"
+        ],
+        "approx": 78.6,
+        "tol": 15
+      },
+      {
+        "path": [
+          "stability",
+          "margin_cm",
+          "median"
+        ],
+        "approx": 63.7,
+        "tol": 8
+      },
+      {
+        "path": [
+          "stability",
+          "contact_pct",
+          "left_forearm"
+        ],
+        "approx": 92.4,
+        "tol": 10
+      }
+    ]
+  },
+  "plank_front": {
+    "exercise": "plank",
+    "verified": "Legs hidden behind the body from the front: hands-only contact is the expected (limited) result.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "stability",
+          "stance_time_s",
+          "hands"
+        ],
+        "approx": 12.91,
+        "tol": 2.0
+      }
+    ]
+  },
+  "plank_to_pike_pushup_side": {
+    "exercise": "pike_pushup",
+    "verified": "Watched: plank, walk into pike, 1 pike push-up, hold, back down.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 1
+      },
+      {
+        "path": [
+          "plank_s"
+        ],
+        "approx": 3.54,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "pike_straight_arms_s"
+        ],
+        "approx": 5.77,
+        "tol": 1.5
+      },
+      {
+        "path": [
+          "min_elbow_deg_mean"
+        ],
+        "approx": 53.6,
+        "tol": 10
+      }
+    ]
+  },
+  "jumping_jacks_front": {
+    "exercise": "jumping_jacks",
+    "verified": "Watched: 6 jumping jacks = 12 jumps (out and in).",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 6
+      },
+      {
+        "path": [
+          "stability",
+          "jumps",
+          "count"
+        ],
+        "eq": 12
+      },
+      {
+        "path": [
+          "reps_per_min"
+        ],
+        "approx": 56.8,
+        "tol": 5
+      },
+      {
+        "path": [
+          "stability",
+          "jumps",
+          "height_cm_mean"
+        ],
+        "approx": 4.6,
+        "tol": 2.0
+      }
+    ]
+  },
+  "lunge_side": {
+    "exercise": "none",
+    "verified": "Old jumping-lunge clip (feet partly cut off). Snapshot only.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "stability",
+          "jumps",
+          "count"
+        ],
+        "approx": 5,
+        "tol": 1
+      }
+    ]
+  },
+  "lunge_sinde": {
+    "exercise": "none",
+    "verified": "Jumping lunges, side. Snapshot only.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "stability",
+          "jumps",
+          "count"
+        ],
+        "approx": 6,
+        "tol": 1
+      },
+      {
+        "path": [
+          "stability",
+          "margin_cm",
+          "median"
+        ],
+        "approx": 35.5,
+        "tol": 6
+      }
+    ]
+  },
+  "lunge_front": {
+    "exercise": "none",
+    "verified": "Jumping lunges, front. Snapshot only.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "stability",
+          "jumps",
+          "count"
+        ],
+        "approx": 4,
+        "tol": 1
+      }
+    ]
+  },
+  "tree_pose_front": {
+    "exercise": "balance",
+    "verified": "Watched: tree pose on the left foot ~10 s.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "balance",
+          "stance"
+        ],
+        "eq": "L foot"
+      },
+      {
+        "path": [
+          "balance",
+          "hold_s"
+        ],
+        "approx": 10.61,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "balance",
+          "sd_cm"
+        ],
+        "approx": 0.89,
+        "tol": 0.5
+      }
+    ]
+  },
+  "standing_onefoot_front": {
+    "exercise": "balance",
+    "verified": "Watched: right foot then left foot.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "balance",
+          "stance"
+        ],
+        "eq": "R foot"
+      },
+      {
+        "path": [
+          "balance",
+          "hold_s"
+        ],
+        "approx": 9.18,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "balance",
+          "sd_cm"
+        ],
+        "approx": 0.6,
+        "tol": 0.5
+      }
+    ]
+  },
+  "standing_onefoot_side": {
+    "exercise": "balance",
+    "verified": "Watched: right foot then left foot.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "balance",
+          "stance"
+        ],
+        "eq": "R foot"
+      },
+      {
+        "path": [
+          "balance",
+          "hold_s"
+        ],
+        "approx": 7.57,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "balance",
+          "sd_cm"
+        ],
+        "approx": 1.32,
+        "tol": 0.6
+      }
+    ]
+  },
+  "crow_pose_side": {
+    "exercise": "balance",
+    "verified": "Watched: crow pose, ~11 s on the hands, COM over the hands.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "balance",
+          "stance"
+        ],
+        "eq": "L hand"
+      },
+      {
+        "path": [
+          "balance",
+          "hold_s"
+        ],
+        "approx": 10.81,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "balance",
+          "margin_cm_median"
+        ],
+        "approx": 0.3,
+        "tol": 2.0
+      }
+    ]
+  },
+  "standing_still_side": {
+    "exercise": "none",
+    "verified": "Feet cut off at the bottom of the frame: the warning must stay.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "side"
+      },
+      {
+        "path": [
+          "stability",
+          "warnings"
+        ],
+        "contains": "feet outside the frame"
+      },
+      {
+        "path": [
+          "stability",
+          "com_sway",
+          "sd_cm"
+        ],
+        "approx": 0.48,
+        "tol": 0.4
+      }
+    ]
+  },
+  "standing_still_front": {
+    "exercise": "none",
+    "verified": "Feet cut off at the bottom of the frame: the warning must stay.",
+    "checks": [
+      {
+        "path": [
+          "view"
+        ],
+        "eq": "front"
+      },
+      {
+        "path": [
+          "stability",
+          "warnings"
+        ],
+        "contains": "feet outside the frame"
+      }
+    ]
+  },
+  "hang_front": {
+    "exercise": "dead_hang",
+    "verified": "Watched: dead hang ~7 s, straight arms, door-frame bar, camera at an angle.",
+    "checks": [
+      {
+        "path": [
+          "dead_hang",
+          "hold_s"
+        ],
+        "approx": 7.34,
+        "tol": 0.5
+      },
+      {
+        "path": [
+          "dead_hang",
+          "elbow_deg_median"
+        ],
+        "approx": 170.3,
+        "tol": 8
+      },
+      {
+        "path": [
+          "dead_hang",
+          "swing_sd_cm"
+        ],
+        "approx": 0.26,
+        "tol": 0.5
+      },
+      {
+        "path": [
+          "stability",
+          "warnings"
+        ],
+        "contains": "floor not visible"
+      }
+    ]
+  },
+  "narrow_pullup_front": {
+    "exercise": "pullup",
+    "verified": "Watched: 2 slow narrow-grip pull-ups, no kipping; face hidden by the door frame at the top; chin about level with the bar.",
+    "checks": [
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 2
+      },
+      {
+        "path": [
+          "reps_kipping"
+        ],
+        "eq": 0
+      },
+      {
+        "path": [
+          "reps_chin",
+          "under"
+        ],
+        "eq": 0
+      },
+      {
+        "path": [
+          "pull_cm_mean"
+        ],
+        "approx": 45.6,
+        "tol": 6
+      },
+      {
+        "path": [
+          "top_gap_cm_mean"
+        ],
+        "approx": 7.5,
+        "tol": 4
+      },
+      {
+        "path": [
+          "top_elbow_deg_mean"
+        ],
+        "approx": 81.15,
+        "tol": 12
+      }
+    ]
+  },
+  "leg_raise_front": {
+    "exercise": "leg_raise",
+    "verified": "Watched: 4 hanging leg raises, last two higher.",
+    "checks": [
+      {
+        "path": [
+          "reps"
+        ],
+        "eq": 4
+      },
+      {
+        "path": [
+          "min_hip_deg_mean"
+        ],
+        "approx": 41.35,
+        "tol": 10
+      },
+      {
+        "path": [
+          "reps_toes_to_bar"
+        ],
+        "approx": 1,
+        "tol": 1
+      }
+    ]
+  },
+  "knee_raise_hold_front": {
+    "exercise": "leg_raise",
+    "verified": "Watched: one knee-raise hold ~9 s, hips sinking with fatigue.",
+    "checks": [
+      {
+        "path": [
+          "raised_hold",
+          "hold_s"
+        ],
+        "approx": 9.04,
+        "tol": 1.0
+      },
+      {
+        "path": [
+          "raised_hold",
+          "hip_drop_deg"
+        ],
+        "approx": 32.0,
+        "tol": 12
+      }
+    ]
+  }
+}

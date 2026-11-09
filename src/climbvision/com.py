@@ -84,7 +84,7 @@ SEGMENTS: list[Segment] = _build_segments()
 
 
 def _point(points: np.ndarray, endpoint: Endpoint) -> np.ndarray:
-    return points[list(endpoint)].mean(axis=0)
+    return points[..., list(endpoint), :].mean(axis=-2)
 
 
 def segment_params(sex: Sex = "male") -> tuple[np.ndarray, np.ndarray]:
@@ -95,21 +95,25 @@ def segment_params(sex: Sex = "male") -> tuple[np.ndarray, np.ndarray]:
 
 
 def segment_coms(points: np.ndarray, sex: Sex = "male") -> np.ndarray:
-    """COM of every segment. `points` is (33, D) for any D (2 for pixels, 3 for world)."""
+    """COM of every segment, shape (..., 14, D).
+
+    `points` is (..., 33, D): one frame (33, D) or a whole clip (n, 33, D);
+    D = 2 for pixels, 3 for world coordinates.
+    """
     points = np.asarray(points, dtype=float)
     _, ratios = segment_params(sex)
-    out = np.empty((len(SEGMENTS), points.shape[1]))
-    for i, (seg, r) in enumerate(zip(SEGMENTS, ratios, strict=False)):
+    segs = []
+    for seg, r in zip(SEGMENTS, ratios, strict=True):
         p = _point(points, seg.proximal)
         d = _point(points, seg.distal)
-        out[i] = p + r * (d - p)
-    return out
+        segs.append(p + r * (d - p))
+    return np.stack(segs, axis=-2)
 
 
 def whole_body_com(points: np.ndarray, sex: Sex = "male") -> np.ndarray:
-    """Whole-body centre of mass, shape (D,)."""
+    """Whole-body centre of mass, shape (..., D)."""
     masses, _ = segment_params(sex)
-    return masses @ segment_coms(points, sex)
+    return np.einsum("s,...sd->...d", masses, segment_coms(points, sex))
 
 
 def com_confidence(visibility: np.ndarray, sex: Sex = "male") -> float:

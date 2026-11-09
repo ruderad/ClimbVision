@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/hang._frontMOV.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 221,
+  "fps": 29.97002997002997,
+  "duration_s": 7.341,
+  "frames_with_pose": 221,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      511.7,
+      654.1
+    ],
+    "std": [
+      0.69,
+      3.07
+    ],
+    "range": [
+      4.0,
+      12.7
+    ]
+  },
+  "mean_confidence": 0.96,
+  "com_world_m": {
+    "mean": [
+      0.0133,
+      -0.1555,
+      -0.0126
+    ],
+    "std": [
+      0.0021,
+      0.0029,
+      0.0088
+    ]
+  }
+}

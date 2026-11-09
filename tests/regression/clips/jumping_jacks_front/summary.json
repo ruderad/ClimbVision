@@ -1,0 +1,40 @@
+{
+  "video": "data/videos/jumping_jacks_front.MOV",
+  "sex_model": "male",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "frames": 227,
+  "fps": 29.97002997002997,
+  "duration_s": 7.541,
+  "frames_with_pose": 227,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      355.3,
+      728.5
+    ],
+    "std": [
+      8.28,
+      22.5
+    ],
+    "range": [
+      29.1,
+      73.3
+    ]
+  },
+  "mean_confidence": 0.989,
+  "com_world_m": {
+    "mean": [
+      0.0028,
+      -0.0912,
+      -0.0267
+    ],
+    "std": [
+      0.0059,
+      0.0346,
+      0.0188
+    ]
+  }
+}

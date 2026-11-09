@@ -6,7 +6,9 @@ import json
 import cv2
 import numpy as np
 
+from climbvision.metrics import run_metrics
 from climbvision.pipeline import analyze
+from climbvision.render import render
 from climbvision.skeleton import N_LANDMARKS, Skeleton
 
 
@@ -43,7 +45,7 @@ def test_analyze_writes_all_outputs(tmp_path):
     out = tmp_path / "out"
     summary = analyze(video, out, FakeEstimator())
 
-    for name in ("annotated.mp4", "landmarks.csv", "com.csv", "summary.json"):
+    for name in ("landmarks.csv", "com.csv", "summary.json"):
         assert (out / name).exists(), name
 
     assert summary["frames"] == 20
@@ -60,3 +62,33 @@ def test_analyze_writes_all_outputs(tmp_path):
 
     # COM of a constant skeleton is constant
     assert summary["com_px"]["std"] == [0.0, 0.0]
+
+
+def test_metrics_and_render_from_results(tmp_path):
+    video = tmp_path / "clip.mp4"
+    make_video(video)
+    out = tmp_path / "out"
+    analyze(video, out, FakeEstimator())
+    m = run_metrics(out, "none")
+    assert "stability" in m and "angle_ranges" in m
+    for name in ("angles.csv", "stability.csv", "metrics.json", "report.png"):
+        assert (out / name).exists(), name
+    path = render(video, out)
+    cap = cv2.VideoCapture(str(path))
+    assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 20
+
+
+def test_summary_headlines(tmp_path):
+    from climbvision.summary import headline, markdown_table, summarize_results
+
+    assert headline({"exercise": "squat", "reps": 1, "reps_below_parallel": 1,
+                     "min_knee_deg_mean": 40.0}) == "1 rep, 1 below parallel, knee 40°"
+    assert headline({"exercise": "balance", "balance": {"hold_s": 9.2, "stance": "R foot",
+                                                       "sd_cm": 0.6}}).startswith("9.2 s on R")
+    d = tmp_path / "clip"
+    d.mkdir()
+    (d / "metrics.json").write_text(json.dumps({"exercise": "pullup", "view": "front", "reps": 2,
+                                                "pull_cm_mean": 45.0, "stability": {}}))
+    rows = summarize_results([d, tmp_path / "missing"])
+    assert len(rows) == 1 and rows[0]["result"].startswith("2 reps, pull 45 cm")
+    assert "| clip |" in markdown_table(rows)
