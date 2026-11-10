@@ -38,13 +38,15 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
     out_path = Path(out_path) if out_path else result_dir / "wall_view.mp4"
     cam = CameraTrack.load(result_dir / "camera.csv")
     wall = WallImage.load(result_dir)
-    track = Track.from_csv(result_dir / "landmarks.csv")
     ws = None
     try:
         from climbvision.analysis import load_clip
 
-        ws = load_clip(result_dir).wall_support
+        clip = load_clip(result_dir)  # the cleaned pose
+        track = clip.track
+        ws = clip.wall_support
     except Exception:  # noqa: BLE001 - the view still works without the wall layer
+        track = Track.from_csv(result_dir / "landmarks.csv")
         ws = None
     zoom = min(1.0, max_side / max(wall.image.shape[:2]))
     T = np.diag([zoom, zoom, 1.0]) @ wall.T  # wall coords -> output pixels

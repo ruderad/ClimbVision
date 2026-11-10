@@ -376,10 +376,15 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Thick bar on the floor | Base of support; **green** = COM above it, **red** = outside |
 | Dashed line + triangle | The COM's plumb line to the floor |
 | Purple squares + line | Hands on a bar |
+| Yellow outline, lightly filled (wall) | Base of support on the wall: the hull of the limbs on holds (a line for two) |
+| Dashed line from the COM (wall) | Its plumb line down the wall; **green** = COM over the feet on holds, **red** = not (on the wall only) |
+| Red joint dots | Repaired or doubtful points from the clean-up layer (§6.15) |
 | Top-left box | Time, stance, margin (or swing on a bar), warnings |
 
 **Always watch the video before trusting numbers.** If the skeleton jumps, swaps legs
-or misplaces a hidden limb, the numbers for those frames are wrong too.
+or misplaces a hidden limb, the numbers for those frames are wrong too. With the
+climbing models the clean-up layer (§6.15) repairs most of these; what it changed is
+in `pose_cleanup` in metrics.json.
 
 ### 5.2 `stability` in metrics.json
 
@@ -920,6 +925,35 @@ on the wall when a foot was *not* anchored (sampled every second), about half we
 foot moving and half pose errors. Foot accuracy is therefore now limited by the pose
 model, which is what E5 (a better pose backend) addresses.
 
+### 6.15 Cleaning the pose (`engine/cleanup.py`)
+
+Pose models answer for every joint, even a hidden one. On the wall the typical failure is
+a leg behind the body — a drop knee, a heel hook on the far side: for single frames or
+short bursts the model puts the hidden knee or foot on whatever is visible (the other
+leg, a hand), and the limb flickers between the two places. The clean-up layer repairs
+this from what we know about bodies, in wall coordinates (camera motion removed), then
+maps the result back to the image. It runs when the clip is loaded (nothing is
+re-estimated, `landmarks.csv` stays raw), by default for the 2D climbing models
+(RTMPose / RTMW); `load_clip(folder, clean=True/False)` forces it.
+
+| Step | Rule | Repair |
+|---|---|---|
+| Swaps | exchanging the left and right limb fits the previous frame at least 2× better | exchanged back |
+| Flicker | a joint (relative to its hip / shoulder) is > 0.12 body from its running median over 0.6 s | takes the median (a limb doesn't jump away and back in 0.1 s) |
+| Impossible bone | longer than 1.35 × the bone's 75th-percentile length in the clip (and never shorter than the segment's share of the body length, Drillis & Contini: thigh, shank 0.31; upper arm 0.24; forearm 0.20). A picture can shorten a bone, never lengthen it | knee / elbow: two-bone IK from hip and ankle with the limb's own lengths, bent to the same side as in the nearest good frame; ankle / wrist: interpolated over ≤ 0.8 s; heel, toes, hand: carried with the ankle / wrist at their offset in the nearest good frame |
+| Check | a repair must fit the limb's motion in the surrounding second (running median of the untouched frames) at least as well as the raw point did | otherwise the raw point is put back and flagged |
+
+Repaired points get visibility 0.5, points found wrong but not repaired 0.2 (drawn as
+uncertain, ignored where visibility matters). `pose_cleanup` in metrics.json counts
+frames with any change, the share of limb points changed (3–7 % on the wall clips),
+and swaps / flicker / repaired / not repaired / reverted frames.
+
+What it fixes well: the hidden leg collapsing onto the other leg for a frame, a foot
+flickering onto a hand, a limb wandering off for a few frames at the end of a clip. What
+it can't: a limb wrong for a long stretch in a consistent way (the median then follows
+the wrong position), or a body part out of the frame. The rules are deliberately
+conservative: nothing is invented without good frames of the same limb on both sides.
+
 ---
 
 ## 7. Architecture and design philosophy
@@ -956,9 +990,10 @@ model, which is what E5 (a better pose backend) addresses.
 |---|---|---|---|
 | Video | `engine/video.py` | frames with their real timestamps | ✅ |
 | Camera | `engine/camera.py` | each frame registered to the wall (H per frame), the wall image | ✅ |
-| Subject | – | the climber locked and separated from the wall and other people | E3 |
+| Subject | `engine/backends/_topdown.py` | the climber locked: top-down tracking from the previous frame's skeleton, person detector every 15 frames | ✅ (RTMPose/RTMW) |
 | Pose | `engine/pose.py`, `engine/backends/` | a backend's raw points per frame → `landmarks.csv` | ✅ MediaPipe |
 | Skeleton | `engine/skeleton.py`, `engine/track.py` | canonical joints as arrays (`Track`) | ✅ |
+| Clean-up | `engine/cleanup.py` | swaps, flicker and impossible limbs repaired (§6.15) | ✅ 2D backends |
 | Biomechanics | `engine/biomech.py` | centre of mass, joint angles, view, near side | ✅ |
 | Scale | `engine/scale.py` | pixels per metre, body length | ✅ |
 | Surfaces | `engine/surfaces.py` | the floor line (later: wall plane, holds) | floor ✅ |
@@ -970,9 +1005,8 @@ model, which is what E5 (a better pose backend) addresses.
 | Analyses | `recipes/` | recipe runner + `library/*.yaml` | ✅ 9 recipes |
 | Output | `analysis.py`, `output/` | metrics.json, CSVs, report.png, annotated.mp4, summary | ✅ |
 
-Each layer only reads the layers above it. Missing layers (camera, subject) are where
-the on-the-wall work goes next; because recipes only see *signals*, they will not need to
-change when those layers arrive.
+Each layer only reads the layers above it. Because recipes only see *signals*, they
+don't change when a layer improves (a better pose model, the clean-up layer).
 
 ### 7.3 Data flow
 
@@ -1284,6 +1318,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
 | Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
+| Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 
 Change one and run `pytest`: the regression tests show which real clips it affects.
@@ -1320,7 +1355,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Limitation | Effect | Workaround / future |
 |---|---|---|
 | Single camera | Stability only along one axis; depth from a learned estimate | Two cameras or a depth camera |
-| Hidden limbs (far side, behind hips) | Mis-placed landmarks, lost contacts (e.g. pistol squat bottom) | Choose the view that shows the working limb |
+| Hidden limbs (far side, behind hips) | Mis-placed landmarks, lost contacts (e.g. pistol squat bottom, drop knees on the wall) | On the wall the clean-up layer repairs short glitches (§6.15); a limb hidden for long stays doubtful. Off the wall: choose the view that shows the working limb |
 | Limbs pointing at the camera | Wrong 2D angles, mis-placed raised knee in front view | Use the side view; 3D angles are a rough fallback |
 | Front-view 3D bias | Straight knee ≈ 163°, trunk lean under-read | Judge sagittal form from the side |
 | Camera tilt | "Vertical" tilts; trunk lean and margins shift | Level camera at hip height |
@@ -1333,7 +1368,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
 | COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |
 | Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |
-| Several people / wall features | Skeleton can jump to another person or onto holds | E3: subject lock |
+| Several people / wall features | MediaPipe can jump to another person or onto holds | Use the climbing models (top-down tracking locks the climber); one climber in frame |
 | Hanging whole clip | Floor unknown | Start standing on the floor |
 | Face hidden at the top of a pull-up | Pose model still predicts a face | Chin estimated from the body; ±5 cm reported as `at bar` |
 | Camera at an angle to the bar | Constant swing offset of a few cm | Use swing sd/range |

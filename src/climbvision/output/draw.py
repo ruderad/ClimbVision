@@ -19,6 +19,7 @@ INSIDE_COLOR = (90, 210, 60)  # green
 OUTSIDE_COLOR = (50, 50, 240)  # red
 CONTACT_COLOR = (255, 220, 0)  # cyan
 GRIP_COLOR = (255, 90, 160)  # purple
+BASE_COLOR = (0, 230, 255)  # yellow: base of support on the wall
 
 
 def _pt(p: np.ndarray) -> tuple[int, int]:
@@ -105,6 +106,30 @@ def draw_contacts(frame: np.ndarray, points: np.ndarray) -> None:
         if np.all(np.isfinite(p)):
             cv2.circle(frame, _pt(p), max(5, int(10 * s)), CONTACT_COLOR, max(2, int(3 * s)),
                        cv2.LINE_AA)
+
+
+def draw_base(frame: np.ndarray, points: np.ndarray, plumb: tuple | None = None,
+              inside: bool | None = None) -> None:
+    """Base of support on the wall: the hull of the limbs on holds (translucent yellow,
+    3+ limbs; a line for 2) and the COM's plumb line down to the lowest hold (green when
+    the COM is over the feet, red when not)."""
+    s = _scale(frame)
+    pts = np.array([p for p in points if np.all(np.isfinite(p))], np.float32).reshape(-1, 2)
+    if len(pts) >= 3:
+        hull = cv2.convexHull(pts).astype(np.int32)
+        over = frame.copy()
+        cv2.fillPoly(over, [hull], BASE_COLOR, cv2.LINE_AA)
+        cv2.addWeighted(over, 0.22, frame, 0.78, 0, frame)
+        cv2.polylines(frame, [hull], True, BASE_COLOR, max(2, int(3 * s)), cv2.LINE_AA)
+    elif len(pts) == 2:
+        cv2.line(frame, _pt(pts[0]), _pt(pts[1]), BASE_COLOR, max(2, int(3 * s)), cv2.LINE_AA)
+    if plumb is not None and all(np.all(np.isfinite(p)) for p in plumb):
+        col = BONE_COLOR if inside is None else (INSIDE_COLOR if inside else OUTSIDE_COLOR)
+        a, b = np.asarray(plumb[0], float), np.asarray(plumb[1], float)
+        n = max(2, int(np.linalg.norm(b - a) / max(6, 12 * s)))
+        for k in range(0, n, 2):  # dashed
+            p0, p1 = a + (b - a) * k / n, a + (b - a) * (k + 1) / n
+            cv2.line(frame, _pt(p0), _pt(p1), col, max(2, int(2 * s)), cv2.LINE_AA)
 
 
 def draw_grips(frame: np.ndarray, points: Sequence[np.ndarray]) -> None:

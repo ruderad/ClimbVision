@@ -2,6 +2,8 @@
 
 Shows the skeleton, COM with a trail, the floor line, ground contacts, the support
 span on the floor and the COM's plumb line (green = COM over the support, red = not).
+On the wall: limbs on holds, the base of support (hull of the limbs on holds) and the
+COM's plumb line down the wall (green = COM over the feet, red = not).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from climbvision.engine.video import VideoReader, VideoWriter
 from climbvision.output.draw import (
     INSIDE_COLOR,
     OUTSIDE_COLOR,
+    draw_base,
     draw_com,
     draw_contacts,
     draw_floor,
@@ -78,6 +81,19 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                         held = [ws.points[limb][i] for limb in ws.on_hold
                                 if ws.on_hold[limb][i]]
                         img_pts = [p for p in _to_image(clip, i, held) if np.isfinite(p).all()]
+                        plumb, inside = None, None
+                        c = ws.com[i]
+                        if held and ws.on_wall[i] and np.isfinite(c).all():  # straight down
+                            # down to the lowest hold, at least a quarter body
+                            low = max(max(float(p[1]) for p in held), c[1] + 0.25 * ws.body_px)
+                            ends = _to_image(clip, i, [c, np.array([c[0], low])])
+                            plumb = tuple(ends) if len(ends) == 2 else None
+                            m = ws.com_over_feet_cm[i]
+                            if np.isfinite(m):
+                                inside = bool(m > 0)
+                                lines.append(f"COM over feet {m:+.0f} cm")
+                                colors.append(INSIDE_COLOR if inside else OUTSIDE_COLOR)
+                        draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, inside)
                         draw_contacts(img, np.array(img_pts).reshape(-1, 2))
                         draw_com(img, com, list(trail))
                         draw_label(img, lines, colors)

@@ -172,7 +172,7 @@ layers one at a time.
 |---|---|---|
 | **E1 ✅** | Layered engine: canonical skeleton (no face), backend mapping, layers re-run from saved data, recipe system, today's exercises as YAML recipes | the 20 reference clips give the same results |
 | **E2 ✅** | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
-| E3 | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
+| **E3 ✅** | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
 | **E4 ✅** | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
 | **E5 ✅** | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
 | E6 | Climbing recipes: moves, hold usage, route map | first per-move report |
@@ -357,6 +357,46 @@ including videos) and added slab, overhang2, moonboard2 (camera on a mount).
   can't say much about balance (see GUIDE §9).
 - `coordination` has 1369 frames now (was 1755 at E4): the video file seems to have
   been replaced or trimmed, so it isn't comparable frame by frame with earlier runs.
+
+## E3 — subject lock + pose clean-up ✅ (2026-11-10)
+**Subject lock — already met by E5.** RTMW/RTMPose run top-down: the box comes from the
+previous frame's skeleton and the person detector re-checks every 15 frames, keeping
+the box that overlaps most. On the 8 wall clips the climber is detected in 98.5–100 %
+of frames and the skeleton never moves to another person or onto a volume. The only
+hip jumps > 0.2 body/frame are at the very end of overhang (47.4–48.2 s) and moonboard2
+(33.7–33.8 s): the climber dropping off the wall with motion blur — real motion, not a jump
+to something else (checked by eye). Segmenting the climber was not needed: the camera
+layer's climber mask comes from the pose.
+
+**Pose clean-up (`engine/cleanup.py`, GUIDE §6.15)** — the "reject implausible poses"
+part, aimed at drop knees: the hidden leg collapses onto the other leg or the foot
+flickers onto a hand. Swaps, flicker (running median) and impossible bones (IK knee,
+interpolated ankle, carried foot), each repair checked against the limb's motion and
+undone if it fits worse. Runs when loading a clip for 2D backends; `landmarks.csv`
+stays raw.
+
+Checked by eye before/after on the glitch episodes (overhang 32.4/33.0/33.5 s,
+coordination_failed 19.9/20.5/23.5 s, moonboard2 26.4/27.5/31.4 s): the collapsed and
+flickering legs are repaired; a first version made some frames worse (a toe carried
+with a wrong ankle, a knee bent the wrong way), which led to the final check step.
+Leg knee jumps > 0.12 body/frame: overhang L 76 → 52, coordination_failed L/R 31/42 →
+16/22, moonboard2 L 28 → 15, coordination L/R 26/23 → 18/11. Limb points changed:
+3–7 %.
+
+| Clip | On wall | Holds | 4 limbs on holds (R7 → now) | Feet on holds (R7 → now) |
+|---|---|---|---|---|
+| traverse | 32.6 s | 29 → 31 | 56 → 57 % | 87 → 89 % |
+| moonboard | 43.1 s | 29 → 28 | 49 → 54 % | 76 → 79 % |
+| overhang | 43.2 s | 33 → 31 | 53 → 58 % | 77 → 80 % |
+| coordination | 38.0 s | 25 → 24 | 38 → 38 % | 63 → 63 % |
+| coordination_failed | 18.0 s | 12 → 12 | 54 → 52 % | 61 → 61 % |
+| slab | 25.4 s | 22 → 25 | 41 → 53 % | 85 → 82 % |
+| overhang2 | 18.6 s | 16 → 17 | 33 → 35 % | 54 → 58 % |
+| moonboard2 | 27.7 s | 22 → 22 | 44 → 48 % | 76 → 79 % |
+
+**Base of support on annotated.mp4** (was only in wall_view): the hull of the limbs on
+holds (yellow), and on the wall the COM's plumb line down the wall, green when the COM
+is over the feet on holds, red when not, with "COM over feet ±x cm" in the label.
 
 ## Test clips to record (for M1–M5)
 

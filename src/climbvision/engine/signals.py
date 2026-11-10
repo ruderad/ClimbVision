@@ -36,6 +36,7 @@ class Clip:
     camera: CameraTrack | None = None  # None = fixed camera assumed
     wall_image: WallImage | None = None  # the wall without the climber (camera layer)
     sex: str = "male"
+    cleanup: dict | None = None  # clean-up layer report (None = not run)
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod

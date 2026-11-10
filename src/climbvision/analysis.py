@@ -23,9 +23,10 @@ def clip_info(result_dir: Path) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def load_clip(result_dir: str | Path, bar: bool = False) -> Clip:
+def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = None) -> Clip:
     """All engine layers for a results folder. The camera layer (camera.csv) is used
-    when present; otherwise the camera is assumed fixed."""
+    when present; otherwise the camera is assumed fixed. `clean`: run the clean-up layer
+    on the pose (None = for 2D-only backends, i.e. the climbing models)."""
     from climbvision.engine.camera import CameraTrack, WallImage
 
     result_dir = Path(result_dir)
@@ -36,9 +37,18 @@ def load_clip(result_dir: str | Path, bar: bool = False) -> Clip:
         cam = CameraTrack.load(result_dir / "camera.csv")
     if (result_dir / "wall.jpg").exists() and (result_dir / "wall.json").exists():
         wall = WallImage.load(result_dir)
-    return Clip.build(track, info.get("sex_model", "male"),
+    report = None
+    if clean is None:
+        clean = not np.isfinite(track.world).any()
+    if clean:
+        from climbvision.engine.cleanup import clean_track
+
+        track, report = clean_track(track, cam)
+    clip = Clip.build(track, info.get("sex_model", "male"),
                       tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
                       camera=cam, wall_image=wall)
+    clip.cleanup = report
+    return clip
 
 
 def resolve_recipe(result_dir: Path, recipe: str | Recipe = "auto",
@@ -93,6 +103,16 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
         from climbvision.engine.camera import camera_summary
 
         out["camera"] = camera_summary(clip.camera, clip.stability.scale.px_per_m)
+    if clip.cleanup is not None:
+        c = clip.cleanup
+        out["pose_cleanup"] = {
+            "frames_changed_pct": c["frames_changed_pct"],
+            "limb_points_changed_pct": c.get("limb_points_changed_pct", 0.0),
+            "swaps": sum(c.get("swaps", {}).values()),
+            "flicker_frames": sum(c.get("flicker_frames", {}).values()),
+            "repaired_frames": sum(c.get("repaired_frames", {}).values()),
+            "not_repaired_frames": sum(c.get("not_repaired_frames", {}).values()),
+            "reverted_frames": sum(c.get("reverted_frames", {}).values())}
     if plot:
         from climbvision.output.report import plot_report
 
