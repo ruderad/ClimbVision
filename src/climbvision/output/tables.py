@@ -35,3 +35,26 @@ def write_stability_csv(path: Path, st: Stability, t: np.ndarray) -> None:
                         f"{st.com_px[i, 0]:.1f}", f"{st.support_lo_px[i]:.1f}",
                         f"{st.support_hi_px[i]:.1f}", f"{st.margin_cm[i]:.2f}",
                         f"{st.swing_cm[i]:.2f}", int(st.feet_out_of_frame[i])])
+
+
+def write_wall_csv(path: Path, ws, t: np.ndarray) -> None:
+    """Per frame: contacts on the wall, limb positions (wall px), hold ids, COM, margins."""
+    from climbvision.engine.wall import LIMBS
+
+    hold_at = {limb: np.full(len(t), -1) for limb in LIMBS}
+    for limb in LIMBS:
+        for a in ws.anchors[limb]:
+            if not a.ground:
+                hold_at[limb][a.start:a.end] = a.hold
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["time_s", "contacts", "n_contacts", "on_wall", "on_ground",
+                    *(f"{limb}_hold" for limb in LIMBS),
+                    *(f"{limb}_{a}" for limb in LIMBS for a in ("x", "y")),
+                    "com_x", "com_y", "com_over_feet_cm", "polygon_margin_cm"])
+        for i, ti in enumerate(t):
+            w.writerow([f"{ti:.4f}", ws.labels[i], int(ws.n_contacts[i]), int(ws.on_wall[i]),
+                        int(ws.on_ground[i]), *(int(hold_at[limb][i]) for limb in LIMBS),
+                        *(f"{ws.points[limb][i, k]:.1f}" for limb in LIMBS for k in (0, 1)),
+                        f"{ws.com[i, 0]:.1f}", f"{ws.com[i, 1]:.1f}",
+                        f"{ws.com_over_feet_cm[i]:.2f}", f"{ws.polygon_margin_cm[i]:.2f}"])

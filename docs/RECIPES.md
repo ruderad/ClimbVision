@@ -34,7 +34,7 @@ climbvision metrics outputs/* --recipes ~/my_recipes     # add a folder of recip
 | `description` | | What it measures and how; shown by `climbvision recipes` |
 | `match` | | List of regular expressions on the clip folder / video name (case-insensitive) |
 | `priority` | | Order in which `match` is tried, lower first (default 100). First match wins |
-| `scene` | | `floor` (default) or `bar`: detect hands gripping a bar; learn the floor without them |
+| `scene` | | `floor` (default); `bar`: detect hands gripping a bar, learn the floor without them; `wall`: report the wall layer (`wall` block in metrics.json instead of `stability`) |
 | `signals` | | `{name: expression}`, evaluated in order |
 | `reps` | | Repetition counting (below) |
 | `summary` | | `{key: field}` clip-level results |
@@ -179,7 +179,8 @@ Inside a hold: `t_start`, `duration` (s), `i_start`, `i_end`, `n_win` (frames), 
 | Centre of mass | `com_x_px`, `com_y_px`, `com_x_cm` |
 | Support | `margin_cm`, `on_floor`, `stance`, `ppm` |
 | Bar | `on_bar`, `hanging`, `swing_cm`, `bar_y` |
-| Camera / wall | `wall_speed_l_hand`, `_r_hand`, `_l_foot`, `_r_foot` (body lengths/s with the camera motion removed), `image_speed_…` (the same in the image), `camera_ok`, `camera_speed` |
+| Wall layer (`scene: wall`) | `on_hold_l_hand`, `on_hold_r_hand`, `on_hold_l_foot`, `on_hold_r_foot`, `n_contacts`, `on_wall`, `on_ground`, `com_over_feet_cm`, `polygon_margin_cm`, `com_height_m`, `wall_contacts` (label) |
+| Camera | `wall_speed_l_hand`, `_r_hand`, `_l_foot`, `_r_foot` (body lengths/s with the camera motion removed), `image_speed_…` (the same in the image), `camera_ok`, `camera_speed` |
 
 Image y points **down**: a smaller y is higher. The `wall_…` signals use the camera layer
 when the clip has one (`camera.csv`); otherwise the camera is assumed fixed and they
@@ -201,3 +202,4 @@ Keep signals generic ("hip below knee"), and put movement-specific logic in reci
 | `plank.yaml` | a hold with `min_frames`, `pct`, `if_missing`, a band in the plot |
 | `balance.yaml` | a hold `by: stance`, `merge: [sway(...)]` |
 | `dead_hang.yaml` | a hold on an engine mask, conditional fields |
+| `climb.yaml` | `scene: wall`, summary fields from wall signals, a hold on `on_wall & (n_contacts == 4)` |

@@ -51,7 +51,7 @@ def summarize_results(dirs: list[Path], recipe_dirs: list[Path] | None = None) -
             "result": headline(m, recipes),
             "margin_median_cm": (st.get("margin_cm") or {}).get("median"),
             "sway_sd_cm": (st.get("com_sway") or {}).get("sd_cm"),
-            "warnings": "; ".join(st.get("warnings", [])),
+            "warnings": "; ".join(st.get("warnings", []) + m.get("wall", {}).get("warnings", [])),
         })
     return rows
 

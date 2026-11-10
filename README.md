@@ -2,7 +2,8 @@
 
 Movement analysis from video: a generic engine (pose → canonical skeleton → centre of
 mass, angles, contacts, support) plus **recipes** — small YAML files that say what to
-measure for one movement. Off-the-wall movements work today; climbing is next.
+measure for one movement. Off-the-wall movements and first climbing analyses (holds,
+moves, contacts) work today.
 See [PLAN.md](PLAN.md) for the milestones and **[docs/GUIDE.md](docs/GUIDE.md) for the
 complete guide**: recording tips, every output explained, the science behind each
 measurement, the architecture, and how to extend the package.
@@ -45,6 +46,7 @@ The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 | `pullup` | `pullup`, `chinup` | reps, COM rise (cm), chin over bar, tempo, swing, kipping |
 | `leg_raise` | `leg_raise`, `toes_to_bar`, `knee_raise` | reps, hip/knee angle, toes to bar |
 | `dead_hang` | `dead_hang`, `hang…` (not `overhang`) | hang time, arm straightness, swing |
+| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route` | hands/feet on holds (still ~0.5 s on the wall), holds used, moves, limbs on holds over time, COM over the feet |
 
 Every clip also gets jumps (flight time, jump height from flight time), stances and
 the stability margin. Judge squat, plank and pike form from **side-view** clips.
@@ -111,7 +113,7 @@ See [docs/RECIPES.md](docs/RECIPES.md) for everything a recipe can do.
 
 ```
 src/climbvision/
-  engine/          the layers: video, camera (wall registration), pose + backends/, skeleton (canonical joints, no
+  engine/          the layers: video, camera (wall registration), wall (anchors, holds), pose + backends/, skeleton (canonical joints, no
                    face), track, biomech (COM, angles), scale, surfaces (floor),
                    contacts (floor, bar grips), support, events, signals
   recipes/         recipe runner + expression language; library/*.yaml = shipped recipes

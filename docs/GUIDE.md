@@ -251,7 +251,8 @@ Every clip gets a folder `outputs/<clip>/`:
 | `annotated.mp4` | `render` | The video with everything drawn on it |
 | `camera.csv`, `camera.json` | `camera` | The camera layer: one homography per frame (frame → wall) and its quality (4.7) |
 | `wall.jpg`, `wall.json` | `camera` | The wall without the climber, in wall coordinates; `wall.json` holds the mapping from wall coordinates to its pixels |
-| `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails |
+| `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails; with the wall layer also holds, limbs on holds and the COM |
+| `wall.csv` | `metrics` (wall scene) | Per frame: limbs on holds, hold ids, limb and COM positions on the wall, margins (5.5) |
 
 ### 4.1 `landmarks.csv`
 
@@ -309,7 +310,8 @@ Always present:
 | `body_yaw_deg` | How far the body is turned from facing the camera, 0–90° |
 | `near_side` | `left`/`right`: the side facing the camera |
 | `angle_ranges` | min / median / max of the main angles |
-| `stability` | See 5.2 |
+| `stability` | See 5.2 (floor and bar scenes) |
+| `wall` | Instead of `stability` for wall scenes (the `climb` recipe), see 5.5 |
 
 Plus the recipe's results (5.3), and `camera` when the camera layer ran: `static`,
 `registered_pct` (frames lined up with the wall), `keyframes`, `pan_px` / `pan_m`
@@ -418,7 +420,14 @@ the legs sank, `knee_deg_median`).
 
 **dead_hang**: `dead_hang {hold_s, elbow_deg_median, swing_sd_cm, swing_range_cm}`.
 
-### 5.4 report.png
+**climb** (wall scene, 6.14): `climb_s` (time on the wall), `pct_4_contacts`,
+`pct_3_contacts`, `pct_2_or_fewer` (share of the climb with that many limbs on holds),
+`feet_on_holds_pct`, `com_over_feet_pct` (share of the time, with a foot on a hold,
+that the COM was over the feet), `height_gain_m`, `longest_4_point {start_s, hold_s,
+com_over_feet_cm}` (usually a rest or a set-up). The engine's `wall` block (5.5) has
+the holds and moves.
+
+### 5.4 report.png (5.5 for wall scenes)
 
 1. **Angles over time**: knee, hip, trunk lean, body line.
 2. **Exercise panel**: the signal reps are counted on, reps shaded and numbered (or
@@ -427,6 +436,31 @@ the legs sank, `knee_deg_median`).
    grey bands where feet were out of frame.
 4. **Contacts**: a timeline bar per body part (blue feet, orange hands/forearms/knees,
    purple bar grips).
+
+In wall scenes panel 3 shows the COM over the feet and the polygon margin (grey = not
+on the wall), and panel 4 one bar per limb while it is on a hold, numbered with the hold
+id (grey = on the ground).
+
+### 5.5 `wall` in metrics.json and `wall.csv`
+
+| Key | Meaning |
+|---|---|
+| `on_wall_s` | Time on the wall (from the first to the last foot on a hold, minus time on the ground) |
+| `ground` | `stood on` (feet on the floor at some point), `in view, not stood on`, or `not seen` |
+| `holds_used`, `hand_holds`, `foot_holds` | Distinct holds (a matched hold counts for both) |
+| `on_hold_pct` | Per limb, % of the climb on a hold |
+| `contacts_pct` | % of the climb with 4 / 3 / 2 / 1 / 0 limbs on holds |
+| `contact_time_s` | Seconds in each combination, e.g. `2 hands + R foot` |
+| `com_height_gain_m` | How far the COM rose on the wall |
+| `com_over_feet_cm`, `polygon_margin_cm` | median / min / % inside (6.14) |
+| `moves` | Number of hand and foot moves, median move time |
+| `holds` | Every hold: `id`, `x_m` (right of the first hold), `y_m` (above the ground, or above the lowest hold), which limbs used it, when first, total time on it |
+| `moves_detail` | Every move: limb, from/to hold, release and catch time, time, distance |
+| `warnings` | e.g. on the wall only a small part of the clip |
+
+`wall.csv` has, per frame: the contacts label, number of limbs on holds, `on_wall`,
+`on_ground`, each limb's hold id (−1 = none) and position on the wall, the COM, and both
+margins.
 
 ---
 
@@ -766,6 +800,61 @@ needed to separate the climber from the wall (E3) and to find holds (E4).
   under 0.5 cm; the worst clip (`coordination_failed`, where the pose sometimes sits on
   a volume so the climber isn't masked) has 1.4 % of checks over 2 cm.
 
+### 6.14 On the wall: anchors, holds, support (`engine/wall.py`)
+
+**Plain terms.** On a wall there is no floor to stand on, so "touching" means something
+else: a hand or foot that **stays still for about half a second** — on the wall, with the
+camera motion removed (6.13) — is resting on a hold. From those *anchors* the system
+works out which holds were used, each move from one hold to the next, how many limbs
+were on holds at every moment, and whether the centre of mass was over the feet.
+
+**The anchor rule, precisely.** The hand point is the grip point (2/3 from wrist to
+knuckles), the foot point is the toe (climbers stand on the front of the shoe). Positions
+first go through a 0.2 s running median (removes one-frame pose spikes but keeps the
+moment a limb leaves sharp).
+
+1. *Seed*: a frame is still when, in the 0.5 s window around it, 80 % of the positions
+   are within 0.05 body lengths (~6 cm) of the window's median. A still stretch is split
+   where that median moves on by more than the same amount (a slow slide to the next
+   hold).
+2. *Grow*: the anchor extends forwards and backwards while the limb stays within 0.06
+   body lengths of the spot; brief excursions (≤ 0.25 s, never further than 0.08 body
+   lengths) are bridged as jitter.
+3. *Merge*: the same limb back at the same spot within 0.4 s is one anchor.
+
+**Holds** are places where a limb rested: anchors (of any limb) within 0.09 body lengths
+(~11 cm) of each other are one hold. A hand and a foot using the same hold (a hand-foot
+match) share an id. The system does not yet detect holds in the image; where a hold
+shows in `wall.jpg`, the anchor lands on it to within the pose accuracy.
+
+**Moves** are a limb leaving one hold and anchoring on another at least 0.1 body
+lengths (~12 cm) away; `time_s` is the time between leaving and arriving (from when the
+limb is a few cm off the first hold until it is within a few cm of the next).
+
+**Ground.** At the start and end of a clip the climber usually stands on the floor —
+those foot anchors must not count as footholds. In the wall image the floor is what is
+at the bottom (a flat colour). A foot anchor is on the ground when the area just below
+the toe has the floor's colour and the anchor is among the lowest foot positions of the
+clip (within 0.35 body lengths). Footholds have wall below them. The climb (`on_wall`)
+runs from the first to the last moment with a foot on a hold and none on the ground.
+
+**Support on the wall** (gravity = "down" in the first registered frame; hold the phone
+upright at the start):
+
+| Measure | Meaning |
+|---|---|
+| contacts | limbs on holds: 4 = two hands + two feet ("2 hands + R foot", …) |
+| COM over the feet (cm) | horizontal distance from the COM to the nearest edge of the span of the feet on holds (padded by half a shoe width); + = the COM is above the feet. The climbing version of the floor stability margin: a COM outside the feet has to be held by the arms |
+| polygon margin (cm) | distance from the COM to the edge of the convex hull of all limbs on holds (≥ 3 limbs); + inside |
+| COM height (m) | how high the COM is on the wall |
+
+**How good is it (traverse, 720p copy)?** 30 foot anchors, checked by eye on the middle
+frame of each: about 7 in 10 sit on the shoe on a hold; the rest come from pose errors
+(the "foot" point lying on the shin or the hip while the body is still). Of the moments
+on the wall when a foot was *not* anchored (sampled every second), about half were the
+foot moving and half pose errors. Foot accuracy is therefore now limited by the pose
+model, which is what E5 (a better pose backend) addresses.
+
 ---
 
 ## 7. Architecture and design philosophy
@@ -810,6 +899,7 @@ needed to separate the climber from the wall (E3) and to find holds (E4).
 | Surfaces | `engine/surfaces.py` | the floor line (later: wall plane, holds) | floor ✅ |
 | Contacts | `engine/contacts.py` | anchors: floor contacts, bar grips (later: holds), stance labels | floor/bar ✅ |
 | Support | `engine/support.py` | base of support, margin, sway, flight, hanging, swing | ✅ off the wall |
+| Wall | `engine/wall.py` | anchors on holds, holds used, moves, ground, contacts, COM over the feet, support polygon | ✅ |
 | Events | `engine/events.py` | runs, cycles (reps), longest holds | ✅ |
 | Signals | `engine/signals.py` | named per-frame series: the recipes' vocabulary | ✅ |
 | Analyses | `recipes/` | recipe runner + `library/*.yaml` | ✅ 9 recipes |
@@ -855,6 +945,7 @@ results**, and **video + CSVs → annotated video**.
 | `engine/surfaces.py` | Floor | `estimate_floor`, `Floor`, `FLOOR_PARTS` |
 | `engine/contacts.py` | Floor contacts, grips, stance labels | `detect_contacts`, `detect_grips`, `Contacts` |
 | `engine/support.py` | Support, margin, sway, jumps, bar summary | `compute_stability`, `stability_summary` |
+| `engine/wall.py` | Wall layer: anchors, holds, moves, ground, wall support | `detect_anchors`, `compute_wall_support`, `wall_summary`, `WallParams` |
 | `engine/events.py` | Generic event detectors | `runs`, `clean_runs`, `longest_run`, `find_cycles` |
 | `engine/signals.py` | Named signals; the `Clip` bundle | `Clip.build`, `Clip.signal`, `register`, `describe` |
 | `recipes/__init__.py` | Load, match and run recipes | `load_recipes`, `guess_recipe`, `run_recipe` |
@@ -895,6 +986,8 @@ CameraTrack    # camera layer
 Clip           # what a recipe sees
   .track .angles .stability .camera (CameraTrack or None) .t
   .wall (n,23,2)            # joints in wall coordinates
+  .wall_support             # WallSupport: anchors {limb: [Anchor]}, holds, on_hold,
+                            #   n_contacts, on_wall, com, com_over_feet_cm, labels
   .signal("knee") -> (n,)   # cached; `climbvision signals` lists every name
 ```
 
@@ -1109,6 +1202,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Pull-up rep / chin tolerance | 0.12 / 0.05 body; ±5 cm | `pullup.yaml` |
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
+| Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor colour below the toe, lowest 0.35 body | `wall.WallParams` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 
 Change one and run `pytest`: the regression tests show which real clips it affects.
@@ -1152,6 +1246,9 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Person turning mid-clip | View/near side fixed per clip | Keep orientation constant |
 | Arms overhead vs hanging | Indistinguishable from pose alone | Bar scene set by the recipe |
 | Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
+| Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
+| Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge | Hold detection in `wall.jpg` (later) |
+| Ground from colour | The floor is recognised by its colour at the bottom of the wall image; a floor the same colour as the wall, or a camera that never shows the floor, means no ground is found | Film the start from the floor |
 | Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |
 | Several people / wall features | Skeleton can jump to another person or onto holds | E3: subject lock |
 | Hanging whole clip | Floor unknown | Start standing on the floor |
@@ -1192,6 +1289,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | **px/m (ppm)** | Pixels per metre at the person's distance |
 | **Homography** | A 3×3 matrix mapping one picture of a plane onto another |
 | **Wall coordinates** | Positions with the camera motion removed (pixels of the first frame) |
+| **Anchor** (on the wall) | A hand or foot still on the wall for ~0.5 s: on a hold |
+| **Move** | A limb leaving one hold and anchoring on another |
 | **Keyframe** | A stored frame the camera layer re-aligns to, so errors don't build up |
 
 ---

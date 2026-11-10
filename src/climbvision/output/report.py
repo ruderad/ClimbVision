@@ -17,7 +17,7 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
     import matplotlib.pyplot as plt
 
     t = clip.t
-    ang, st = clip.angles, clip.stability
+    ang = clip.angles
     fig, axes = plt.subplots(4, 1, figsize=(9, 9.5), sharex=True,
                              gridspec_kw={"height_ratios": [3, 3, 2.4, 1.6]})
     ax = axes[0]
@@ -58,8 +58,21 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
         ax.set_ylabel("degrees")
     ax.legend(loc="lower left", fontsize=8)
 
+    if recipe.scene == "wall":
+        _wall_panels(axes[2], axes[3], clip)
+    else:
+        _floor_panels(axes[2], axes[3], clip)
+    axes[3].set_xlabel("time (s)")
+    fig.tight_layout()
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+
+
+def _floor_panels(ax_m, ax_c, clip: Clip) -> None:
+    t = clip.t
+    st = clip.stability
     # stability margin
-    ax = axes[2]
+    ax = ax_m
     m = st.margin_cm
     ax.axhline(0, color="0.3", lw=0.8)
     ax.fill_between(t, 0, m, where=np.nan_to_num(m) >= 0, color="C2", alpha=0.25, lw=0)
@@ -80,7 +93,7 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
         ax.legend(loc="lower left", fontsize=8)
 
     # contacts raster
-    ax = axes[3]
+    ax = ax_c
     rows = {g: v for g, v in st.contacts.group.items() if v.any()}
     rows.update({f"{sd}_hand_on_bar": v for sd, v in st.contacts.grip.items() if v.any()})
     groups = list(rows)
@@ -95,7 +108,35 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
     ax.set_yticks(range(len(groups)), [g.replace("_", " ") for g in groups], fontsize=8)
     ax.set_ylim(-0.6, max(len(groups), 1) - 0.4)
     ax.set_title("contacts", fontsize=10)
-    ax.set_xlabel("time (s)")
-    fig.tight_layout()
-    fig.savefig(path, dpi=110)
-    plt.close(fig)
+
+
+def _wall_panels(ax_m, ax_c, clip: Clip) -> None:
+    """Wall scene: COM over the feet / support polygon, and limbs on holds."""
+    from climbvision.engine.wall import LABEL, LIMBS
+
+    t = clip.t
+    ws = clip.wall_support
+    m = ws.com_over_feet_cm
+    ax_m.axhline(0, color="0.3", lw=0.8)
+    ax_m.fill_between(t, 0, m, where=np.nan_to_num(m) >= 0, color="C2", alpha=0.25, lw=0)
+    ax_m.fill_between(t, 0, m, where=np.nan_to_num(m) < 0, color="C3", alpha=0.35, lw=0)
+    ax_m.plot(t, m, color="0.2", lw=1, label="COM over the feet (horizontal)")
+    ax_m.plot(t, ws.polygon_margin_cm, color="C4", lw=1, alpha=0.8,
+              label="COM inside the hull of limbs on holds")
+    ax_m.fill_between(t, 0, 1, where=~ws.on_wall, transform=ax_m.get_xaxis_transform(),
+                      color="0.5", alpha=0.12, lw=0, label="not on the wall")
+    ax_m.set_ylabel("cm (+ inside)")
+    ax_m.set_title("balance on the wall", fontsize=10)
+    ax_m.legend(loc="lower left", fontsize=8)
+    dt = np.median(np.diff(t)) if len(t) > 1 else 0.03
+    for k, limb in enumerate(LIMBS):
+        for a in ws.anchors[limb]:
+            col = "0.6" if a.ground else ("C1" if "hand" in limb else "C0")
+            ax_c.broken_barh([(t[a.start], t[a.end - 1] - t[a.start] + dt)], (k - 0.4, 0.8),
+                             color=col)
+            if not a.ground and t[a.end - 1] - t[a.start] > 0.8:
+                ax_c.text((t[a.start] + t[a.end - 1]) / 2, k, str(a.hold), ha="center",
+                          va="center", fontsize=7, color="white")
+    ax_c.set_yticks(range(len(LIMBS)), [LABEL[limb] for limb in LIMBS], fontsize=8)
+    ax_c.set_ylim(-0.6, len(LIMBS) - 0.4)
+    ax_c.set_title("on holds (numbers = hold id; grey = ground)", fontsize=10)

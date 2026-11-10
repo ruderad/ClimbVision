@@ -10,7 +10,8 @@ Sections (all optional except name):
   name, description
   match:     [regex, ...]  file-name patterns for --recipe auto; `priority` orders
              recipes (lower first; first match wins)
-  scene:     floor (default) | bar   (bar: detect grips, learn the floor without them)
+  scene:     floor (default) | bar | wall   (bar: detect grips, learn the floor without
+             them; wall: anchors on holds in wall coordinates, wall support)
   signals:   {name: expr}  per-frame series, in order; later ones can use earlier ones
   reps:      repeated movements = dips of a signal below its resting level
              (signal, start_drop, end_drop, min_s, rest, require, let, fields,
@@ -62,6 +63,10 @@ class Recipe:
     @property
     def bar(self) -> bool:
         return self.spec.get("scene", "floor") == "bar"
+
+    @property
+    def scene(self) -> str:
+        return str(self.spec.get("scene", "floor"))
 
     def matches(self, clip_name: str) -> bool:
         return any(re.search(p, clip_name, re.IGNORECASE) for p in self.spec.get("match", []))

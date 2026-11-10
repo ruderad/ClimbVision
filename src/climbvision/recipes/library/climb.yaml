@@ -1,0 +1,41 @@
+name: climb
+description: >
+  Climbing on a wall (handheld video is fine: run the camera layer). Hands and feet that
+  stay still ~0.5 s in wall coordinates are on holds; reports time on the wall, holds
+  used, moves, how many limbs are on holds, and whether the COM is over the feet.
+match: ['climb|traverse|boulder|moonboard|overhang|coordination|route']
+priority: 85
+scene: wall
+
+summary:
+  climb_s: [time(on_wall), 1]
+  pct_4_contacts: "pct(n_contacts == 4, where=on_wall) if any(on_wall) else None"
+  pct_3_contacts: "pct(n_contacts == 3, where=on_wall) if any(on_wall) else None"
+  pct_2_or_fewer: "pct(n_contacts <= 2, where=on_wall) if any(on_wall) else None"
+  feet_on_holds_pct: >-
+    (pct(on_hold_l_foot, where=on_wall) + pct(on_hold_r_foot, where=on_wall)) / 2
+    if any(on_wall) else None
+  com_over_feet_pct: >-
+    pct(com_over_feet_cm > 0, where=on_wall & isfinite(com_over_feet_cm))
+    if any(on_wall & isfinite(com_over_feet_cm)) else None
+  height_gain_m: "[max(where(on_wall, com_height_m, nan)), 2] if any(on_wall) else None"
+
+holds:
+  # the longest stretch on all four limbs: usually a rest or a careful set-up
+  - when: on_wall & (n_contacts == 4)
+    min_s: 1
+    nest_as: longest_4_point
+    fields:
+      start_s: [t_start, 2]
+      hold_s: [duration, 2]
+      com_over_feet_cm: "median(com_over_feet_cm)"
+
+headline: >-
+  "not on the wall" if not climb_s else
+  f"climb {climb_s:.1f} s, {wall.holds_used} holds ({wall.hand_holds} hand / "
+  f"{wall.foot_holds} foot), {wall.moves.hand + wall.moves.foot} moves, "
+  f"4 points {pct_4_contacts:.0f}%, feet on holds {feet_on_holds_pct:.0f}%"
+
+plot:
+  signal: com_height_m
+  label: COM height on the wall (m)

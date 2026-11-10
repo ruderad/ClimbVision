@@ -173,7 +173,7 @@ layers one at a time.
 | **E1 ✅** | Layered engine: canonical skeleton (no face), backend mapping, layers re-run from saved data, recipe system, today's exercises as YAML recipes | the 20 reference clips give the same results |
 | **E2 ✅** | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
 | E3 | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
-| E4 | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
+| **E4 ✅** | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
 | E5 | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
 | E6 | Climbing recipes: moves, hold usage, route map | first per-move report |
 
@@ -236,6 +236,42 @@ Results on the 5 handheld wall clips (720p copies). Error = offset of wall patch
   feet appear to swap left/right at times (traverse wall view).
 
 ---
+
+## E4 — anchors on the wall ✅ (2026-11-10)
+- `engine/wall.py`: a hand (grip point) or foot (toe) still ~0.5 s in wall coordinates
+  is anchored on a hold (window 0.5 s, 80 % within ~6 cm; grows while it stays put,
+  jitter bridged; 0.2 s running median first). Holds = places limbs rested (anchors
+  within ~11 cm), moves = re-anchoring ≥ 12 cm away, contacts (4/3/2…), COM over the
+  feet and inside the hull of limbs on holds.
+- Ground: foot anchors with floor colour (bottom of `wall.jpg`) just below the toe and
+  among the lowest foot positions; `on_wall` = first to last foot on a hold, minus ground.
+- `climb` recipe (`scene: wall`): metrics.json gets a `wall` block (holds, moves,
+  contacts) instead of the floor `stability`; `wall.csv`; report panels and
+  `wall_view.mp4` show holds, limbs on holds, the support hull and the COM;
+  `annotated.mp4` rings the limbs on holds.
+- Recipe matching: traverse, moonboard, overhang, coordination, boulder, climb, route →
+  `climb`.
+
+Results (720p copies; the full-resolution runs are in the clip folders):
+
+| clip | on the wall | holds (hand / foot) | moves (hand / foot) | 4 limbs on holds | feet on holds |
+|---|---|---|---|---|---|
+| traverse | 36.3 s | 28 (14 / 15) | 14 / 16 | 38 % | 78 % |
+| moonboard | 41.9 s (stood on the floor at start and end) | 37 (14 / 25) | 18 / 31 | 43 % | 71 % |
+| overhang | 44.1 s (floor at the start) | 40 (17 / 27) | 18 / 32 | 31 % | 59 % |
+| coordination | 46.9 s (floor at start, stepped down at 13–16 s) | 30 (14 / 18) | 14 / 20 | 15 % | 39 % |
+| coordination_failed | 11.4 s of 28 s (pose lost on the volume) | 10 (7 / 3) | 6 / 1 | 18 % | 31 % |
+
+- Footholds found (before: none). Checked by eye on the traverse: of 30 foot anchors
+  ~7 in 10 sit on the shoe on a hold; the others are pose errors (the foot point on the
+  shin/hip while the body is still). Of the sampled moments on the wall without a foot
+  anchor, about half are the foot moving and half pose errors.
+- Hand anchors look right on the traverse (checked by eye; hands are tracked far better
+  than feet).
+- Foot counts are inflated by pose errors (false anchors become extra "holds" and
+  "moves"); E5 (pose backend) is now the main lever. coordination_failed needs E3.
+- Thresholds were chosen on these clips without ground truth; a few labelled clips
+  (which hold, when) would let us tune and score them properly.
 
 ## Test clips to record (for M1–M5)
 

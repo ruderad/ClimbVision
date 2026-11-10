@@ -26,17 +26,19 @@ def clip_info(result_dir: Path) -> dict:
 def load_clip(result_dir: str | Path, bar: bool = False) -> Clip:
     """All engine layers for a results folder. The camera layer (camera.csv) is used
     when present; otherwise the camera is assumed fixed."""
-    from climbvision.engine.camera import CameraTrack
+    from climbvision.engine.camera import CameraTrack, WallImage
 
     result_dir = Path(result_dir)
     info = clip_info(result_dir)
     track = Track.from_csv(result_dir / "landmarks.csv")
-    cam = None
+    cam = wall = None
     if (result_dir / "camera.csv").exists():
         cam = CameraTrack.load(result_dir / "camera.csv")
+    if (result_dir / "wall.jpg").exists() and (result_dir / "wall.json").exists():
+        wall = WallImage.load(result_dir)
     return Clip.build(track, info.get("sex_model", "male"),
                       tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
-                      camera=cam)
+                      camera=cam, wall_image=wall)
 
 
 def resolve_recipe(result_dir: Path, recipe: str | Recipe = "auto",
@@ -78,8 +80,15 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
     res = run_recipe(rec, clip)
     out: dict = {"exercise": rec.name, "view": clip.angles.view,
                  "body_yaw_deg": clip.angles.yaw_deg, "near_side": clip.angles.side,
-                 "angle_ranges": angle_ranges(clip), **res.metrics,
-                 "stability": stability_summary(clip.stability, clip.t)}
+                 "angle_ranges": angle_ranges(clip), **res.metrics}
+    if rec.scene == "wall":
+        from climbvision.engine.wall import wall_summary
+        from climbvision.output.tables import write_wall_csv
+
+        out["wall"] = wall_summary(clip.wall_support, clip.t)
+        write_wall_csv(result_dir / "wall.csv", clip.wall_support, clip.t)
+    else:
+        out["stability"] = stability_summary(clip.stability, clip.t)
     if clip.camera is not None:
         from climbvision.engine.camera import camera_summary
 

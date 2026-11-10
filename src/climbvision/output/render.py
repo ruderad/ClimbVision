@@ -43,7 +43,12 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
         rec = resolve_recipe(result_dir, "auto")
     clip = load_clip(result_dir, bar=rec.bar)
     track, st = clip.track, clip.stability
-    labels = st.labels
+    wall_scene = rec.scene == "wall"
+    if wall_scene:  # on the wall: holds instead of floor, support and grips
+        ws = clip.wall_support
+        labels = ws.labels
+    else:
+        labels = st.labels
     fl = st.floor
 
     with VideoReader(video_path) as reader:
@@ -61,13 +66,22 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
                 com = st.com_px[i]
                 trail.append(com)
-                if np.isfinite(fl.y0[i]):
+                if np.isfinite(fl.y0[i]) and not wall_scene:
                     draw_floor(img, fl.slope, fl.y0[i])
                 lines = [f"t={t:5.2f}s  {labels[i]}"]
                 colors = [(255, 255, 255)]
                 if track.detected[i]:
                     sk = Skeleton(track.image[i], track.world[i], track.visibility[i])
                     draw_skeleton(img, sk)
+                    if wall_scene:
+                        held = [ws.points[limb][i] for limb in ws.on_hold
+                                if ws.on_hold[limb][i]]
+                        img_pts = [p for p in _to_image(clip, i, held) if np.isfinite(p).all()]
+                        draw_contacts(img, np.array(img_pts).reshape(-1, 2))
+                        draw_com(img, com, list(trail))
+                        draw_label(img, lines, colors)
+                        writer.write(img)
+                        continue
                     m = st.margin_cm[i]
                     if np.isfinite(m):
                         draw_support(img, fl.slope, fl.y0[i], st.support_lo_px[i],
@@ -92,3 +106,16 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                 draw_label(img, lines, colors)
                 writer.write(img)
     return out_path
+
+
+def _to_image(clip, i: int, wall_pts: list) -> list:
+    """Wall coordinates -> image of frame i (inverse of the camera layer's H)."""
+    if not wall_pts:
+        return []
+    if clip.camera is None:
+        return list(wall_pts)
+    from climbvision.engine.camera import LOST, apply_h
+
+    if clip.camera.status[i] == LOST:
+        return []
+    return list(apply_h(np.linalg.inv(clip.camera.H[i]), np.array(wall_pts)))
