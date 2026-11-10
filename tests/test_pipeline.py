@@ -82,6 +82,18 @@ def test_metrics_and_render_from_results(tmp_path):
     assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 20
 
 
+def test_render_wall_scene(tmp_path):
+    """The climbing drawing (base of support, balance-coloured COM and trail, moves)."""
+    video = tmp_path / "clip.mp4"
+    make_video(video)
+    out = tmp_path / "boulder"
+    run_pose(video, out, FakeEstimator())
+    m = run_analysis(out, "climb")
+    assert m["exercise"] == "climb" and "route" in m
+    cap = cv2.VideoCapture(str(render(video, out)))
+    assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 20
+
+
 def test_summary_headlines(tmp_path):
     from climbvision.output.summary import headline, markdown_table, summarize_results
 

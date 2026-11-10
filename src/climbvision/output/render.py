@@ -72,7 +72,7 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
             pm = ws.polygon_margin_cm
         else:
             pm = st.margin_cm
-        inside = [bool(v > 0) if np.isfinite(v) else None for v in pm]
+        balance = [bool(v > 0) if np.isfinite(v) else None for v in pm]
         with VideoWriter(out_path, reader.info.fps / step, size) as writer:
             for i, (_, t, img) in enumerate(reader.frames(step=step)):
                 if i >= track.n:
@@ -82,7 +82,7 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                 com = st.com_px[i]
                 # on the wall the trail is kept in wall coordinates, so it stays on the
                 # wall when the camera pans
-                trail.append((ws.com[i] if wall_scene else com, inside[i]))
+                trail.append((ws.com[i] if wall_scene else com, balance[i]))
                 if np.isfinite(fl.y0[i]) and not wall_scene:
                     draw_floor(img, fl.slope, fl.y0[i])
                 lines = [f"t={t:5.2f}s  {labels[i]}"]
@@ -97,7 +97,7 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                         held = [ws.points[limb][i] for limb in ws.on_hold
                                 if ws.on_hold[limb][i]]
                         img_pts = [p for p in _to_image(clip, i, held) if np.isfinite(p).all()]
-                        plumb, inside = None, None
+                        plumb, over_feet = None, None
                         c = ws.com[i]
                         if held and ws.on_wall[i] and np.isfinite(c).all():  # straight down
                             # down to the lowest hold, at least a quarter body
@@ -106,16 +106,16 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                             plumb = tuple(ends) if len(ends) == 2 else None
                             m = ws.com_over_feet_cm[i]
                             if np.isfinite(m):
-                                inside = bool(m > 0)
+                                over_feet = bool(m > 0)
                                 lines.append(f"COM over feet {m:+.0f} cm")
-                                colors.append(INSIDE_COLOR if inside else OUTSIDE_COLOR)
-                        draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, inside)
+                                colors.append(INSIDE_COLOR if over_feet else OUTSIDE_COLOR)
+                        draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, over_feet)
                         draw_contacts(img, np.array(img_pts).reshape(-1, 2))
                         past = [p for p, _ in trail]
                         img_trail = _to_image(clip, i, past) if past else []
                         if len(img_trail) != len(past):
                             img_trail = [np.full(2, np.nan)] * len(past)
-                        draw_com(img, com, img_trail, inside[i],
+                        draw_com(img, com, img_trail, balance[i],
                                  trail_inside=[b for _, b in trail])
                         draw_label(img, lines, colors)
                         writer.write(img)
@@ -135,7 +135,7 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                         if np.isfinite(sw):
                             lines.append(f"swing {sw:+.1f} cm")
                             colors.append((255, 160, 210))
-                    draw_com(img, com, [p for p, _ in trail], inside[i],
+                    draw_com(img, com, [p for p, _ in trail], balance[i],
                              trail_inside=[b for _, b in trail])
                 else:
                     lines[0] = f"t={t:5.2f}s  no pose"
