@@ -44,7 +44,7 @@ def write_wall_csv(path: Path, ws, t: np.ndarray) -> None:
     hold_at = {limb: np.full(len(t), -1) for limb in LIMBS}
     for limb in LIMBS:
         for a in ws.anchors[limb]:
-            if not a.ground:
+            if a.on_hold:
                 hold_at[limb][a.start:a.end] = a.hold
     with path.open("w", newline="") as f:
         w = csv.writer(f)
@@ -58,3 +58,31 @@ def write_wall_csv(path: Path, ws, t: np.ndarray) -> None:
                         *(f"{ws.points[limb][i, k]:.1f}" for limb in LIMBS for k in (0, 1)),
                         f"{ws.com[i, 0]:.1f}", f"{ws.com[i, 1]:.1f}",
                         f"{ws.com_over_feet_cm[i]:.2f}", f"{ws.polygon_margin_cm[i]:.2f}"])
+
+
+def write_moves_csv(path: Path, route) -> None:
+    """One row per move (route layer)."""
+    cols = ["n", "limb", "kind", "from_hold", "to_hold", "release_s", "catch_s", "time_s",
+            "distance_cm", "direction_deg", "others", "com_over_feet_before_cm",
+            "com_over_feet_after_cm", "com_speed_peak_ms", "tags"]
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for m in route.moves:
+            d = m.as_dict()
+            d["tags"] = "; ".join(d["tags"])
+            w.writerow(["" if d[c] is None else d[c] for c in cols])
+
+
+def write_holds_csv(path: Path, route) -> None:
+    """One row per hold (route layer): position, first use, time per limb, matched."""
+    from climbvision.engine.wall import LABEL, LIMBS
+
+    limbs = [LABEL[x] for x in LIMBS]
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["id", "x_m", "y_m", "used_as", "first_s", "time_s",
+                    *(f"{x.replace(' ', '_').lower()}_s" for x in limbs), "matched"])
+        for h in route.holds:
+            w.writerow([h["id"], h["x_m"], h["y_m"], h["used_as"], h["first_s"], h["time_s"],
+                        *(h["time_by_limb_s"].get(x, 0.0) for x in limbs), int(h["matched"])])

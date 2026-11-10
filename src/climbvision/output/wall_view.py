@@ -6,7 +6,9 @@ hands and feet. If the camera layer works, the wall stands still while the camer
 and a hand or foot resting on a hold leaves a dot instead of a streak.
 
 From the wall layer: holds used so far (white rings with their id), limbs on holds
-(filled discs), the hull of the limbs on holds (yellow) and the COM (pink).
+(filled discs), the hull of the limbs on holds (yellow) and the COM (pink). From the
+route layer: an arrow for every move so far (the route builds up), and the latest move
+in the label.
 """
 
 from __future__ import annotations
@@ -38,16 +40,17 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
     out_path = Path(out_path) if out_path else result_dir / "wall_view.mp4"
     cam = CameraTrack.load(result_dir / "camera.csv")
     wall = WallImage.load(result_dir)
-    ws = None
+    ws = route = None
     try:
         from climbvision.analysis import load_clip
 
         clip = load_clip(result_dir)  # the cleaned pose
         track = clip.track
         ws = clip.wall_support
+        route = clip.route
     except Exception:  # noqa: BLE001 - the view still works without the wall layer
         track = Track.from_csv(result_dir / "landmarks.csv")
-        ws = None
+        ws = route = None
     zoom = min(1.0, max_side / max(wall.image.shape[:2]))
     T = np.diag([zoom, zoom, 1.0]) @ wall.T  # wall coords -> output pixels
     size = (int(wall.image.shape[1] * zoom) // 2 * 2, int(wall.image.shape[0] * zoom) // 2 * 2)
@@ -96,8 +99,12 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
                     for k in trails:
                         trails[k].append(None)
                 if ws is not None and i < len(ws.labels):
+                    if route is not None:
+                        _draw_route_so_far(frame, ws, route, i, T, s)
                     _draw_wall_layer(frame, ws, i, T, s)
                     lines.append(ws.labels[i])
+                    if route is not None and route.labels[i]:
+                        lines.append(route.labels[i])
                 for k, (_, col) in TRAIL.items():
                     while len(trails[k]) > keep:
                         trails[k].popleft()
@@ -132,7 +139,7 @@ def _draw_wall_layer(frame: np.ndarray, ws, i: int, T: np.ndarray, s: float) -> 
     on = []
     for limb, anchors in ws.anchors.items():
         for a in anchors:
-            if a.start <= i < a.end and not a.ground:
+            if a.start <= i < a.end and a.on_hold:
                 on.append(pt(a.pos))
                 cv2.circle(frame, pt(a.pos), int(r * 0.7), LIMB_COLOUR[limb], -1, cv2.LINE_AA)
     if len(on) >= 3:
@@ -140,3 +147,17 @@ def _draw_wall_layer(frame: np.ndarray, ws, i: int, T: np.ndarray, s: float) -> 
         cv2.polylines(frame, [hull], True, (0, 230, 255), max(1, int(2 * s)), cv2.LINE_AA)
     if np.isfinite(ws.com[i]).all():
         cv2.circle(frame, pt(ws.com[i]), int(r * 0.6), (200, 60, 255), -1, cv2.LINE_AA)
+
+
+def _draw_route_so_far(frame: np.ndarray, ws, route, i: int, T: np.ndarray, s: float) -> None:
+    """The route builds up: an arrow for every move that has landed, in the limb's
+    colour (thin = feet), the latest ones brightest."""
+    pos = {h.id: h.pos for h in ws.holds}
+    done = [m for m in route.moves if m.catch <= i]
+    for k, m in enumerate(done):
+        a, b = apply_h(T, pos[m.from_hold]), apply_h(T, pos[m.to_hold])
+        fade = 1.0 if k >= len(done) - 3 else 0.55
+        col = tuple(int(c * fade) for c in LIMB_COLOUR[m.limb])
+        w = max(1, int((3 if m.kind == "hand" else 2) * s))
+        cv2.arrowedLine(frame, (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), col, w,
+                        cv2.LINE_AA, tipLength=0.15)

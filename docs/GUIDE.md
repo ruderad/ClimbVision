@@ -282,8 +282,11 @@ Every clip gets a folder `outputs/<clip>/`:
 | `annotated.mp4` | `render` | The video with everything drawn on it |
 | `camera.csv`, `camera.json` | `camera` | The camera layer: one homography per frame (frame → wall) and its quality (4.7) |
 | `wall.jpg`, `wall.json` | `camera` | The wall without the climber, in wall coordinates; `wall.json` holds the mapping from wall coordinates to its pixels |
-| `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails; with the wall layer also holds, limbs on holds and the COM |
+| `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails; with the wall layer also holds, limbs on holds, the COM, and the route building up move by move |
 | `wall.csv` | `metrics` (wall scene) | Per frame: limbs on holds, hold ids, limb and COM positions on the wall, margins (5.5) |
+| `moves.csv` | `metrics` (wall scene) | One row per move: limb, from/to hold, times, distance, direction, what the other limbs did, balance before/after, tags (5.6) |
+| `holds.csv` | `metrics` (wall scene) | One row per hold: position, used as hand/foot hold, first use, time per limb, matched (5.6) |
+| `route.png` | `metrics` (wall scene) | The route map: holds numbered in order of use and every move as an arrow, on the wall image (5.6) |
 
 ### 4.1 `landmarks.csv`
 
@@ -379,6 +382,7 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Yellow outline, lightly filled (wall) | Base of support on the wall: the hull of the limbs on holds (a line for two) |
 | Dashed line from the COM (wall) | Its plumb line down the wall; **green** = COM over the feet on holds, **red** = not (on the wall only) |
 | Red joint dots | Repaired or doubtful points from the clean-up layer (§6.15) |
+| Yellow line under the label (wall) | The latest move, e.g. `move 12: R hand 9 -> 13 (match)`, for 1.2 s after it lands; `rest 2.1 s` while resting; `feet cut` |
 | Top-left box | Time, stance, margin (or swing on a bar), warnings |
 
 **Always watch the video before trusting numbers.** If the skeleton jumps, swaps legs
@@ -489,14 +493,57 @@ id (grey = on the ground).
 | `contact_time_s` | Seconds in each combination, e.g. `2 hands + R foot` |
 | `com_height_gain_m` | How far the COM rose on the wall |
 | `com_over_feet_cm`, `polygon_margin_cm` | median / min / % inside (6.14) |
-| `moves` | Number of hand and foot moves, median move time |
+| `moves` | Number of hand and foot moves, median move time (details: `route`, 5.6) |
 | `holds` | Every hold: `id`, `x_m` (right of the first hold), `y_m` (above the ground, or above the lowest hold), which limbs used it, when first, total time on it |
-| `moves_detail` | Every move: limb, from/to hold, release and catch time, time, distance |
 | `warnings` | e.g. on the wall only a small part of the clip |
 
 `wall.csv` has, per frame: the contacts label, number of limbs on holds, `on_wall`,
 `on_ground`, each limb's hold id (−1 = none) and position on the wall, the COM, and both
 margins.
+
+### 5.6 The route: `route` in metrics.json, `moves.csv`, `holds.csv`, `route.png`
+
+| Key | Meaning |
+|---|---|
+| `moves`, `hand_moves`, `foot_moves` | Moves on the wall (a limb leaving a hold and landing on another ≥ 0.1 body lengths away) |
+| `moves_per_min` | Pace, per minute on the wall |
+| `foot_moves_per_hand_move` | Footwork: how many foot placements per hand move |
+| `tags` | How many moves got each tag (table below) |
+| `hand_move_time_s_median`, `foot_move_time_s_median` | Time the limb was off holds |
+| `hand_move_cm_median`, `foot_move_cm_median` | Typical move length |
+| `longest_hand_move` | Which move, how far, when |
+| `rests` | Count, total and longest rest (4 limbs on holds, COM still, ≥ 1 s) |
+| `feet_cut` | Count and total time with a hand on and both feet off |
+| `holds_matched`, `feet_on_handholds` | Holds held by both hands (or feet) at once; holds used as hand and foot holds |
+| `moves_detail` | Every move, as in `moves.csv` |
+
+`moves.csv` columns: `n` (in the order moves land), `limb`, `kind`, `from_hold`,
+`to_hold`, `release_s`, `catch_s`, `time_s`, `distance_cm`, `direction_deg` (0 = right,
+90 = up, 180 = left, −90 = down), `others` (the other limbs on holds at the weakest
+moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
+`_after_cm`, `com_speed_peak_ms`, `tags`.
+
+| Tag | When |
+|---|---|
+| `match` | a hand lands on the hold the other hand is on (within 0.5 s), or a foot on the other foot's hold |
+| `cross` | a hand lands on the far side of the other hand |
+| `dyno` | during a hand move (≤ 1.5 s) both hands are off holds at some moment and the COM moves ≥ 0.8 m/s |
+| `jump` | as dyno, but nothing at all is on a hold (also a foot move with nothing else on) |
+| `feet cut` | during a hand move both feet are off holds for ≥ 0.3 s |
+| `high step` | a foot lands at or above the COM |
+| `foot on handhold` | a foot lands on a hold a hand used before |
+| `after chalk` | the hand rested at the hip on the way (chalk bag / shaking out); the move is timed from when it left the hip |
+
+`route.png`: the wall image (dimmed), cropped to the climb. Holds are numbered in the
+order they were first used (white ring = hand hold, green = foot hold, both = double
+ring); every move is an arrow in the limb's colour (thick = hands, thin = feet, white edge
+= dyno/jump, `m` = match) with its number; the COM's path in pink; START (first hand
+holds) and TOP (highest hand hold). Left and right limbs are drawn slightly apart so a
+matched move doesn't hide the other hand's.
+
+`report.png` (wall scene): the bottom panel is the timeline — a bar per limb for each
+hold (with its id), the move numbers where each move lands (red = dyno/jump), rests
+shaded green and feet cuts red.
 
 ---
 
@@ -905,6 +952,15 @@ those foot anchors must not count as footholds. Two cues, either is enough:
    same moment, level (within 0.06 body lengths), and no higher than any other foot
    anchor of the clip. This catches a mat whose colour isn't in the bottom band.
 
+A region with 30 or more separate things inside it is not a floor but a wall panel full
+of holds: when the camera is close to the wall, the bottom band of `wall.jpg` is wall.
+(Floors in the test clips have up to ~14 objects: shoes, bags, mat edges.)
+
+**Hands at the hip.** A hand still at the hip (dipping in the chalk bag, shaking out
+with the arm hanging) is not on a hold: an anchor whose hand stays within 0.2 body
+lengths of a hip, and not above it, is marked as such (light bars in `report.png`). A
+mantle with a hand pressing at the hip looks the same; it's rare except at a top-out.
+
 Footholds have wall below them. The climb (`on_wall`) runs from the first to the last
 moment with a foot on a hold and none on the ground.
 
@@ -954,6 +1010,36 @@ it can't: a limb wrong for a long stretch in a consistent way (the median then f
 the wrong position), or a body part out of the frame. The rules are deliberately
 conservative: nothing is invented without good frames of the same limb on both sides.
 
+### 6.16 The route (`engine/route.py`)
+
+The wall layer says *when* each limb is on *which* hold. The route layer turns that into
+the climb as a climber would tell it: moves in order, what each move took, rests.
+
+**A move** is a limb leaving one hold and next resting on a different hold at least 0.1
+body lengths away (shorter re-placements are adjustments). It is timed from the last
+frame on the old hold (or, after chalking, from when the hand left the hip) to the first
+frame on the new one: the time the limb was *off holds*. Because an anchor lasts as long
+as the limb stays within ~7 cm of the spot, this is shorter than the whole reach
+(typically 0.3–0.5 s for a hand). Moves from or to the ground (stepping on or off) don't
+count.
+
+**What the other limbs did** is the weakest moment of the move: the fewest other limbs
+on holds while it travelled ("2 feet" = a hand move with the other hand off too). With
+the COM over the feet before and after and the COM's peak speed this is the raw material
+for the tags (5.6). The tags use only what the data shows reliably:
+
+- *match / foot on handhold* compare hold ids — as good as the holds;
+- *cross* compares the two hands' x on the wall (assumes the climber faces the wall);
+- *dyno / jump* need both hands off holds **and** a fast COM (≥ 0.8 m/s): hands off
+  alone also happens when a hand anchor is missed, and gave false dynos on the traverse;
+- *high step* compares the foot hold with the COM height (the COM sits near the hips);
+- *feet cut* is "both feet off holds", which also happens when the pose misses the feet:
+  check it in the video.
+
+**Rests**: all four limbs on holds and the COM slower than 0.12 body lengths/s for at
+least 1 s. **Hold usage**: per hold, the seconds each limb spent on it, and whether it
+was matched (both hands or both feet on it at once).
+
 ---
 
 ## 7. Architecture and design philosophy
@@ -1000,6 +1086,7 @@ conservative: nothing is invented without good frames of the same limb on both s
 | Contacts | `engine/contacts.py` | anchors: floor contacts, bar grips (later: holds), stance labels | floor/bar ✅ |
 | Support | `engine/support.py` | base of support, margin, sway, flight, hanging, swing | ✅ off the wall |
 | Wall | `engine/wall.py` | anchors on holds, holds used, moves, ground, contacts, COM over the feet, support polygon | ✅ |
+| Route | `engine/route.py` | moves in order with tags, rests, feet cuts, hold usage | ✅ |
 | Events | `engine/events.py` | runs, cycles (reps), longest holds | ✅ |
 | Signals | `engine/signals.py` | named per-frame series: the recipes' vocabulary | ✅ |
 | Analyses | `recipes/` | recipe runner + `library/*.yaml` | ✅ 9 recipes |
@@ -1318,6 +1405,8 @@ clips that once failed: they keep the fix from silently breaking again.
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
 | Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
+| Route: rest, dyno, cross, feet cut, label | 4 on + COM < 0.12 body/s for ≥ 1 s; COM ≥ 0.8 m/s within ≤ 1.5 s; 0.03 body; ≥ 0.3 s; 1.2 s on the video | `route.RouteParams` |
+| Hands at the hip, floor vs wall panel | 0.2 body from a hip; ≥ 30 objects inside = wall | `wall.WallParams.hip_tol`, `wall.floor_mask(max_objects)` |
 | Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 
@@ -1364,7 +1453,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
-| Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge | Hold detection in `wall.jpg` (later) |
+| Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge; a hold touched for less than 0.5 s is skipped, so a move can look longer than it was (it goes to the next hold rested on) | Hold detection in `wall.jpg` (later) |
+| Move tags | Built from anchors and the COM: a missed foot reads as "feet cut", a hand pressing at the hip in a mantle as chalking; "cross" assumes the climber faces the wall | Watch the moves in `annotated.mp4` (each move is labelled) |
 | Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
 | COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |
 | Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |

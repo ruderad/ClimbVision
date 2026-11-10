@@ -50,6 +50,7 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
     if wall_scene:  # on the wall: holds instead of floor, support and grips
         ws = clip.wall_support
         labels = ws.labels
+        route_labels = clip.route.labels
     else:
         labels = st.labels
     fl = st.floor
@@ -74,6 +75,9 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                     draw_floor(img, fl.slope, fl.y0[i])
                 lines = [f"t={t:5.2f}s  {labels[i]}"]
                 colors = [(255, 255, 255)]
+                if wall_scene and route_labels[i]:
+                    lines.append(route_labels[i])
+                    colors.append((120, 230, 255))
                 if track.detected[i]:
                     sk = Skeleton(track.image[i], track.world[i], track.visibility[i])
                     draw_skeleton(img, sk)

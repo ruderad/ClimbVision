@@ -131,12 +131,24 @@ def _wall_panels(ax_m, ax_c, clip: Clip) -> None:
     dt = np.median(np.diff(t)) if len(t) > 1 else 0.03
     for k, limb in enumerate(LIMBS):
         for a in ws.anchors[limb]:
-            col = "0.6" if a.ground else ("C1" if "hand" in limb else "C0")
+            col = "0.6" if a.ground else "0.85" if a.body else (
+                "C1" if "hand" in limb else "C0")
             ax_c.broken_barh([(t[a.start], t[a.end - 1] - t[a.start] + dt)], (k - 0.4, 0.8),
                              color=col)
-            if not a.ground and t[a.end - 1] - t[a.start] > 0.8:
+            if a.on_hold and t[a.end - 1] - t[a.start] > 0.8:
                 ax_c.text((t[a.start] + t[a.end - 1]) / 2, k, str(a.hold), ha="center",
                           va="center", fontsize=7, color="white")
+    route = clip.route
+    for a, b in route.rests:
+        ax_c.axvspan(t[a], t[b - 1], color="C2", alpha=0.15, lw=0)
+    for a, b in route.feet_cut:
+        ax_c.axvspan(t[a], t[b - 1], color="C3", alpha=0.15, lw=0)
+    for m in route.moves:  # a move: a tick from release to catch on the limb's row
+        k = LIMBS.index(m.limb)
+        ax_c.plot([m.release_s, m.catch_s], [k + 0.45, k + 0.45], color="0.25", lw=1)
+        ax_c.text(m.catch_s, k + 0.5, str(m.n), ha="center", va="bottom", fontsize=6,
+                  color="C3" if {"dyno", "jump"} & set(m.tags) else "0.15")
     ax_c.set_yticks(range(len(LIMBS)), [LABEL[limb] for limb in LIMBS], fontsize=8)
-    ax_c.set_ylim(-0.6, len(LIMBS) - 0.4)
-    ax_c.set_title("on holds (numbers = hold id; grey = ground)", fontsize=10)
+    ax_c.set_ylim(-0.6, len(LIMBS) + 0.1)
+    ax_c.set_title("on holds (hold id; grey = ground, light = hand at the hip) · move numbers "
+                   "(red = dyno) · green = rest, red = feet cut", fontsize=10)

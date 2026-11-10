@@ -60,6 +60,15 @@ class Clip:
         return self._cache["_wall_support"]  # type: ignore[return-value]
 
     @property
+    def route(self):
+        """Route layer: moves, rests, feet cut, hold usage (computed on first use)."""
+        if "_route" not in self._cache:
+            from climbvision.engine.route import compute_route
+
+            self._cache["_route"] = compute_route(self.wall_support, self.t)
+        return self._cache["_route"]
+
+    @property
     def wall(self) -> np.ndarray:
         """(n, N_JOINTS, 2) joints in wall coordinates: camera motion removed. Without a
         camera layer the camera is assumed fixed (wall = image)."""
@@ -278,6 +287,12 @@ register("com_over_feet_cm", "COM to the nearest edge of the anchored feet span,
          "horizontally (cm, + over the feet)")(lambda c: c.wall_support.com_over_feet_cm)
 register("polygon_margin_cm", "COM to the edge of the hull of anchored limbs (cm, + inside; "
          ">= 3 limbs)")(lambda c: c.wall_support.polygon_margin_cm)
+register("resting", "resting on the wall: 4 limbs on holds and the COM still for >= 1 s")(
+    lambda c: c.route.resting)
+register("feet_cut", "on the wall with a hand on a hold and both feet off holds (>= 0.3 s)")(
+    lambda c: c.route.feet_off)
+register("limbs_moving", "number of limbs travelling between holds (0-4)")(
+    lambda c: c.route.in_move.astype(float))
 register("wall_contacts", "label of the limbs on holds, e.g. '2 hands + R foot'")(
     lambda c: np.array(c.wall_support.labels, dtype=object))
 

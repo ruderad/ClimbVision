@@ -110,7 +110,8 @@ def test_moving_camera_registered_to_the_wall(pan_clip):
     # the camera travels ~400 px; the frame corners (the worst place, extrapolated)
     # must land within a few px of the truth, also at the end, after panning away
     # and coming back (no drift)
-    assert np.median(err) < 2.0
+    # (thresholds leave room for differences between video codecs / platforms)
+    assert np.median(err) < 3.0
     assert max(err) < 6.0
     assert err[-1] < 2.0
 

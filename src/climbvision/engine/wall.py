@@ -71,6 +71,11 @@ class Anchor:
     spread_px: float  # 80th percentile distance of the limb from pos while anchored
     hold: int = -1  # hold id (-1 = none: ground or resting)
     ground: bool = False
+    body: bool = False  # a hand resting at the hip: chalking or shaking out, not a hold
+
+    @property
+    def on_hold(self) -> bool:
+        return not (self.ground or self.body)
 
 
 @dataclass
@@ -96,6 +101,8 @@ class WallParams:
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
     stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
     level_tol: float = 0.06  # body lengths: both feet this level = standing
+    hip_tol: float = 0.2  # body lengths: a hand resting this close to a hip is chalking /
+    #                       shaking out, not on a hold
 
 
 def median_filter(p: np.ndarray, k: int) -> np.ndarray:
@@ -212,14 +219,17 @@ def _on_mask(anchors: list[Anchor], n: int) -> np.ndarray:
     return m
 
 
-def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0) -> np.ndarray | None:
+def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
+               max_objects: int = 30) -> np.ndarray | None:
     """Where the floor is in the wall image (bool, wall-image pixels), or None.
 
     The bottom band of the wall image (lowest 8 % of the rows seen) shows the floor
     when the camera sees it — possibly several surfaces (concrete, a mat, a towel). Its
     main colours (k-means, k = 3, clusters with >= 15 % of the band) are the floor
     colours; the floor is every pixel of those colours that is *connected* to the bottom
-    band. Connectivity keeps a light wall panel higher up from counting as floor."""
+    band. Connectivity keeps a light wall panel higher up from counting as floor. A
+    region with `max_objects` or more separate things inside it is a wall panel with
+    holds (the camera didn't see the floor), not a floor."""
     img = wall_image.image
     seen = img.max(axis=2) > 0
     rows = np.flatnonzero(seen.any(axis=1))
@@ -258,9 +268,32 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0) -> np.ndarra
     # i.e. non-floor regions that don't reach the top of what the camera saw
     top = np.zeros_like(seen)
     top[rows[: max(5, len(rows) * 8 // 100)]] = True
-    n, comp = cv2.connectedComponents((~mask & seen).astype(np.uint8), connectivity=4)
-    open_ = np.unique(comp[top & ~mask & seen])
-    holes = (comp > 0) & ~np.isin(comp, open_)
+
+    def holes_of(mask):
+        _, comp = cv2.connectedComponents((~mask & seen).astype(np.uint8), connectivity=4)
+        open_ = np.unique(comp[top & ~mask & seen])
+        return comp, (comp > 0) & ~np.isin(comp, open_)
+
+    # ... but a region full of separate objects is a wall panel with holds, not a floor
+    # (a camera close to the wall sees no floor: the bottom band is wall)
+    comp, holes = holes_of(mask)
+    n_m, mcomp = cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)
+    min_area = max(20, int(5e-5 * seen.sum()))
+    count = np.zeros(n_m, int)
+    for h in np.unique(comp[holes]):
+        hm = comp == h
+        if hm.sum() < min_area:
+            continue
+        around = mcomp[cv2.dilate(hm.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0]
+        around = around[around > 0]
+        if len(around):
+            count[np.bincount(around).argmax()] += 1
+    wall_like = np.flatnonzero(count >= max_objects)
+    if len(wall_like):
+        mask &= ~np.isin(mcomp, wall_like)
+        if not mask.any():
+            return None
+        comp, holes = holes_of(mask)
     return mask | holes
 
 
@@ -309,6 +342,32 @@ def mark_ground(anchors: dict[str, list[Anchor]], wall_image, body_px: float,
     if t is not None:
         mark_standing(anchors, t, body_px, prm)
     return True
+
+
+def mark_body(anchors: dict[str, list[Anchor]], wall_points: np.ndarray, body_px: float,
+              prm: WallParams) -> None:
+    """A hand still at the hip (chalk bag, shaking out with the arm down) is not on a
+    hold. Judged on the median over the anchor: hand within `hip_tol` of either hip and
+    not above the hips by more than that. (A mantle with a hand pressing at the hip looks
+    the same; it is rare except at a top-out.)"""
+    pts = limb_points(wall_points)
+    for limb in ("l_hand", "r_hand"):
+        hand = pts[limb]
+        for an in anchors[limb]:
+            if an.ground:
+                continue
+            seg = slice(an.start, an.end)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                hp = np.nanmedian(hand[seg], axis=0)
+                hips = [np.nanmedian(wall_points[seg, J[f"{s}_HIP"]], axis=0) for s in "LR"]
+            if not np.isfinite(hp).all():
+                continue
+            d = min(float(np.linalg.norm(hp - h)) for h in hips if np.isfinite(h).all()) \
+                if any(np.isfinite(h).all() for h in hips) else np.inf
+            hip_y = min(h[1] for h in hips if np.isfinite(h).all()) if np.isfinite(d) else 0
+            if d < prm.hip_tol * body_px and hp[1] > hip_y - prm.hip_tol * body_px:
+                an.body = True
 
 
 def cluster_holds(anchors: list[Anchor], radius_px: float) -> list[Hold]:
@@ -411,9 +470,10 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                 low = np.nanmedian(pts[h][seg, 1]) > np.nanmedian(sh[seg])
             if on_ground[seg].mean() > 0.5 and low:
                 an.ground = True
-    hold_anchors = [an for limb in LIMBS for an in anchors[limb] if not an.ground]
+    mark_body(anchors, wall_points, body_px, prm)
+    hold_anchors = [an for limb in LIMBS for an in anchors[limb] if an.on_hold]
     holds = cluster_holds(hold_anchors, prm.hold_radius * body_px)
-    on_hold = {limb: _on_mask([a for a in anchors[limb] if not a.ground], n) for limb in LIMBS}
+    on_hold = {limb: _on_mask([a for a in anchors[limb] if a.on_hold], n) for limb in LIMBS}
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
     com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
     to_cm = 100.0 / px_per_m
@@ -423,7 +483,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     pos_at = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
     for limb in LIMBS:
         for an in anchors[limb]:
-            if not an.ground:
+            if an.on_hold:
                 pos_at[limb][an.start:an.end] = an.pos
     for i in range(n):
         if not np.isfinite(com[i]).all():
@@ -450,7 +510,7 @@ def moves(ws: WallSupport, t: np.ndarray) -> list[dict]:
     """A move = a limb leaving one hold and next anchoring on a different hold."""
     out = []
     for limb in LIMBS:
-        seq = [a for a in ws.anchors[limb] if not a.ground]
+        seq = [a for a in ws.anchors[limb] if a.on_hold]
         for a, b in zip(seq, seq[1:], strict=False):
             if a.hold != b.hold and np.linalg.norm(b.pos - a.pos) >= ws.min_move_px:
                 d = float(np.linalg.norm(b.pos - a.pos)) / ws.px_per_m
@@ -508,7 +568,6 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
             "limbs": sorted(LABEL[limb] for limb in h.limbs),
             "first_s": round(float(t[min(a.start for a in h.anchors)]), 2),
             "time_s": round(float(sum(t[a.end - 1] - t[a.start] for a in h.anchors)), 2)})
-    out["moves_detail"] = mv
     warn = []
     if wall_s < 0.5 * (t[-1] - t[0]) if n > 1 else False:
         warn.append(f"on the wall only {wall_s:.1f} s of {t[-1] - t[0]:.1f} s")

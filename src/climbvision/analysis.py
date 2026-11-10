@@ -92,11 +92,21 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
                  "body_yaw_deg": clip.angles.yaw_deg, "near_side": clip.angles.side,
                  "angle_ranges": angle_ranges(clip), **res.metrics}
     if rec.scene == "wall":
+        from climbvision.engine.route import route_summary
         from climbvision.engine.wall import wall_summary
-        from climbvision.output.tables import write_wall_csv
+        from climbvision.output.tables import write_holds_csv, write_moves_csv, write_wall_csv
 
         out["wall"] = wall_summary(clip.wall_support, clip.t)
         write_wall_csv(result_dir / "wall.csv", clip.wall_support, clip.t)
+        route = clip.route
+        out["route"] = {**route_summary(route, clip.wall_support, clip.t),
+                        "moves_detail": [m.as_dict() for m in route.moves]}
+        write_moves_csv(result_dir / "moves.csv", route)
+        write_holds_csv(result_dir / "holds.csv", route)
+        if plot:
+            from climbvision.output.route_map import draw_route_map
+
+            draw_route_map(result_dir / "route.png", clip)
     else:
         out["stability"] = stability_summary(clip.stability, clip.t)
     if clip.camera is not None:

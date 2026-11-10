@@ -2,7 +2,8 @@ name: climb
 description: >
   Climbing on a wall (handheld video is fine: run the camera layer). Hands and feet that
   stay still ~0.5 s in wall coordinates are on holds; reports time on the wall, holds
-  used, moves, how many limbs are on holds, and whether the COM is over the feet.
+  used, moves, how many limbs are on holds, and whether the COM is over the feet. The
+  route layer adds the moves one by one (moves.csv, route.png), rests and feet cuts.
 match: ['climb|traverse|boulder|moonboard|overhang|coordination|route|slab|crimp|dyno']
 priority: 85
 scene: wall
@@ -19,6 +20,8 @@ summary:
     pct(com_over_feet_cm > 0, where=on_wall & isfinite(com_over_feet_cm))
     if any(on_wall & isfinite(com_over_feet_cm)) else None
   height_gain_m: ["max(where(on_wall, com_height_m, nan)) if any(on_wall) else None", 2]
+  rest_s: [time(resting), 1]
+  feet_cut_s: [time(feet_cut), 1]
 
 holds:
   # the longest stretch on all four limbs: usually a rest or a careful set-up
@@ -32,8 +35,8 @@ holds:
 
 headline: >-
   "not on the wall" if not climb_s else
-  f"climb {climb_s:.1f} s, {wall.holds_used} holds ({wall.hand_holds} hand / "
-  f"{wall.foot_holds} foot), {wall.moves.hand + wall.moves.foot} moves, "
+  f"climb {climb_s:.1f} s, {wall.holds_used} holds, {route.hand_moves} hand + "
+  f"{route.foot_moves} foot moves, {route.rests.count} rests, "
   f"4 points {pct_4_contacts:.0f}%, feet on holds {feet_on_holds_pct:.0f}%"
 
 plot:
