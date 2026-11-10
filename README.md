@@ -1,7 +1,8 @@
 # ClimbVision
 
-Movement analysis from video: pose → centre of mass → stability.
-Starting with off-the-wall movements (standing, squat, plank); climbing comes later.
+Movement analysis from video: a generic engine (pose → canonical skeleton → centre of
+mass, angles, contacts, support) plus **recipes** — small YAML files that say what to
+measure for one movement. Off-the-wall movements work today; climbing is next.
 See [PLAN.md](PLAN.md) for the milestones and **[docs/GUIDE.md](docs/GUIDE.md) for the
 complete guide**: recording tips, every output explained, the science behind each
 measurement, the architecture, and how to extend the package.
@@ -20,17 +21,18 @@ pip install -e ".[dev]"
 ```bash
 climbvision analyze data/videos/squat_side.mp4
 climbvision analyze data/videos/*.mp4 --sex female --model heavy
-climbvision analyze data/videos/IMG_1234.MOV --exercise squat
+climbvision analyze data/videos/IMG_1234.MOV --recipe squat
 
-# re-run angles, exercise and stability metrics on existing results (seconds)
+# re-run the analysis on existing results (seconds), e.g. after changing a recipe
 climbvision metrics outputs/*
 # redraw the annotated video from existing results
 climbvision render outputs/squat_side
 ```
 
-The exercise is guessed from the file name, otherwise pass `--exercise`:
+The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
+`.yaml` file; `climbvision recipes` lists them, `--recipes DIR` adds your own):
 
-| `--exercise` | file names that match | what you get |
+| `--recipe` | file names that match | what you get |
 |---|---|---|
 | `squat` | `squat` | reps, depth (thigh angle, below parallel), knee/hip angle, trunk lean, tempo |
 | `pistol_squat` | `pistol` | the same, following the bending leg, plus reps per leg |
@@ -40,7 +42,7 @@ The exercise is guessed from the file name, otherwise pass `--exercise`:
 | `balance` | `tree`, `crow`, `onefoot`, `single_leg` | longest hold on a reduced base (one foot, hands), COM sway and margin during it |
 | `pullup` | `pullup`, `chinup` | reps, COM rise (cm), chin over bar, tempo, swing, kipping |
 | `leg_raise` | `leg_raise`, `toes_to_bar`, `knee_raise` | reps, hip/knee angle, toes to bar |
-| `dead_hang` | `dead_hang`, `hang` | hang time, arm straightness, swing |
+| `dead_hang` | `dead_hang`, `hang…` (not `overhang`) | hang time, arm straightness, swing |
 
 Every clip also gets jumps (flight time, jump height from flight time), stances and
 the stability margin. Judge squat, plank and pike form from **side-view** clips.
@@ -52,13 +54,13 @@ Each video gets a folder `outputs/<video name>/` with:
 | File | What's in it |
 |---|---|
 | `annotated.mp4` | skeleton, COM (pink) with a 2-second trail, floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line — green when the COM is over the support, red when not |
-| `landmarks.csv` | 33 landmarks per frame: pixel coords, 3D world coords (m), visibility |
+| `landmarks.csv` | the pose backend's raw points per frame (MediaPipe: 33): pixel coords, 3D world coords (m), visibility |
 | `com.csv` | whole-body COM per frame and a confidence score. `com_*_px` = position in the image; `com_*_m` = 3D position in metres **relative to the hip centre** (shows body shape, not where the body is in the room) |
 | `summary.json` | detection rate, COM mean / spread / range |
 | `angles.csv` | per-frame joint angles, both sides, 2D (image) and 3D versions |
-| `metrics.json` | view (side/front, body yaw), near side, angle ranges, exercise results (table above) and `stability` |
+| `metrics.json` | view (side/front, body yaw), near side, angle ranges, recipe results (table above) and `stability` |
 | `stability.csv` | per frame: what's touching the floor, support span, COM-to-edge margin (cm) |
-| `report.png` | angle plots, squat reps or plank hip offset, stability margin, contact timeline |
+| `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline |
 
 `metrics.json` → `stability` holds: contact time per body part, time in each stance
 (both feet, L foot, feet + forearms, ...), the stability margin (median / min / % of
@@ -78,32 +80,42 @@ climbvision summary outputs/*     # one line per clip + outputs/summary.csv
 ## Tests
 
 ```bash
-pytest                      # synthetic tests + 20 real-clip regression tests (~10 s)
+pytest                      # synthetic tests + 20 real-clip regression tests (~5 s)
 pytest -m "not regression"  # synthetic only
 ```
 
 The regression clips live in `tests/regression/` (pose data only, no video); see
-docs/GUIDE.md §8.6.
+docs/GUIDE.md §8.7.
+
+## Write your own analysis
+
+```yaml
+# pushup.yaml — then: climbvision metrics outputs/clip --recipe pushup.yaml
+name: pushup
+signals: {elbow: smooth(elbow, 1/6)}
+reps:
+  signal: elbow
+  start_drop: 50
+  end_drop: 25
+  fields: {min_elbow_deg: at_bottom(elbow)}
+  stats: [min_elbow_deg]
+```
+
+See [docs/RECIPES.md](docs/RECIPES.md) for everything a recipe can do.
 
 ## Layout
 
 ```
 src/climbvision/
-  skeleton.py   landmark names + Skeleton/Frame data model (backend-independent)
-  pose.py       MediaPipe pose backend (swappable)
-  com.py        De Leva (1996) 14-segment centre of mass
-  video.py      read/write video
-  draw.py       overlays
-  pipeline.py   video -> pose -> COM -> CSVs (the slow pass)
-  track.py      a clip's landmarks as arrays; load from landmarks.csv
-  angles.py     joint angles, view + near-side detection
-  exercises.py  squats (incl. pistol), plank, pike push-ups, jumping jacks, bar work
-  stability.py  scale, floor line, ground contacts, support, stability margin, sway
-  metrics.py    angles.csv / stability.csv / metrics.json / report.png
-  summary.py    one line per clip (climbvision summary)
-  render.py     annotated.mp4 from saved results
-  cli.py        command line
-tests/
-data/videos/    your clips (git-ignored)
-outputs/        results (git-ignored)
+  engine/          the layers: video, pose + backends/, skeleton (canonical joints, no
+                   face), track, biomech (COM, angles), scale, surfaces (floor),
+                   contacts (floor, bar grips), support, events, signals
+  recipes/         recipe runner + expression language; library/*.yaml = shipped recipes
+  output/          report.png, CSV tables, drawing, annotated video, one-line summary
+  analysis.py      results folder -> all analysis outputs
+  cli.py           command line
+tests/             synthetic + real-clip regression tests
+docs/              GUIDE.md (complete guide), RECIPES.md (recipe reference)
+data/videos/       your clips (git-ignored)
+outputs/           results (git-ignored)
 ```

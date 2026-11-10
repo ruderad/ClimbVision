@@ -1,15 +1,12 @@
 import numpy as np
 import pytest
+from synth import LM, N_LANDMARKS, mp_track
 
-from climbvision.angles import compute_angles
-from climbvision.skeleton import LM, N_LANDMARKS
-from climbvision.stability import (
-    compute_stability,
-    estimate_floor,
-    estimate_scale,
-    stability_summary,
-)
-from climbvision.track import Track
+from climbvision.engine.biomech import compute_angles
+from climbvision.engine.scale import estimate_scale
+from climbvision.engine.support import compute_stability, flight_phases, stability_summary
+from climbvision.engine.surfaces import estimate_floor
+from climbvision.engine.track import Track
 
 FPS = 30.0
 PX_PER_M = 700.0
@@ -43,7 +40,8 @@ def make_track(poses, noise: float = 0.3, seed: int = 0) -> Track:
     hip = (img[:, LM.LEFT_HIP] + img[:, LM.RIGHT_HIP]) / 2
     world = np.concatenate([(img - hip[:, None]) / PX_PER_M,
                             np.zeros((len(poses), N_LANDMARKS, 1))], axis=2)
-    return Track(np.arange(len(poses)) / FPS, img, world, np.full((len(poses), N_LANDMARKS), 0.9))
+    return mp_track(np.arange(len(poses)) / FPS, img, world,
+                    np.full((len(poses), N_LANDMARKS), 0.9))
 
 
 def test_scale_and_floor_ignore_resting_hands():
@@ -111,18 +109,16 @@ def test_floor_follows_person_moving_away():
 
 
 def test_jump_detected_and_planted_feet_are_not():
-    from climbvision.stability import flight_phases, stance_labels
-
     rest = [standing()] * 30
     n_air = 9  # 0.3 s flight, parabolic up to 50 px
     air = [standing() - np.array([0, 200 * (k + 1) * (n_air - k) / (n_air + 1) ** 2])
            for k in range(n_air)]
     tr = make_track(rest + air + rest)
     st = compute_stability(tr, "side")
-    jumps = flight_phases(stance_labels(st.contacts), tr.time_s, st)
+    jumps = flight_phases(st.labels, tr.time_s, st)
     assert len(jumps) == 1
     assert stability_summary(st, tr.time_s)["jumps"]["count"] == 1
 
     still = make_track([standing()] * 70)
     st2 = compute_stability(still, "side")
-    assert flight_phases(stance_labels(st2.contacts), still.time_s, st2) == []
+    assert flight_phases(st2.labels, still.time_s, st2) == []

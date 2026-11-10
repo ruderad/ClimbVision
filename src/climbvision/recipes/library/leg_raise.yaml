@@ -1,0 +1,51 @@
+name: leg_raise
+description: >
+  Hanging leg raises / knee raises / toes-to-bar, counted on the hip angle (90 = legs
+  horizontal). Also the longest hold (>= 3 s) with the legs raised (hip < 120°).
+match: ['toes.?to.?bar|t2b|leg.?raise|knee.?raise']
+priority: 10
+scene: bar
+
+signals:
+  hip: smooth(hip, 1/6)
+  knee: smooth(knee, 1/6)
+
+reps:
+  signal: hip
+  start_drop: 40
+  end_drop: 20
+  min_s: 0.6
+  require: at_bottom(on_bar)
+  let:
+    toe_gap: min(toe_y - bar_y)        # toes below the bar at their highest (px)
+  fields:
+    start_s: [t_start, 2]
+    end_s: [t_end, 2]
+    min_hip_deg: at_bottom(hip)
+    min_knee_deg: min(knee)            # ~180 straight-leg raise, small = knee raise
+    toes_to_bar: isfinite(toe_gap) and toe_gap < 0.05 * body_px
+  stats: [min_hip_deg, min_knee_deg]
+  count:
+    reps_toes_to_bar: toes_to_bar
+
+holds:
+  - when: (hip < 120) & on_bar
+    min_s: 3
+    nest_as: raised_hold
+    fields:
+      start_s: [t_start, 2]
+      hold_s: [duration, 2]
+      hip_deg_start: median(head(hip, frames(1)))
+      hip_deg_end: median(tail(hip, frames(1)))
+      knee_deg_median: median(knee)
+      hip_drop_deg: hip_deg_end - hip_deg_start
+
+headline: >-
+  f"{plural(reps, 'rep')}, hip {min_hip_deg_mean:.0f}°, toes-to-bar {reps_toes_to_bar or 0}"
+  + (f"; hold {raised_hold.hold_s} s, hips sank {raised_hold.hip_drop_deg}°"
+     if raised_hold else "")
+
+plot:
+  signal: hip
+  label: hip angle (deg)
+  extra: [knee, knee angle (deg)]

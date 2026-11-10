@@ -5,15 +5,18 @@ import json
 
 import cv2
 import numpy as np
+from synth import N_LANDMARKS
 
-from climbvision.metrics import run_metrics
-from climbvision.pipeline import analyze
-from climbvision.render import render
-from climbvision.skeleton import N_LANDMARKS, Skeleton
+from climbvision.analysis import run_analysis
+from climbvision.engine.pose import run_pose
+from climbvision.engine.skeleton import RawPose
+from climbvision.output.render import render
 
 
 class FakeEstimator:
     """Returns a fixed skeleton, except every 5th frame where no person is found."""
+
+    backend = "mediapipe_pose33"
 
     def __init__(self):
         rng = np.random.default_rng(0)
@@ -26,7 +29,7 @@ class FakeEstimator:
         self.last_t = time_ms
         if (time_ms // 100) % 5 == 4:
             return None
-        return Skeleton(self.img, self.world, np.full(N_LANDMARKS, 0.9))
+        return RawPose(self.img, self.world, np.full(N_LANDMARKS, 0.9))
 
     def close(self):
         pass
@@ -43,14 +46,15 @@ def test_analyze_writes_all_outputs(tmp_path):
     video = tmp_path / "clip.mp4"
     make_video(video)
     out = tmp_path / "out"
-    summary = analyze(video, out, FakeEstimator())
+    summary = run_pose(video, out, FakeEstimator())
 
     for name in ("landmarks.csv", "com.csv", "summary.json"):
         assert (out / name).exists(), name
 
     assert summary["frames"] == 20
     assert summary["frames_with_pose"] == 16
-    assert json.loads((out / "summary.json").read_text())["frames"] == 20
+    saved = json.loads((out / "summary.json").read_text())
+    assert saved["frames"] == 20 and saved["backend"] == "mediapipe_pose33"
 
     with (out / "com.csv").open() as f:
         rows = list(csv.DictReader(f))
@@ -68,8 +72,8 @@ def test_metrics_and_render_from_results(tmp_path):
     video = tmp_path / "clip.mp4"
     make_video(video)
     out = tmp_path / "out"
-    analyze(video, out, FakeEstimator())
-    m = run_metrics(out, "none")
+    run_pose(video, out, FakeEstimator())
+    m = run_analysis(out, "none")
     assert "stability" in m and "angle_ranges" in m
     for name in ("angles.csv", "stability.csv", "metrics.json", "report.png"):
         assert (out / name).exists(), name
@@ -79,7 +83,7 @@ def test_metrics_and_render_from_results(tmp_path):
 
 
 def test_summary_headlines(tmp_path):
-    from climbvision.summary import headline, markdown_table, summarize_results
+    from climbvision.output.summary import headline, markdown_table, summarize_results
 
     assert headline({"exercise": "squat", "reps": 1, "reps_below_parallel": 1,
                      "min_knee_deg_mean": 40.0}) == "1 rep, 1 below parallel, knee 40°"

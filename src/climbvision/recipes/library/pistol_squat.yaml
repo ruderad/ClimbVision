@@ -1,0 +1,55 @@
+name: pistol_squat
+description: >
+  Single-leg (pistol) squats: like `squat`, but follows whichever leg is bending more
+  and reports the working leg of each rep.
+match: [pistol]
+priority: 40
+
+signals:
+  knee_l: smooth(knee_l, 1/6)
+  knee_r: smooth(knee_r, 1/6)
+  use_left: nan_to_num(knee_l, 999) <= nan_to_num(knee_r, 999)
+  knee: where(use_left, knee_l, knee_r)
+  hip: where(use_left, smooth(hip_l, 1/6), smooth(hip_r, 1/6))
+  thigh: where(use_left, smooth(thigh_l, 1/6), smooth(thigh_r, 1/6))
+  lean: smooth(trunk_lean, 1/6)
+  depth_cm: smooth(where(use_left, hip_below_knee_cm_l, hip_below_knee_cm_r), 1/6)
+
+reps:
+  signal: knee
+  start_drop: 35
+  end_drop: 15
+  min_s: 0.6
+  fields:
+    # the leg that is more bent over the whole rep, not just one frame
+    leg: "'left' if median(knee_l) <= median(knee_r) else 'right'"
+    start_s: [t_start, 2]
+    bottom_s: [t_bottom, 2]
+    end_s: [t_end, 2]
+    descent_s: [t_bottom - t_start, 2]
+    ascent_s: [t_end - t_bottom, 2]
+    min_knee_deg: at_bottom(knee)
+    min_hip_deg: min(hip)
+    max_trunk_lean_deg: max(lean)
+    min_thigh_deg: min(thigh)
+    hip_below_knee_cm: at_bottom(depth_cm)
+    below_parallel: min(thigh) < 0
+  stats: [min_knee_deg, min_hip_deg, max_trunk_lean_deg, min_thigh_deg, hip_below_knee_cm,
+          descent_s, ascent_s]
+  count:
+    reps_below_parallel: below_parallel
+  categories:
+    reps_by_leg: {field: leg, values: [left, right]}
+
+summary:
+  standing_knee_deg: rest
+
+headline: >-
+  f"{plural(reps, 'rep')}, {reps_below_parallel or 0} below parallel"
+  + (f", knee {min_knee_deg_mean:.0f}°" if min_knee_deg_mean is not None else "")
+  + (f" (L {reps_by_leg.left} / R {reps_by_leg.right})" if reps_by_leg else "")
+
+plot:
+  signal: knee
+  label: knee angle (deg, bending leg)
+  rest_line: true

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "climbvision"
-version = "0.1.0"
+version = "0.2.0"
 description = "Movement analysis from video: pose, centre of mass, stability."
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "opencv-python>=4.8",
     "mediapipe>=0.10.14",
     "matplotlib>=3.7",
+    "pyyaml>=6",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +23,9 @@ climbvision = "climbvision.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+climbvision = ["recipes/library/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

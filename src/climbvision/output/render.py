@@ -13,8 +13,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from climbvision.angles import compute_angles
-from climbvision.draw import (
+from climbvision.analysis import clip_info, load_clip, resolve_recipe
+from climbvision.engine.skeleton import Skeleton
+from climbvision.engine.video import VideoReader, VideoWriter
+from climbvision.output.draw import (
     INSIDE_COLOR,
     OUTSIDE_COLOR,
     draw_com,
@@ -25,28 +27,23 @@ from climbvision.draw import (
     draw_skeleton,
     draw_support,
 )
-from climbvision.metrics import BAR_EXERCISES, guess_exercise
-from climbvision.skeleton import Skeleton
-from climbvision.stability import compute_stability, stance_labels
-from climbvision.track import Track
-from climbvision.video import VideoReader, VideoWriter
 
 
 def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path | None = None,
            trail_seconds: float = 2.0) -> Path:
     result_dir = Path(result_dir)
     out_path = Path(out_path) if out_path else result_dir / "annotated.mp4"
-    info = json.loads((result_dir / "summary.json").read_text())
-    track = Track.from_csv(result_dir / "landmarks.csv")
-    ang = compute_angles(track)
-    # same exercise (hence bar / no bar) as the metrics step used
+    info = clip_info(result_dir)
+    # same recipe (hence bar / no bar scene) as the analysis step used
     mpath = result_dir / "metrics.json"
-    exercise = (json.loads(mpath.read_text()).get("exercise") if mpath.exists()
-                else guess_exercise(result_dir.name))
-    st = compute_stability(track, ang.view, info.get("sex_model", "male"),
-                           tuple(info["frame_size"]) if "frame_size" in info else None,
-                           bar=exercise in BAR_EXERCISES)
-    labels = stance_labels(st.contacts)
+    recipe = json.loads(mpath.read_text()).get("exercise", "auto") if mpath.exists() else "auto"
+    try:
+        rec = resolve_recipe(result_dir, recipe)
+    except ValueError:  # a recipe from a folder that isn't loaded now
+        rec = resolve_recipe(result_dir, "auto")
+    clip = load_clip(result_dir, bar=rec.bar)
+    track, st = clip.track, clip.stability
+    labels = st.labels
     fl = st.floor
 
     with VideoReader(video_path) as reader:

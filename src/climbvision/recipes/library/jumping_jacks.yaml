@@ -1,0 +1,32 @@
+name: jumping_jacks
+description: >
+  Jumping jacks, counted on the arms (one rep = arms up and back down). Front view;
+  2D angles, since the arms move in the image plane.
+match: ['jumping.?jack|\bjacks?\b']
+priority: 80
+
+signals:
+  arms: smooth(avg(shoulder_l_2d, shoulder_r_2d), 1/15)
+  feet: smooth(feet_width, 1/15)
+
+reps:
+  signal: 180 - arms   # peaks of the arms = dips of this
+  start_drop: 80
+  end_drop: 40
+  min_s: 0.25
+  fields:
+    start_s: [t_start, 2]
+    end_s: [t_end, 2]
+    max_arm_deg: max(arms)
+    max_feet_width: [max(feet), 2]
+  stats: [max_arm_deg, max_feet_width]
+
+summary:
+  reps_per_min: "60 * n / (field('end_s')[-1] - field('start_s')[0]) if n >= 2 else None"
+
+headline: >-
+  f"{plural(reps, 'rep')}, {reps_per_min:.0f}/min, {stability.jumps.count if stability.jumps else 0} jumps"
+
+plot:
+  signal: arms
+  label: arm elevation (shoulder angle, deg)

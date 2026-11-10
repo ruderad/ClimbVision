@@ -9,7 +9,7 @@ Each milestone ends with something you can run on a real clip and look at.
 
 ## Assumptions (v1)
 
-- One person in frame, fixed camera (tripod or propped phone).
+- One person in frame, fixed camera (tripod or propped phone) — handheld comes with E2.
 - Single camera, so image measurements are 2D. MediaPipe also estimates rough 3D
   "world" coordinates in metres (hip-centred), which we store alongside.
 - Python 3.10+, MediaPipe Pose Landmarker as the pose backend (swappable).
@@ -159,10 +159,43 @@ Fixes from these clips:
 - Checked the net works: tightening the floor-contact height threshold (5% → 2% of body length) makes 2 real clips fail
 - Also: the "no ground contact" warning no longer counts time spent in real jumps
 
-## M7 — On the wall
-- Wall-plane calibration (mark the wall corners once per camera setup)
-- Hand + foot contacts on holds, support polygon on the wall plane
-- Move-by-move segmentation, compare attempts
+## Round 6: climbing clips (2026-11-07)
+First wall clips exposed the limits of the off-the-wall design: handheld camera (the
+floor/stillness logic assumes a still image), no footholds found, base of support
+meaningless on the wall, the skeleton jumping to another person or onto holds
+(`coordination_failed`), and face/finger points that are wrong when the climber's back
+is to the camera. Decision: rebuild as a generic engine + recipes, then add the wall
+layers one at a time.
+
+## Engine roadmap
+| Step | What | Done when |
+|---|---|---|
+| **E1 ✅** | Layered engine: canonical skeleton (no face), backend mapping, layers re-run from saved data, recipe system, today's exercises as YAML recipes | the 20 reference clips give the same results |
+| E2 | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
+| E3 | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
+| E4 | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
+| E5 | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
+| E6 | Climbing recipes: moves, hold usage, route map | first per-move report |
+
+## E1 — engine restructure ✅ (2026-11-10)
+- `src/climbvision/engine/`: video, pose + backends, skeleton (23 canonical joints:
+  head, neck/head-top, shoulders…hands, hips…toes; no face, fingers → one HAND point),
+  track, biomech, scale, surfaces, contacts, support, events, signals
+- `landmarks.csv` now keeps the backend's raw points + `summary.json` records the
+  backend, so mappings can change without re-running pose
+- Recipes (`recipes/library/*.yaml`) replace exercises.py/metrics.py: squat,
+  pistol_squat, plank, pike_pushup, jumping_jacks, balance, pullup, leg_raise, dead_hang.
+  A small safe expression language; `--recipe` (name or file), `--recipes DIR`,
+  `climbvision recipes`, `climbvision signals`; headlines come from the recipes
+- Fixed: "overhang" no longer selects the dead-hang recipe
+- Equivalence: all 20 regression clips pass. 15 of 20 give identical metrics.json; the
+  other 5 (crow pose, planks, pike push-ups, pistol front) differ slightly in floor
+  contacts of the hands only, because a hand is now one HAND point instead of three
+  finger points (e.g. crow balance hold 10.81 → 10.74 s, pistol front floor tilt
+  0.85° → −1.33°). Every rep count, hold and exercise result is unchanged except the
+  crow hold time.
+- Off-the-wall recipes stay in this repo until the engine settles; they can then move
+  to a separate package that depends on the engine.
 
 ---
 

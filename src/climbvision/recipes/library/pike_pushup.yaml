@@ -1,0 +1,42 @@
+name: pike_pushup
+description: >
+  Push-ups in a pike (hips folded < 120°), counted on the elbow. Also reports time in a
+  plank (hips open > 145°, torso near horizontal) and in a pike with straight arms,
+  since these clips usually go plank -> pike -> push-ups.
+match: [pike]
+priority: 60
+
+signals:
+  hip: smooth(hip, 1/6)
+  elbow: smooth(elbow, 1/6)
+  lean: smooth(trunk_lean, 1/6)
+  piked: hip < 120
+
+reps:
+  signal: elbow
+  start_drop: 45
+  end_drop: 25
+  min_s: 0.5
+  # "arms straight" = 90th percentile of the elbow while piked
+  rest: "percentile(elbow, 90, where=piked) if any(piked) else 160.0"
+  require: at_bottom(piked)
+  fields:
+    start_s: [t_start, 2]
+    bottom_s: [t_bottom, 2]
+    end_s: [t_end, 2]
+    min_elbow_deg: at_bottom(elbow)
+    hip_deg_at_bottom: at_bottom(hip)
+  stats: [min_elbow_deg, hip_deg_at_bottom]
+
+summary:
+  arms_straight_deg: rest
+  plank_s: [time((hip > 145) & (abs(lean - 90) < 30)), 2]
+  pike_straight_arms_s: [time(piked & (elbow > rest - 25)), 2]
+
+headline: >-
+  f"{plural(reps, 'pike push-up')}, plank {plank_s:.1f} s, pike {pike_straight_arms_s:.1f} s"
+
+plot:
+  signal: elbow
+  label: elbow angle (deg)
+  extra: [hip, hip angle (deg)]

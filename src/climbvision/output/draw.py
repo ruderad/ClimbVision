@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from climbvision.skeleton import BONES, Skeleton
+from climbvision.engine.skeleton import BONES, Skeleton
 
 BONE_COLOR = (230, 230, 230)
 JOINT_COLOR = (0, 200, 255)
@@ -32,12 +32,15 @@ def _scale(frame: np.ndarray) -> float:
 def draw_skeleton(frame: np.ndarray, sk: Skeleton, min_visibility: float = 0.5) -> None:
     s = _scale(frame)
     lw = max(1, int(2 * s))
+    known = np.isfinite(sk.image).all(axis=1)
     for a, b in BONES:
+        if not (known[a] and known[b]):
+            continue  # joint not provided by this backend / not found
         ok = min(sk.visibility[a], sk.visibility[b]) >= min_visibility
         cv2.line(frame, _pt(sk.image[a]), _pt(sk.image[b]),
                  BONE_COLOR if ok else LOW_VIS_COLOR, lw, cv2.LINE_AA)
     r = max(2, int(3 * s))
-    for p, v in zip(sk.image, sk.visibility, strict=False):
+    for p, v in zip(sk.image[known], sk.visibility[known], strict=True):
         cv2.circle(frame, _pt(p), r, JOINT_COLOR if v >= min_visibility else LOW_VIS_COLOR,
                    -1, cv2.LINE_AA)
 

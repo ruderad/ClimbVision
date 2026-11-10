@@ -1,8 +1,25 @@
 import numpy as np
 import pytest
+from synth import LM, N_LANDMARKS
 
-from climbvision.com import SEGMENTS, com_confidence, segment_params, whole_body_com
-from climbvision.skeleton import LM, N_LANDMARKS
+from climbvision.engine.backends import to_canonical
+from climbvision.engine.biomech import SEGMENTS, com_confidence, segment_params
+from climbvision.engine.biomech import whole_body_com as _com
+from climbvision.engine.skeleton import N_JOINTS, J
+
+
+def canon(p: np.ndarray) -> np.ndarray:
+    """MediaPipe-ordered points (33, D) -> canonical (N_JOINTS, D)."""
+    d = p.shape[-1]
+    img = np.zeros((N_LANDMARKS, 2))
+    wld = np.zeros((N_LANDMARKS, 3))
+    (img if d == 2 else wld)[:, :d] = p
+    ci, cw, _ = to_canonical("mediapipe_pose33", img, wld, np.ones(N_LANDMARKS))
+    return ci if d == 2 else cw
+
+
+def whole_body_com(p: np.ndarray) -> np.ndarray:
+    return _com(canon(p))
 
 
 def standing_pose() -> np.ndarray:
@@ -62,10 +79,10 @@ def test_squat_lowers_com():
 
 
 def test_confidence():
-    assert com_confidence(np.ones(N_LANDMARKS)) == pytest.approx(1.0)
-    assert com_confidence(np.zeros(N_LANDMARKS)) == pytest.approx(0.0)
-    vis = np.ones(N_LANDMARKS)
-    vis[LM.LEFT_HEEL] = 0.0  # hiding one foot costs only that foot's mass share
+    assert com_confidence(np.ones(N_JOINTS)) == pytest.approx(1.0)
+    assert com_confidence(np.zeros(N_JOINTS)) == pytest.approx(0.0)
+    vis = np.ones(N_JOINTS)
+    vis[J.L_HEEL] = 0.0  # hiding one foot costs only that foot's mass share
     masses, _ = segment_params()
     foot = [s.name for s in SEGMENTS].index("left_foot")
     assert com_confidence(vis) == pytest.approx(1.0 - masses[foot])

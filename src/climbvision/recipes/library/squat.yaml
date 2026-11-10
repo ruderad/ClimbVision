@@ -1,0 +1,49 @@
+name: squat
+description: >
+  Squats. A rep is a dip of the knee angle more than 35° below standing, back to
+  within 15°. Depth = thigh angle vs horizontal at the bottom (below parallel < 0).
+  Judge depth and trunk lean from a side view; front views read less of both.
+match: [squat]
+priority: 50
+
+signals:
+  knee: smooth(knee, 1/6)
+  hip: smooth(hip, 1/6)
+  thigh: smooth(thigh, 1/6)
+  lean: smooth(trunk_lean, 1/6)
+  depth_cm: smooth(hip_below_knee_cm, 1/6)
+
+reps:
+  signal: knee
+  start_drop: 35
+  end_drop: 15
+  min_s: 0.6
+  fields:
+    leg: "'both'"
+    start_s: [t_start, 2]
+    bottom_s: [t_bottom, 2]
+    end_s: [t_end, 2]
+    descent_s: [t_bottom - t_start, 2]
+    ascent_s: [t_end - t_bottom, 2]
+    min_knee_deg: at_bottom(knee)
+    min_hip_deg: min(hip)
+    max_trunk_lean_deg: max(lean)
+    min_thigh_deg: min(thigh)
+    hip_below_knee_cm: at_bottom(depth_cm)
+    below_parallel: min(thigh) < 0
+  stats: [min_knee_deg, min_hip_deg, max_trunk_lean_deg, min_thigh_deg, hip_below_knee_cm,
+          descent_s, ascent_s]
+  count:
+    reps_below_parallel: below_parallel
+
+summary:
+  standing_knee_deg: rest
+
+headline: >-
+  f"{plural(reps, 'rep')}, {reps_below_parallel or 0} below parallel"
+  + (f", knee {min_knee_deg_mean:.0f}°" if min_knee_deg_mean is not None else "")
+
+plot:
+  signal: knee
+  label: knee angle (deg, smoothed)
+  rest_line: true

@@ -1,0 +1,30 @@
+name: balance
+description: >
+  Balance holds (one foot, tree, crow, ...): the longest unbroken stretch (>= 1 s) on a
+  reduced base — any stance except both feet — with COM sway and stability margin.
+match: ['tree|crow|one.?foot|single.?leg|balance|stork']
+priority: 90
+
+holds:
+  - by: stance
+    exclude: [none, both feet]
+    min_s: 1
+    nest_as: balance
+    fields:
+      stance: label
+      start_s: [t_start, 2]
+      hold_s: [duration, 2]
+      margin_cm_median: "median(finite(margin_cm)) if any(isfinite(margin_cm)) else None"
+      margin_cm_min: "min(finite(margin_cm)) if any(isfinite(margin_cm)) else None"
+      pct_inside: "pct(margin_cm > 0, where=isfinite(margin_cm)) if any(isfinite(margin_cm)) else None"
+    merge: [sway(com_x_cm)]
+    if_missing:
+      note: no hold of >= 1 s on one foot / hands found
+
+headline: >-
+  "no balance hold found" if balance.hold_s is None else
+  f"{balance.hold_s} s on {balance.stance}, sway sd {balance.sd_cm:.1f} cm"
+
+plot:
+  signal: com_x_cm - median(com_x_cm)
+  label: COM position (cm, + = image right)

@@ -1,0 +1,66 @@
+name: pullup
+description: >
+  Pull-ups / chin-ups, counted on how far the shoulders hang below the bar (body
+  lengths): ~0.4 in a dead hang, ~0.05 at the top; works from any view, no face needed.
+  Chin over bar is estimated from body proportions (chin ~0.095 body lengths above the
+  shoulder line; Drillis & Contini), because the face is often hidden at the top;
+  within ±5 cm of the bar it is "at bar" rather than a guess.
+match: ['pull.?up|chin.?up|muscle.?up']
+priority: 20
+scene: bar
+
+signals:
+  shoulder_y: smooth(shoulder_y, 1/6)
+  gap: smooth(shoulder_y - bar_y, 1/6) / body_px
+  # front view: 3D elbows (with a narrow grip they point at the camera and look
+  # folded flat in the image); side view: near arm, 2D
+  elbow: "smooth(avg(elbow_l_3d, elbow_r_3d) if view == 'front' else elbow, 1/6)"
+  hip: smooth(hip, 1/6)
+  com_y: smooth(com_y_px, 1/6)
+  chin_px: 0.095 * body_px
+
+reps:
+  signal: gap
+  start_drop: 0.12
+  end_drop: 0.05
+  min_s: 0.6
+  require: at_bottom(on_bar)
+  let:
+    clearance: to_cm(at_bottom(bar_y) - (at_bottom(shoulder_y) - chin_px), i_bottom)
+    base: max(before(gap, 1))          # hang before the rep
+    hip_range: max(hip) - min(hip)
+  fields:
+    start_s: [t_start, 2]
+    top_s: [t_bottom, 2]
+    end_s: [t_end, 2]
+    up_s: [t_bottom - t_start, 2]
+    down_s: [t_end - t_bottom, 2]
+    pull_cm: to_cm((base - at_bottom(gap)) * body_px, i_bottom)
+    top_gap_cm: to_cm(at_bottom(gap) * body_px, i_bottom)
+    com_rise_cm: to_cm(at_start(com_y) - min(com_y), i_bottom)
+    chin_clearance_cm: clearance
+    chin: "'over' if clearance > 5 else 'under' if clearance < -5 else 'at bar'"
+    top_elbow_deg: min(elbow)
+    start_elbow_deg: at_start(elbow)
+    swing_cm: "ptp(swing_cm) if any(isfinite(swing_cm)) else nan"
+    hip_range_deg: hip_range
+    kipping: hip_range > 40            # big hip swing = kipping / leg drive
+  stats: [pull_cm, top_gap_cm, com_rise_cm, chin_clearance_cm, top_elbow_deg,
+          start_elbow_deg, up_s, down_s, swing_cm, hip_range_deg]
+  count:
+    reps_kipping: kipping
+  categories:
+    reps_chin: {field: chin, values: [over, at bar, under]}
+
+summary:
+  chin_above_shoulders_cm: to_cm(chin_px, 0)
+
+headline: >-
+  f"{plural(reps, 'rep')}, pull {pull_cm_mean:.0f} cm, chin over/at/under "
+  f"{reps_chin.over or 0}/{reps_chin['at bar'] or 0}/{reps_chin.under or 0}, "
+  f"kipping {reps_kipping or 0}"
+
+plot:
+  signal: gap * 100
+  label: shoulders below bar (% body length)
+  extra: [elbow, elbow angle (deg)]

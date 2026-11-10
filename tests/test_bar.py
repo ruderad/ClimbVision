@@ -2,12 +2,9 @@
 
 import numpy as np
 import pytest
+from synth import LM, N_LANDMARKS, analyse, mp_track
 
-from climbvision.angles import compute_angles
-from climbvision.exercises import dead_hang, leg_raise_reps, pullup_reps
-from climbvision.skeleton import LM, N_LANDMARKS
-from climbvision.stability import compute_stability, stability_summary
-from climbvision.track import Track
+from climbvision.engine.support import compute_stability, stability_summary
 
 FPS = 30.0
 PPM = 700.0  # pixels per metre
@@ -49,7 +46,7 @@ def hanging(d: float = 395.0, leg_lift: float = 0.0) -> np.ndarray:
     return p
 
 
-def make_track(poses, leg_lifts=None) -> Track:
+def make_track(poses, leg_lifts=None, edit_raw=None):
     rng = np.random.default_rng(0)
     img = np.stack(poses) + rng.normal(0, 0.3, (len(poses), N_LANDMARKS, 2))
     hip = (img[:, LM.LEFT_HIP] + img[:, LM.RIGHT_HIP]) / 2
@@ -64,16 +61,19 @@ def make_track(poses, leg_lifts=None) -> Track:
                                 ("FOOT_INDEX", 500)):
                     world[k, LM[f"{side}_{name}"]] = h + np.array([0, np.cos(a), -np.sin(a)]) \
                         * r / PPM
-    return Track(np.arange(len(poses)) / FPS, img, world, np.full((len(poses), N_LANDMARKS), 0.9))
+    if edit_raw is not None:
+        edit_raw(img)
+    return mp_track(np.arange(len(poses)) / FPS, img, world,
+                    np.full((len(poses), N_LANDMARKS), 0.9))
 
 
-def pullup_clip(reps: int = 3, top_d: float = 32.0) -> Track:
+def pullup_clip(reps: int = 3, top_d: float = 32.0, edit_raw=None):
     poses = [hanging()] * 30
     for _ in range(reps):
         for x in np.sin(np.linspace(0, np.pi, 60)):  # 2 s up and down
             poses.append(hanging(395 - (395 - top_d) * x))
         poses += [hanging()] * 15
-    return make_track(poses + [hanging()] * 30)
+    return make_track(poses + [hanging()] * 30, edit_raw=edit_raw)
 
 
 def test_grips_and_hanging_without_floor():
@@ -88,9 +88,7 @@ def test_grips_and_hanging_without_floor():
 
 def test_pullup_reps_rise_and_chin():
     tr = pullup_clip(reps=3, top_d=32)
-    ang = compute_angles(tr)
-    st = compute_stability(tr, ang.view, bar=True)
-    reps, summ = pullup_reps(tr, ang, st)
+    summ, _ = analyse(tr, "pullup")
     assert summ["reps"] == 3
     shoulder_rise = np.sqrt(395**2 - 30**2) - np.sqrt(32**2 - 30**2)
     assert summ["pull_cm_mean"] == pytest.approx(shoulder_rise / PPM * 100, rel=0.1)
@@ -98,8 +96,7 @@ def test_pullup_reps_rise_and_chin():
     assert summ["reps_kipping"] == 0
 
     shallow = pullup_clip(reps=2, top_d=220)
-    ang2 = compute_angles(shallow)
-    _, summ2 = pullup_reps(shallow, ang2, compute_stability(shallow, ang2.view, bar=True))
+    summ2, _ = analyse(shallow, "pullup")
     assert summ2["reps"] == 2 and summ2["reps_chin"]["under"] == 2
 
 
@@ -109,12 +106,10 @@ def test_dead_hang_and_leg_raises():
         lifts += list(100 * np.sin(np.linspace(0, np.pi, 60))) + [0.0] * 15
     lifts += [0.0] * 30
     tr = make_track([hanging(leg_lift=a) for a in lifts], leg_lifts=lifts)
-    ang = compute_angles(tr)
-    st = compute_stability(tr, ang.view, bar=True)
-    reps, summ = leg_raise_reps(tr, ang, st)
+    summ, _ = analyse(tr, "leg_raise")
     assert summ["reps"] == 3
     assert summ["min_hip_deg_mean"] < 100
-    hang = dead_hang(tr, ang, st)
+    hang = analyse(tr, "dead_hang")[0]["dead_hang"]
     assert hang["hold_s"] > 8 and hang["elbow_deg_median"] > 150
 
 
@@ -135,15 +130,16 @@ def test_floor_learned_from_standing_frames_before_the_hang():
 
 
 def test_chin_over_bar_without_seeing_the_face():
-    """Door frame hides the face at the top: the mouth landmarks there are garbage
+    """Door frame hides the face at the top: the face landmarks there are garbage
     (pushed down to the chest). The body-based estimate must still say 'over'."""
-    tr = pullup_clip(reps=2, top_d=32)
-    shoulder_y = (tr.image[:, LM.LEFT_SHOULDER, 1] + tr.image[:, LM.RIGHT_SHOULDER, 1]) / 2
-    top = shoulder_y < BAR_Y + 150
-    for lm in (LM.MOUTH_LEFT, LM.MOUTH_RIGHT, LM.NOSE):
-        tr.image[top, lm, 1] = shoulder_y[top] + 40
-    ang = compute_angles(tr)
-    _, summ = pullup_reps(tr, ang, compute_stability(tr, ang.view, bar=True))
+    def hide_face(img):
+        shoulder_y = (img[:, LM.LEFT_SHOULDER, 1] + img[:, LM.RIGHT_SHOULDER, 1]) / 2
+        top = shoulder_y < BAR_Y + 150
+        for lm in (LM.MOUTH_LEFT, LM.MOUTH_RIGHT, LM.NOSE, LM.LEFT_EAR, LM.RIGHT_EAR):
+            img[top, lm, 1] = shoulder_y[top] + 40
+
+    tr = pullup_clip(reps=2, top_d=32, edit_raw=hide_face)
+    summ, _ = analyse(tr, "pullup")
     assert summ["reps"] == 2 and summ["reps_chin"]["over"] == 2
     assert summ["chin_above_shoulders_cm"] == pytest.approx(
         0.095 * compute_stability(tr, "front", bar=True).scale.body_px / PPM * 100, rel=0.05)

@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
+from synth import LM, N_LANDMARKS, analyse, mp_track
 
-from climbvision.angles import angle_at, compute_angles
-from climbvision.exercises import hip_offset_pct, plank_metrics, squat_reps
-from climbvision.skeleton import LM, N_LANDMARKS
-from climbvision.track import Track, smooth
+from climbvision.engine.biomech import angle_at, compute_angles
+from climbvision.engine.events import find_cycles
+from climbvision.engine.signals import hip_offset_pct
+from climbvision.engine.track import Track, smooth
 
 FPS = 30.0
 
@@ -38,7 +39,7 @@ def make_track(poses: list[np.ndarray]) -> Track:
                            axis=2)
     vis = np.full((n, N_LANDMARKS), 0.9)
     vis[:, [lm for lm in LM if lm.name.startswith("RIGHT")]] = 0.6  # left = near side
-    return Track(np.arange(n) / FPS, img, world, vis)
+    return mp_track(np.arange(n) / FPS, img, world, vis)
 
 
 def test_angle_at():
@@ -66,11 +67,12 @@ def test_squat_rep_counting_and_depth():
             poses.append(side_pose(30 * x, d * x, 35 * x))
     poses += [side_pose(0, 0, 0)] * 30
     tr = make_track(poses)
-    reps, summary = squat_reps(tr, compute_angles(tr))
-    assert summary["reps"] == 3
-    assert [r.below_parallel for r in reps] == [False, True, False]
-    assert reps[1].min_thigh_deg == pytest.approx(-5, abs=1.5)
-    assert reps[0].max_trunk_lean_deg == pytest.approx(35, abs=2)
+    m, _ = analyse(tr, "squat")
+    reps = m["reps_detail"]
+    assert m["reps"] == 3
+    assert [r["below_parallel"] for r in reps] == [False, True, False]
+    assert reps[1]["min_thigh_deg"] == pytest.approx(-5, abs=1.5)
+    assert reps[0]["max_trunk_lean_deg"] == pytest.approx(35, abs=2)
 
 
 def plank_pose(hip_lift: float) -> np.ndarray:
@@ -91,9 +93,10 @@ def plank_pose(hip_lift: float) -> np.ndarray:
 
 
 def test_hip_offset_sign():
-    straight = hip_offset_pct(plank_pose(0)[None], "left")[0]
-    pike = hip_offset_pct(plank_pose(80)[None], "left")[0]
-    sag = hip_offset_pct(plank_pose(-60)[None], "left")[0]
+    def off(lift):
+        return hip_offset_pct(make_track([plank_pose(lift)]).image, "left")[0]
+
+    straight, pike, sag = off(0), off(80), off(-60)
     assert abs(straight) < 1
     assert pike < -5 and sag > 5
 
@@ -101,7 +104,7 @@ def test_hip_offset_sign():
 def test_plank_hold_and_drift():
     poses = [plank_pose(0)] * 150 + [plank_pose(-80)] * 150  # 5 s straight, 5 s sagging
     tr = make_track(poses)
-    m = plank_metrics(tr, compute_angles(tr))
+    m, _ = analyse(tr, "plank")
     assert m["hold_s"] == pytest.approx(10, abs=0.1)
     assert 40 < m["pct_time_straight"] < 60 and 40 < m["pct_time_sag"] < 60
     assert m["hip_offset_drift_pct"] > 5
@@ -114,8 +117,6 @@ def test_smooth_keeps_nans():
 
 
 def test_find_cycles_counts_dips():
-    from climbvision.exercises import find_cycles
-
     t = np.arange(300) / FPS
     sig = 170 - 60 * np.clip(np.sin(2 * np.pi * t / 2.5), 0, None)  # 4 dips in 10 s
     cyc = find_cycles(sig, t, 35, 15)
@@ -128,8 +129,12 @@ def test_find_cycles_counts_dips():
     ("plank_to_pike_pushup_side", "pike_pushup"), ("plank_front", "plank"),
     ("jumping_jacks_front", "jumping_jacks"), ("tree_pose_front", "balance"),
     ("crow_pose_side", "balance"), ("standing_onefoot_side", "balance"),
-    ("lunge_side", "none")])
-def test_guess_exercise(name, expected):
-    from climbvision.metrics import guess_exercise
+    ("lunge_side", "none"), ("hang_front", "dead_hang"), ("dead_hang", "dead_hang"),
+    ("narrow_pullup_front", "pullup"), ("knee_raise_hold_front", "leg_raise"),
+    ("overhang_traverse", "none"), ("coordination_failed", "none")])
+def test_guess_recipe(name, expected):
+    from synth import RECIPES
 
-    assert guess_exercise(name) == expected
+    from climbvision.recipes import guess_recipe
+
+    assert guess_recipe(name, RECIPES).name == expected

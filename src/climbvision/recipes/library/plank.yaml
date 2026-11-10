@@ -1,0 +1,45 @@
+name: plank
+description: >
+  Plank hold: the longest stretch (>= 1 s) with the torso roughly horizontal.
+  Hip offset = hips off the shoulder-ankle line, % of its length (+ sag, - pike);
+  within ±5% counts as straight. Use a side view.
+match: [plank]
+priority: 70
+
+signals:
+  lean: smooth(trunk_lean, 1/6)
+  offset: smooth(hip_offset_pct, 1/6)
+  line: smooth(body_line, 1/6)
+
+holds:
+  - when: (lean > 60) & (lean < 120)
+    min_frames: int(fps)
+    fields:
+      hold_start_s: [t_start, 2]
+      hold_s: [duration, 2]
+      body_line_deg_mean: mean(line)
+      body_line_deg_min: min(line)
+      hip_offset_pct_mean: [mean(offset), 2]
+      hip_offset_pct_sd: [sd(offset), 2]
+      pct_time_straight: pct(abs(offset) <= 5)
+      pct_time_sag: pct(offset > 5)
+      pct_time_pike: pct(offset < -5)
+      # did the hips drop over the hold? (last third minus first third)
+      hip_offset_drift_pct:
+        ["mean(tail(offset, ceil(n_win / 3))) - mean(head(offset, n_win // 3))", 2]
+      note: >-
+        'front view: hip offset from 3D estimate, less reliable than side view'
+        if view != 'side' else None
+    if_missing:
+      hold_s: 0.0
+      note: no horizontal hold of >= 1 s found
+
+headline: >-
+  "no plank hold found" if not hold_s else
+  f"hold {hold_s:.1f} s, hips {hip_offset_pct_mean:.1f}% (straight {pct_time_straight:.0f}%, "
+  f"pike {pct_time_pike:.0f}%, sag {pct_time_sag:.0f}%)"
+
+plot:
+  signal: offset
+  label: hip offset (% body line, + sag / − pike)
+  band: [-5, 5, straight (±5%)]

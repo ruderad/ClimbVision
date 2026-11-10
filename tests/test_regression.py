@@ -24,7 +24,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent / "regression"))
 from build_fixtures import EXPECTED, get_path, unpack  # noqa: E402
 
-from climbvision.metrics import run_metrics  # noqa: E402
+from climbvision.analysis import run_analysis  # noqa: E402
 
 SPECS = json.loads(EXPECTED.read_text())
 
@@ -48,6 +48,6 @@ def check(metrics: dict, c: dict) -> str | None:
 @pytest.mark.parametrize("clip", sorted(SPECS))
 def test_clip(clip, tmp_path):
     spec = SPECS[clip]
-    m = run_metrics(unpack(clip, tmp_path), spec["exercise"], plot=False)
+    m = run_analysis(unpack(clip, tmp_path), spec["exercise"], plot=False)
     problems = [p for c in spec["checks"] if (p := check(m, c))]
     assert not problems, f"{clip} ({spec['verified']}):\n  " + "\n  ".join(problems)

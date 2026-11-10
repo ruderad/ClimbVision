@@ -65,12 +65,12 @@ def get_path(d, path):
 def update_snapshots() -> None:
     import tempfile
 
-    from climbvision.metrics import run_metrics
+    from climbvision.analysis import run_analysis
 
     expected = json.loads(EXPECTED.read_text())
     with tempfile.TemporaryDirectory() as tmp:
         for clip, spec in expected.items():
-            m = run_metrics(unpack(clip, Path(tmp)), spec["exercise"], plot=False)
+            m = run_analysis(unpack(clip, Path(tmp)), spec["exercise"], plot=False)
             for check in spec["checks"]:
                 if "approx" in check:
                     v = get_path(m, check["path"])

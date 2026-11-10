@@ -1,0 +1,32 @@
+name: dead_hang
+description: >
+  Dead hang: the longest stretch with hands on the bar and nothing on the floor; time,
+  arm straightness and swing of the COM relative to the grip.
+# `\bhang` so that e.g. "overhang" (a climbing term) does not match
+match: ['dead.?hang|\bhang']
+priority: 30
+scene: bar
+
+signals:
+  # both arms in a front view (they move in the image plane), near arm in a side view
+  arms: "avg(elbow_l_2d, elbow_r_2d) if view == 'front' else elbow"
+
+holds:
+  - when: hanging
+    nest_as: dead_hang
+    fields:
+      start_s: [t_start, 2]
+      hold_s: [duration, 2]
+      elbow_deg_median: median(arms)
+      swing_sd_cm: ["sd(swing_cm) if any(isfinite(swing_cm)) else None", 2]
+      swing_range_cm: ["ptp(swing_cm) if any(isfinite(swing_cm)) else None", 2]
+    if_missing:
+      note: no hang found (hands on a bar with feet off the floor)
+
+headline: >-
+  "no hang found" if dead_hang.hold_s is None else
+  f"hang {dead_hang.hold_s} s, swing sd {dead_hang.swing_sd_cm:.1f} cm"
+
+plot:
+  signal: swing_cm
+  label: COM relative to grip (cm)
