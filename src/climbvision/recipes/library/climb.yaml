@@ -3,7 +3,7 @@ description: >
   Climbing on a wall (handheld video is fine: run the camera layer). Hands and feet that
   stay still ~0.5 s in wall coordinates are on holds; reports time on the wall, holds
   used, moves, how many limbs are on holds, and whether the COM is over the feet.
-match: ['climb|traverse|boulder|moonboard|overhang|coordination|route']
+match: ['climb|traverse|boulder|moonboard|overhang|coordination|route|slab|crimp|dyno']
 priority: 85
 scene: wall
 

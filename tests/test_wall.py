@@ -153,3 +153,20 @@ def test_climb_recipe_outputs_plain_numbers():
     res = run_recipe(load_recipes()["climb"], Clip.build(tr))
     for k in ("climb_s", "pct_4_contacts", "feet_on_holds_pct", "height_gain_m"):
         assert isinstance(res.metrics[k], float), k
+
+
+def test_floor_mask_ignores_a_textured_wall_of_the_floor_colour_and_fills_a_towel():
+    import cv2
+
+    from climbvision.engine.wall import floor_mask
+
+    rng = np.random.default_rng(0)
+    img = np.full((600, 400, 3), 200, np.uint8)  # light grey floor ...
+    img[:380] = rng.integers(150, 250, (380, 400, 3)).astype(np.uint8)  # ... and a wall
+    for _ in range(120):  # panel of about the same colour, with texture and holds
+        c = (int(rng.integers(0, 400)), int(rng.integers(0, 370)))
+        cv2.circle(img, c, int(rng.integers(4, 12)), (60, 60, 60), -1)
+    img[480:510, 150:230] = (40, 60, 160)  # a towel lying on the floor
+    m = floor_mask(WallImage(img, np.ones(img.shape[:2], np.int32), np.eye(3)))
+    assert m[560, 200] and m[495, 190]  # floor, and the towel on it
+    assert m[:360].mean() < 0.05  # the wall is not floor

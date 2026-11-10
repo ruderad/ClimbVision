@@ -323,6 +323,41 @@ nobody can see were skipped):
 - The speeds are CPU-only in a Linux VM; the comparison is relative. RTMW-x at full
   frame rate costs ~6 min per minute of video here.
 
+## Round 7: RTMW-x at full frame rate + 3 clips from a fixed camera (2026-11-10)
+You re-ran the 5 wall clips with RTMW-x (full rate, on your Mac: ~5 min per clip
+including videos) and added slab, overhang2, moonboard2 (camera on a mount).
+
+| clip | camera | on wall | holds (hand/foot) | moves (hand/foot) | 4 limbs on holds | feet on holds | hands on holds | COM over feet | height gain |
+|---|---|---|---|---|---|---|---|---|---|
+| traverse | handheld | 32.6 s | 29 (17/13) | 17/14 | 56 % | 87 % | 84 % | 67 % | 0.93 m |
+| moonboard | handheld | 43.2 s | 29 (10/20) | 9/26 | 49 % | 76 % | 92 % | 47 % | 0.88 m |
+| overhang | handheld | 43.2 s | 33 (14/25) | 14/24 | 53 % | 77 % | 93 % | 2 % | 1.79 m |
+| coordination | handheld | 38.0 s | 25 (10/18) | 14/20 | 38 % | 63 % | 91 % | 5 % | 1.51 m |
+| coordination_failed | handheld | 18.0 s | 12 (5/8) | 6/5 | 54 % | 61 % | 97 % | 0 % | 1.05 m |
+| slab | fixed | 24.5 s | 22 (11/13) | 10/11 | 41 % | 85 % | 76 % | 39 % | 1.38 m |
+| overhang2 | fixed | 18.6 s | 16 (8/9) | 11/9 | 33 % | 54 % | 87 % | 4 % | 1.08 m |
+| moonboard2 | fixed | 29.2 s | 22 (10/14) | 10/15 | 44 % | 76 % | 92 % | 28 % | 1.50 m |
+
+- With RTMW-x, coordination_failed is no longer a failure: the skeleton stays on the
+  climber the whole climb (18 s on the wall, was 11 s with MediaPipe, which jumped onto
+  the orange volume). Feet on holds rose on every clip compared with E4 (e.g. traverse
+  78 → 87 %, overhang 59 → 77 %).
+- The fixed-camera clips are registered as `static` by the camera layer.
+- `slab` was not recognised as a climbing clip (now `slab`, `crimp`, `dyno` select the
+  climb recipe).
+- Fixed: ground detection. The floor colour was taken from one colour at the bottom
+  of the wall image, so a mat of another colour (slab), a towel (overhang2) or a floor
+  seen at different distances made floor positions count as footholds. Now: floor
+  colours from the bottom band, only flat pixels connected to it, holes filled, plus a
+  "standing level at the start/end" cue. Checked by eye on all 8 wall images (floor
+  overlay + anchors).
+- Side effect to know: the traverse now ends on the ground at 32.6 s (both feet level
+  on the lowest holds in the last seconds count as standing).
+- COM over the feet is near 0 % on the overhanging clips: on steep walls the 2D picture
+  can't say much about balance (see GUIDE §9).
+- `coordination` has 1369 frames now (was 1755 at E4): the video file seems to have
+  been replaced or trimmed, so it isn't comparable frame by frame with earlier runs.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

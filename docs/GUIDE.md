@@ -888,11 +888,20 @@ lengths (~12 cm) away; `time_s` is the time between leaving and arriving (from w
 limb is a few cm off the first hold until it is within a few cm of the next).
 
 **Ground.** At the start and end of a clip the climber usually stands on the floor —
-those foot anchors must not count as footholds. In the wall image the floor is what is
-at the bottom (a flat colour). A foot anchor is on the ground when the area just below
-the toe has the floor's colour and the anchor is among the lowest foot positions of the
-clip (within 0.35 body lengths). Footholds have wall below them. The climb (`on_wall`)
-runs from the first to the last moment with a foot on a hold and none on the ground.
+those foot anchors must not count as footholds. Two cues, either is enough:
+
+1. *The floor in the wall image.* The bottom band of `wall.jpg` shows the floor; its
+   main colours (k-means, so concrete *and* a mat both count) are the floor colours. The
+   floor is every **flat** pixel (little local texture) of those colours **connected** to
+   the bottom band; things lying on it (a towel) are filled in. Walls have texture
+   (holds, bolt holes, grain), so a wall panel of the floor's colour doesn't leak in. A
+   foot anchor is on the ground when the area just below the toe is floor.
+2. *Standing.* At the very start or end of the clip (2 s), both feet anchored at the
+   same moment, level (within 0.06 body lengths), and no higher than any other foot
+   anchor of the clip. This catches a mat whose colour isn't in the bottom band.
+
+Footholds have wall below them. The climb (`on_wall`) runs from the first to the last
+moment with a foot on a hold and none on the ground.
 
 **Support on the wall** (gravity = "down" in the first registered frame; hold the phone
 upright at the start):
@@ -1274,7 +1283,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Pull-up rep / chin tolerance | 0.12 / 0.05 body; ±5 cm | `pullup.yaml` |
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
-| Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor colour below the toe, lowest 0.35 body | `wall.WallParams` |
+| Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 
 Change one and run `pytest`: the regression tests show which real clips it affects.
@@ -1321,7 +1330,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge | Hold detection in `wall.jpg` (later) |
-| Ground from colour | The floor is recognised by its colour at the bottom of the wall image; a floor the same colour as the wall, or a camera that never shows the floor, means no ground is found | Film the start from the floor |
+| Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
+| COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |
 | Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |
 | Several people / wall features | Skeleton can jump to another person or onto holds | E3: subject lock |
 | Hanging whole clip | Floor unknown | Start standing on the floor |

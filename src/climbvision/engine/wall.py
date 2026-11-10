@@ -11,12 +11,12 @@ excursions are bridged (see `detect_anchors`). Hand point = the grip point (2/3 
 to knuckles); foot point = the toe (climbers stand on the front of the shoe).
 
 Ground: a foot anchor is on the ground (not a foothold) when, in the wall image (the
-wall without the climber, camera layer), the area just below the toe looks like the floor
-— the colour of the bottom of the wall image, where the floor is — and it is among the
-lowest foot positions of the clip (within `ground_band` body lengths). Footholds have
-wall below them. The climb is the stretch from the first to the last moment with a foot
-on a hold and none on the ground; before/after it the climber is on the ground. Without a
-wall image (no camera layer) or without floor in view, no ground is assumed.
+wall without the climber, camera layer), the area just below the toe is floor. The floor
+is found from the bottom of the wall image: its main colours (it may be concrete and a
+mat) and every pixel of those colours connected to the bottom (`floor_mask`). Footholds
+have wall below them. The climb is the stretch from the first to the last moment with a
+foot on a hold and none on the ground; before/after it the climber is on the ground.
+Without a wall image (no camera layer) or without floor in view, no ground is assumed.
 
 Holds: anchors of any limb whose positions are within `hold_radius` of each other are
 one hold (the system doesn't detect holds in the image yet; a hold is "a place a limb
@@ -92,9 +92,10 @@ class WallParams:
     merge_gap_s: float = 0.4  # same limb, same place, short break -> one anchor
     hold_radius: float = 0.09  # body lengths (~11 cm): anchors this close = one hold
     min_move: float = 0.1  # body lengths: shorter re-placements are adjustments, not moves
-    ground_band: float = 0.35  # body lengths: ground anchors are this close to the lowest foot
     floor_lab_tol: float = 25.0  # Lab colour distance to the floor colour
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
+    stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
+    level_tol: float = 0.06  # body lengths: both feet this level = standing
 
 
 def median_filter(p: np.ndarray, k: int) -> np.ndarray:
@@ -211,52 +212,102 @@ def _on_mask(anchors: list[Anchor], n: int) -> np.ndarray:
     return m
 
 
-def floor_colour(wall_image) -> np.ndarray | None:
-    """Lab colour of the floor: median of the bottom 5 % of the wall image's seen rows,
-    if that region is flat (little texture) — otherwise None (no floor in view)."""
+def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0) -> np.ndarray | None:
+    """Where the floor is in the wall image (bool, wall-image pixels), or None.
+
+    The bottom band of the wall image (lowest 8 % of the rows seen) shows the floor
+    when the camera sees it — possibly several surfaces (concrete, a mat, a towel). Its
+    main colours (k-means, k = 3, clusters with >= 15 % of the band) are the floor
+    colours; the floor is every pixel of those colours that is *connected* to the bottom
+    band. Connectivity keeps a light wall panel higher up from counting as floor."""
     img = wall_image.image
     seen = img.max(axis=2) > 0
     rows = np.flatnonzero(seen.any(axis=1))
     if len(rows) < 20:
         return None
-    bottom = rows[-max(5, len(rows) // 20):]
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(float)
-    px = lab[bottom][seen[bottom]]
+    band = np.zeros_like(seen)
+    band[rows[-max(5, len(rows) * 8 // 100):]] = True
+    band &= seen
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+    px = lab[band]
     if len(px) < 50:
         return None
-    med = np.median(px, axis=0)
-    if np.mean(np.linalg.norm(px - med, axis=1) < 25) < 0.5:  # mixed/textured: not a floor
+    k = 3
+    _, lbl, centres = cv2.kmeans(px, k, None,
+                                 (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0),
+                                 3, cv2.KMEANS_PP_CENTERS)
+    share = np.bincount(lbl.ravel(), minlength=k) / len(px)
+    colours = centres[share >= 0.15]
+    near = np.zeros_like(seen)
+    for c in colours:
+        near |= np.linalg.norm(lab - c, axis=2) < tol
+    # floors and mats are flat; walls have texture (holds, bolt holes, grain), which
+    # stops the floor from "leaking" up a wall panel of a similar colour
+    L = lab[..., 0]
+    m = cv2.blur(L, (9, 9))
+    flat = np.sqrt(np.maximum(cv2.blur(L * L, (9, 9)) - m * m, 0)) < flat_sd
+    near &= seen & flat
+    n, comp = cv2.connectedComponents(near.astype(np.uint8), connectivity=8)
+    keep = np.unique(comp[band & near])
+    keep = keep[keep > 0]
+    if not len(keep):
         return None
-    return med
+    mask = cv2.morphologyEx(np.isin(comp, keep).astype(np.uint8), cv2.MORPH_CLOSE,
+                            np.ones((5, 5), np.uint8)) > 0
+    # things lying on the floor (a towel, a chalk bag) are floor too: fill the holes,
+    # i.e. non-floor regions that don't reach the top of what the camera saw
+    top = np.zeros_like(seen)
+    top[rows[: max(5, len(rows) * 8 // 100)]] = True
+    n, comp = cv2.connectedComponents((~mask & seen).astype(np.uint8), connectivity=4)
+    open_ = np.unique(comp[top & ~mask & seen])
+    holes = (comp > 0) & ~np.isin(comp, open_)
+    return mask | holes
+
+
+def mark_standing(anchors: dict[str, list[Anchor]], t: np.ndarray, body_px: float,
+                  prm: WallParams) -> None:
+    """Second ground cue, from the pose: at the very start or end of the clip both feet
+    anchored at the same moment, at the same height (within `level_tol`), and lower
+    than every foot anchor of the climb in between = standing on the ground."""
+    feet = [a for f in ("l_foot", "r_foot") for a in anchors[f]]
+    if len(feet) < 3:
+        return
+    t0, t1 = t[0] + prm.stand_edge_s, t[-1] - prm.stand_edge_s
+    for a in anchors["l_foot"]:
+        for b in anchors["r_foot"]:
+            together = min(a.end, b.end) - max(a.start, b.start) > 0
+            at_edge = (min(a.start, b.start) <= np.searchsorted(t, t0)
+                       or max(a.end, b.end) >= np.searchsorted(t, t1))
+            level = abs(a.pos[1] - b.pos[1]) < prm.level_tol * body_px
+            if not (together and at_edge and level):
+                continue
+            y = max(a.pos[1], b.pos[1])
+            others = [c.pos[1] for c in feet if c is not a and c is not b]
+            if not others or y >= max(others) - prm.level_tol * body_px:
+                a.ground = b.ground = True
 
 
 def mark_ground(anchors: dict[str, list[Anchor]], wall_image, body_px: float,
-                prm: WallParams) -> bool:
-    """Mark foot anchors on the ground (see module doc). Returns whether a floor was
-    found in the wall image."""
+                prm: WallParams, t: np.ndarray | None = None) -> bool:
+    """Mark foot anchors on the ground (see module doc): the area just below the toe is
+    floor (`floor_mask`), or (`mark_standing`) both feet stand level and lowest at the
+    start or end. Returns whether a floor was found in the wall image."""
     from climbvision.engine.camera import apply_h
 
-    floor = floor_colour(wall_image) if wall_image is not None else None
-    if floor is None:
+    mask = floor_mask(wall_image, prm.floor_lab_tol) if wall_image is not None else None
+    if mask is None:
         return False
-    feet = [a for f in ("l_foot", "r_foot") for a in anchors[f]]
-    if not feet:
-        return True
-    lowest = max(a.pos[1] for a in feet)  # wall y points down
-    lab = cv2.cvtColor(wall_image.image, cv2.COLOR_BGR2LAB).astype(float)
-    seen = wall_image.image.max(axis=2) > 0
     b = body_px * wall_image.T[0, 0]  # body length in wall-image pixels
-    for a in feet:
-        if a.pos[1] < lowest - prm.ground_band * body_px:
-            continue
+    h, w = mask.shape
+    for a in (a for f in ("l_foot", "r_foot") for a in anchors[f]):
         x, y = apply_h(wall_image.T, a.pos)
-        ys, xs = slice(max(0, int(y + 0.02 * b)), max(0, int(y + 0.10 * b))), \
-            slice(max(0, int(x - 0.05 * b)), max(0, int(x + 0.05 * b)))
-        m = seen[ys, xs]
-        if m.sum() < 10:
-            continue
-        frac = float(np.mean(np.linalg.norm(lab[ys, xs][m] - floor, axis=1) < prm.floor_lab_tol))
-        a.ground = frac > prm.floor_frac
+        y0, y1 = int(np.clip(y + 0.02 * b, 0, h)), int(np.clip(y + 0.10 * b, 0, h))
+        x0, x1 = int(np.clip(x - 0.05 * b, 0, w)), int(np.clip(x + 0.05 * b, 0, w))
+        patch = mask[y0:y1, x0:x1]
+        if patch.size >= 10:
+            a.ground = float(patch.mean()) > prm.floor_frac
+    if t is not None:
+        mark_standing(anchors, t, body_px, prm)
     return True
 
 
@@ -335,7 +386,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     n = len(t)
     pts = limb_points(wall_points)
     anchors = {limb: detect_anchors(pts[limb], t, body_px, limb, prm) for limb in LIMBS}
-    floor_seen = mark_ground(anchors, wall_image, body_px, prm)
+    floor_seen = mark_ground(anchors, wall_image, body_px, prm, t)
     detected = np.isfinite(wall_points[:, J.L_SHOULDER, 0])
     ok = detected if camera_ok is None else detected & camera_ok
     foot_hold = np.zeros(n, bool)
