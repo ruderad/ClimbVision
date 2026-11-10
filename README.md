@@ -51,7 +51,10 @@ The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 Every clip also gets jumps (flight time, jump height from flight time), stances and
 the stability margin. Judge squat, plank and pike form from **side-view** clips.
 
-The pose model downloads automatically on the first run (~10–30 MB).
+The MediaPipe pose model downloads automatically on the first run (~10–30 MB). For
+climbing videos install `pip install -e ".[dev,rtm]"` and put the RTMW-x and YOLOX-m
+model zips in `models/` (links in docs/GUIDE.md §1.1): climbing recipes then use the
+whole-body model, which finds hands and feet much better on the wall.
 
 Each video gets a folder `outputs/<video name>/` with:
 

@@ -139,3 +139,17 @@ def cv2_circle(img, c):
     import cv2
 
     cv2.circle(img, (int(c[0]), int(c[1])), 15, (40, 40, 160), -1)
+
+
+def test_climb_recipe_outputs_plain_numbers():
+    """Every value in the climb recipe's summary is a number (not an [expr, digits] list)."""
+    from climbvision.engine.signals import Clip
+    from climbvision.engine.track import Track
+    from climbvision.recipes import load_recipes, run_recipe
+
+    pts, t = climb(two_moves)
+    n = len(t)
+    tr = Track(t, pts, np.full((n, N_JOINTS, 3), np.nan), np.ones((n, N_JOINTS)))
+    res = run_recipe(load_recipes()["climb"], Clip.build(tr))
+    for k in ("climb_s", "pct_4_contacts", "feet_on_holds_pct", "height_gain_m"):
+        assert isinstance(res.metrics[k], float), k

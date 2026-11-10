@@ -82,10 +82,21 @@ class Scale:
         return Scale(self.body_px, self.px_per_m, np.full(len(self.ppm), self.px_per_m))
 
 
-def estimate_scale(track: Track) -> Scale:
+ASSUMED_BODY_M = 0.93  # trunk + leg of a 1.75 m adult (~0.53 x stature)
+
+
+def estimate_scale(track: Track, body_m: float = ASSUMED_BODY_M) -> Scale:
+    """From 2D/3D limb ratios. Backends without 3D (2D-only): body length in pixels
+    from the image (90th percentile of trunk + leg: foreshortening only shortens) and
+    an assumed body length in metres (`body_m`)."""
     ppm = per_frame_px_per_m(track)
     if not np.isfinite(ppm).any():
-        return Scale(float("nan"), float("nan"), ppm)
+        v = chain_len(track.image)
+        if not np.isfinite(v).any():
+            return Scale(float("nan"), float("nan"), ppm)
+        body_px = float(np.nanpercentile(v, 90))
+        ref = body_px / body_m
+        return Scale(body_px, ref, np.full(track.n, ref))
     ref = float(np.nanmedian(ppm))
     body_m = float(np.nanmedian(chain_len(track.world)))
     return Scale(ref * body_m, ref, ppm)

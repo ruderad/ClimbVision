@@ -18,7 +18,7 @@ summary:
   com_over_feet_pct: >-
     pct(com_over_feet_cm > 0, where=on_wall & isfinite(com_over_feet_cm))
     if any(on_wall & isfinite(com_over_feet_cm)) else None
-  height_gain_m: "[max(where(on_wall, com_height_m, nan)), 2] if any(on_wall) else None"
+  height_gain_m: ["max(where(on_wall, com_height_m, nan)) if any(on_wall) else None", 2]
 
 holds:
   # the longest stretch on all four limbs: usually a rest or a careful set-up

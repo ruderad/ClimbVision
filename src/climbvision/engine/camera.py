@@ -339,9 +339,11 @@ class _Tracker:
 
 def estimate_camera(video_path: str | Path, track: Track | None = None,
                     params: CameraParams | None = None,
-                    max_frames: int | None = None) -> tuple[CameraTrack, WallImage]:
+                    max_frames: int | None = None,
+                    step: int = 1) -> tuple[CameraTrack, WallImage]:
     """Run the camera layer over a video. `track` (the pose layer) masks the climber.
-    Returns the per-frame homographies and the wall image."""
+    Returns the per-frame homographies and the wall image. `step`: use every n-th frame
+    (as the pose layer did, see its summary.json `frame_step`)."""
     from climbvision.engine.video import VideoReader
 
     p = params or CameraParams()
@@ -357,7 +359,7 @@ def estimate_camera(video_path: str | Path, track: Track | None = None,
         last_joints = None  # frames without a pose keep the last known mask
         samples: list = []  # frames for the wall image
         next_sample = -np.inf
-        for i, t, img in reader.frames():
+        for i, (_, t, img) in enumerate(reader.frames(step=step)):
             if max_frames is not None and i >= max_frames:
                 break
             small = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
@@ -462,7 +464,10 @@ def run_camera(video_path: str | Path, result_dir: str | Path,
     track = None
     if (result_dir / "landmarks.csv").exists():
         track = Track.from_csv(result_dir / "landmarks.csv")
-    cam, wall = estimate_camera(video_path, track, params)
+    step = 1
+    if (result_dir / "summary.json").exists():
+        step = int(json.loads((result_dir / "summary.json").read_text()).get("frame_step", 1))
+    cam, wall = estimate_camera(video_path, track, params, step=step)
     cam.save(result_dir / "camera.csv")
     wall.save(result_dir)
     return cam

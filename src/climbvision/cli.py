@@ -61,9 +61,12 @@ def main(argv: list[str] | None = None) -> int:
     _add_recipe_args(a)
     a.add_argument("--sex", choices=["male", "female"], default="male",
                    help="which De Leva segment table to use")
-    a.add_argument("--backend", default=None, help="pose backend (default: mediapipe)")
-    a.add_argument("--model", choices=["lite", "full", "heavy"], default="full",
-                   help="MediaPipe model size: lite is fastest, heavy most accurate")
+    a.add_argument("--backend", default="auto",
+                   help="pose backend: auto (default: rtmw_wholebody133 for climbing "
+                   "recipes if its models are installed, else mediapipe_pose33), "
+                   "mediapipe_pose33, rtmpose_halpe26, rtmw_wholebody133")
+    a.add_argument("--model", default=None,
+                   help="model size: MediaPipe lite/full (default)/heavy; RTMPose m/x; RTMW x")
     a.add_argument("--no-video", action="store_true",
                    help="skip writing annotated.mp4 / wall_view.mp4")
     a.add_argument("--no-camera", action="store_true",
@@ -78,6 +81,18 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
     r.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
+
+    po = sub.add_parser("pose", help="pose pass only, resumable (long videos, time limits)")
+    po.add_argument("video", type=Path)
+    po.add_argument("--out", type=Path, required=True, help="results folder")
+    po.add_argument("--backend", default=None, help="mediapipe_pose33 (default), "
+                    "rtmpose_halpe26, rtmw_wholebody133")
+    po.add_argument("--model", default=None, help="model size (mediapipe: lite/full/heavy, "
+                    "rtmpose: m/x, rtmw: x)")
+    po.add_argument("--model-path", type=Path, default=None, help="MediaPipe .task file")
+    po.add_argument("--step", type=int, default=1, help="every n-th frame (default 1)")
+    po.add_argument("--budget", type=float, default=None,
+                    help="stop after this many seconds and resume on the next call")
 
     c = sub.add_parser("camera", help="camera layer: register frames to the wall")
     c.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
@@ -106,6 +121,35 @@ def main(argv: list[str] | None = None) -> int:
         print(markdown_table(rows))
         print(f"\n[climbvision] wrote {out}")
         return 0
+    if args.cmd == "pose":
+        from climbvision.engine import backends
+        from climbvision.engine.pose import make_estimator, run_pose_resumable
+
+        backend = args.backend or backends.DEFAULT
+        done = args.out / "summary.json"
+        if done.exists() and not (args.out / "pose_partial.npz").exists():
+            info = json.loads(done.read_text())
+            if info.get("backend") == backend and info.get("frame_step", 1) == args.step:
+                print(f"[climbvision] pose already done in {args.out} (delete it to redo)")
+                return 0
+        kw = {}
+        if args.model:
+            kw["model_size"] = args.model
+        if args.model_path:
+            kw["model_path"] = args.model_path
+        est = make_estimator(backend, **kw)
+        try:
+            res = run_pose_resumable(args.video, args.out, est, step=args.step,
+                                     budget_s=args.budget)
+        finally:
+            est.close()
+        if res["done"]:
+            print(f"[climbvision] pose done: {res['frames']} frames, "
+                  f"{res['detection_rate']:.0%} with a pose, {res['pose_ms_per_frame']} ms/frame")
+        else:
+            print(f"[climbvision] pose paused after {res['frames_done']} frames "
+                  f"({res['seconds']} s); run the same command again to continue")
+        return 0
     if args.cmd == "recipes":
         from climbvision.recipes import load_recipes
 
@@ -123,15 +167,19 @@ def main(argv: list[str] | None = None) -> int:
     from climbvision.analysis import run_analysis
 
     if args.cmd == "analyze":
+        from climbvision.analysis import resolve_recipe
         from climbvision.engine import backends
         from climbvision.engine.pose import make_estimator, run_pose
 
-        backend = args.backend or backends.DEFAULT
         for video in args.videos:
             out = args.out / video.stem
-            print(f"[climbvision] {video} -> {out}/")
+            backend = args.backend
+            if backend == "auto":
+                scene = resolve_recipe(out, args.recipe, args.recipes).scene
+                backend = backends.choose(scene)
+            print(f"[climbvision] {video} -> {out}/ (pose: {backend})")
             # fresh estimator per video: VIDEO mode needs increasing timestamps
-            kw = {"model_size": args.model} if backend == backends.DEFAULT else {}
+            kw = {"model_size": args.model} if args.model else {}
             est = make_estimator(backend, **kw)
             try:
                 summary = run_pose(video, out, est, sex=args.sex, max_frames=args.max_frames)

@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.5"]
+rtm = ["rtmlib>=0.0.13", "onnxruntime>=1.16"]
 
 [project.scripts]
 climbvision = "climbvision.cli:main"

@@ -174,7 +174,7 @@ layers one at a time.
 | **E2 ✅** | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
 | E3 | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
 | **E4 ✅** | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
-| E5 | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
+| **E5 ✅** | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
 | E6 | Climbing recipes: moves, hold usage, route map | first per-move report |
 
 ## E1 — engine restructure ✅ (2026-11-10)
@@ -272,6 +272,56 @@ Results (720p copies; the full-resolution runs are in the clip folders):
   "moves"); E5 (pose backend) is now the main lever. coordination_failed needs E3.
 - Thresholds were chosen on these clips without ground truth; a few labelled clips
   (which hold, when) would let us tune and score them properly.
+
+## E5 — pose backends compared ✅ (2026-11-10)
+New backends (2D, ONNX via rtmlib, models in `models/`): `rtmpose_halpe26` (RTMPose m/x:
+body + head top, neck, big/small toe, heel) and `rtmw_wholebody133` (RTMW-x: 133 points,
+21 per hand, 6 foot points). One-person tracking: box from the previous frame, detector
+(YOLOX-m) every 15 frames. Engine fallbacks for 2D-only models (scale from an assumed
+0.93 m trunk + leg, 2D angles, HAND extrapolated when missing). `climbvision pose`:
+resumable pose pass (`--budget`, `--step`). ViTPose was not tested: its models are only
+on Hugging Face, which this computer's shell can't reach.
+
+Setup: 5 wall clips at full resolution, every 2nd frame (15 fps), on your Mac (Linux VM,
+4 cores, CPU only), same camera layer for all.
+
+**Blind visual check** — 30 random frames on the wall, the 5 skeletons side by side in
+random order, each hand/foot point judged right or wrong (~110 points per model; points
+nobody can see were skipped):
+
+| errors | MP full | MP heavy | RTMPose-m | RTMPose-x | RTMW-x |
+|---|---|---|---|---|---|
+| traverse | 2 | 1 | 0 | 1 | 0 |
+| moonboard | 1 | 3 | 1 | 0 | 0 |
+| overhang | 2 | 3 | 2 | 0 | 0 |
+| coordination | 15 | 6 | 0 | 0 | 0 |
+| coordination_failed | 5 | 4 | 1 | 3 | 1 |
+| **total** | **25** | **17** | **4** | **4** | **1** |
+
+**Automatic measures** (no ground truth), range over the 5 clips:
+
+| | MP full | MP heavy | RTMPose-m | RTMPose-x | RTMW-x |
+|---|---|---|---|---|---|
+| ms per frame | 47–48 | 96–99 | 67–78 | 180–195 | 188–198 |
+| frames with a pose | 85–100 % | 86–100 % | 96–100 % | 96–100 % | 100 % |
+| feet on the climber's silhouette | 48–85 % | 59–87 % | 76–87 % | 84–91 % | 83–91 % |
+| L/R feet swaps per minute | 0–13 | 0–6 | 0–2.5 | 0–4.9 | 0–1.2 |
+| foot wobble on a hold (% body / frame) | 1.6–2.8 | 1.2–2.1 | 1.8–2.9 | 1.0–1.9 | 0.9–2.0 |
+| feet on holds while climbing | 32–78 % | 33–83 % | 53–84 % | 54–83 % | 51–85 % |
+
+- MediaPipe's worst failures are on `coordination` (loses the climber in 15 % of the
+  frames, feet swapped ~12 times a minute) — the top-down models with tracking stay on him.
+- On `coordination_failed` all models now stay on the climber (the old failure was
+  MediaPipe jumping onto the orange volume); its remaining errors are the left foot
+  under the body.
+- RTMW-x's hands land a little less often on the silhouette by the automatic measure
+  (its hand point is the knuckle, closer to the hold), but were right in every judged
+  frame.
+- Decision: **RTMW-x is the default for climbing recipes** (`--backend auto`), with
+  RTMPose-m as the fast option (4 errors at ~1/3 of the time). MediaPipe stays the
+  default off the wall, where its 3D estimate is used (front-view angles, metric scale).
+- The speeds are CPU-only in a Linux VM; the comparison is relative. RTMW-x at full
+  frame rate costs ~6 min per minute of video here.
 
 ## Test clips to record (for M1–M5)
 

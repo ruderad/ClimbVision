@@ -187,9 +187,19 @@ class Angles:
     values: dict[str, np.ndarray] = field(default_factory=dict)  # "knee_l_2d" -> (n,)
 
     def primary(self, joint: str, side: Side | None = None) -> np.ndarray:
-        """Best available angle for this clip's view (optionally for one side)."""
+        """Best available angle for this clip's view (optionally for one side). Without a
+        3D estimate (2D-only backends) the 2D angles are used for every view."""
+        has_3d = np.isfinite(self.values.get("trunk_lean_3d", np.array([np.nan]))).any()
         if joint == "trunk_lean":
-            return self.values["trunk_lean_2d" if self.view == "side" else "trunk_lean_3d"]
+            return self.values["trunk_lean_2d" if self.view == "side" or not has_3d
+                               else "trunk_lean_3d"]
+        if not has_3d and self.view != "side":
+            if side is not None:
+                return self.values[f"{joint}_{side[0]}_2d"]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                return np.nanmean([self.values[f"{joint}_l_2d"], self.values[f"{joint}_r_2d"]],
+                                  axis=0)
         if self.view == "side":
             return self.values[f"{joint}_{(side or self.side)[0]}_2d"]
         if side is not None:

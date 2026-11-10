@@ -11,6 +11,7 @@ From the wall layer: holds used so far (white rings with their id), limbs on hol
 
 from __future__ import annotations
 
+import json
 import warnings
 from collections import deque
 from pathlib import Path
@@ -56,8 +57,12 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
         fw, fh = cam.frame_size
         resize = (reader.info.width, reader.info.height) != (fw, fh)
         keep = max(1, int(trail_seconds * reader.info.fps))
-        with VideoWriter(out_path, reader.info.fps, size) as writer:
-            for i, t, img in reader.frames():
+        step = 1
+        if (result_dir / "summary.json").exists():
+            step = int(json.loads((result_dir / "summary.json").read_text()).get("frame_step", 1))
+        keep = max(1, keep // step)
+        with VideoWriter(out_path, reader.info.fps / step, size) as writer:
+            for i, (_, t, img) in enumerate(reader.frames(step=step)):
                 if i >= cam.n:
                     break
                 if resize:

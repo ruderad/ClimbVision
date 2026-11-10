@@ -51,8 +51,25 @@ pip install -e ".[dev]"
 under `src/` take effect immediately, without reinstalling. `[dev]` adds the test and
 lint tools (`pytest`, `ruff`).
 
-The pose model (a ~10 MB file from Google) downloads automatically the first time you
-analyse a video and is cached in `~/.cache/climbvision/models/`.
+The MediaPipe pose model (a ~10 MB file from Google) downloads automatically the first
+time you analyse a video and is cached in `~/.cache/climbvision/models/`.
+
+**For climbing videos** install the whole-body model too (it finds hands and feet far
+better on the wall, see 6.1):
+
+```bash
+pip install -e ".[dev,rtm]"     # adds rtmlib + onnxruntime
+```
+
+and download these two zips from OpenMMLab into a folder `models/` in the project
+(zipped or unzipped; they are found by name):
+
+- person detector: <https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_m_8xb8-300e_humanart-c2c7a14a.zip>
+- RTMW-x whole body: <https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/rtmw-dw-x-l_simcc-cocktail14_270e-384x288_20231122.zip>
+
+Optional, faster: RTMPose-m Halpe-26
+(<https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7-halpe26_700e-256x192-4d3e73dd_20230605.zip>).
+`$CLIMBVISION_MODELS` can point to another folder.
 
 ### 1.2 Analyse a video
 
@@ -148,9 +165,9 @@ climbvision analyze VIDEO [VIDEO ...] [--out DIR] [--recipe NAME|FILE] [--recipe
 | `--out` | `outputs` | Results go to `OUT/<video file name without extension>/` |
 | `--recipe` | `auto` | A recipe name (`climbvision recipes` lists them: `squat, pistol_squat, plank, pike_pushup, jumping_jacks, balance, pullup, dead_hang, leg_raise, none`), a path to a `.yaml` recipe, or `auto` = from the file name. `--exercise` still works as an alias |
 | `--recipes` | – | An extra folder of your own recipes (repeatable); same name overrides a shipped one |
-| `--backend` | `mediapipe_pose33` | Pose backend (8.4) |
+| `--backend` | `auto` | Pose backend (6.1): `auto` = `rtmw_wholebody133` for climbing recipes when its models are installed, otherwise `mediapipe_pose33`; or name one: `mediapipe_pose33`, `rtmpose_halpe26`, `rtmw_wholebody133` |
 | `--sex` | `male` | Which body-segment table to use for the centre of mass (section 6.3) |
-| `--model` | `full` | MediaPipe model size. `lite` is ~2× faster and less accurate; `heavy` is ~2× slower and slightly more accurate |
+| `--model` | per backend | Model size. MediaPipe: `lite`, `full` (default), `heavy`; RTMPose: `m` (default), `x`; RTMW: `x` |
 | `--no-camera` | off | Skip the camera layer (6.13); the camera is then assumed fixed |
 | `--no-video` | off | Skip `annotated.mp4` and `wall_view.mp4` (faster) |
 | `--max-frames` | all | Only process the first N frames (quick tests) |
@@ -175,6 +192,20 @@ climbvision render outputs/CLIP [--video PATH]
 Redraws `annotated.mp4`. The source video path is read from `summary.json`; pass
 `--video` if it moved. If the results were computed on a resized copy of the video,
 the original is resized to match before drawing.
+
+### 3.3b `climbvision pose`
+
+```
+climbvision pose VIDEO --out DIR [--backend NAME] [--model SIZE] [--model-path FILE]
+                 [--step N] [--budget SECONDS]
+```
+
+Only the pose pass (writes `landmarks.csv`, `com.csv`, `summary.json`), in pieces if
+needed: with `--budget` it stops after that many seconds, saves its progress
+(`pose_partial.npz`) and carries on where it stopped the next time you run the same
+command. `--step 2` uses every other frame (half the frame rate; fine for the wall
+analysis). Used for the backend comparison (E5); then run `climbvision camera` and
+`climbvision metrics` on the folder.
 
 ### 3.4 `climbvision camera`
 
@@ -493,24 +524,49 @@ estimates are often off. Joints a backend doesn't provide are `NaN` everywhere.
 | others | the point of the same name |
 | `HEAD_TOP`, `NECK`, `SMALL_TOE` | not provided (NaN) |
 
-**Precisely.** We use Google's MediaPipe Pose Landmarker (the BlazePose GHUM model) in
-`VIDEO` running mode, which tracks between frames rather than detecting from scratch
-each frame — smoother and faster. For each frame it returns:
+**The backends.**
 
-- **image landmarks**: (x, y) normalised to the image; we convert to pixels.
-- **world landmarks**: (x, y, z) in metres, origin at the midpoint of the hips. This is
-  a *learned estimate* from a single image — useful, but noisy in depth (z).
-- **visibility**: probability the landmark is not occluded.
+| Backend | Points | 3D | Hands / feet | Speed (Linux VM on your Mac, CPU, 1080p) | Use |
+|---|---|---|---|---|---|
+| `mediapipe_pose33` (MediaPipe Pose Landmarker, full / heavy) | 33 | yes | index + pinky; heel + toe | 48 / 98 ms per frame | off the wall (needs the 3D) |
+| `rtmpose_halpe26` (RTMPose m / x, Halpe-26) | 26 | no | wrist only (hand extrapolated); big + small toe, heel | 70 / 190 ms | fast climbing option |
+| `rtmw_wholebody133` (RTMW-x, COCO-WholeBody) | 133 | no | 21 per hand (HAND = middle knuckle); big + small toe, heel | 190 ms | **climbing (default when installed)** |
+
+*MediaPipe* (BlazePose GHUM) runs in `VIDEO` mode, tracking between frames. Per frame
+it returns image points, *world* points ((x, y, z) in metres around the hips — a learned
+estimate from one image, noisy in depth) and a visibility per point.
+
+*RTMPose / RTMW* (OpenMMLab) are *top-down*: a person detector (YOLOX) finds the
+climber's box, then the pose model places the points inside it. To stay on **one**
+person, the box for the next frame comes from the current points; the detector runs
+again every 15 frames (keeping the detection that overlaps the tracked person most) and
+whenever the pose looks lost. These models give 2D points and a confidence per point
+(stored as visibility), no 3D. The engine then:
+
+- takes the body size from the image (90th percentile of trunk + leg length, since
+  foreshortening only shortens) and assumes trunk + leg = 0.93 m (a 1.75 m adult) for
+  centimetres — so cm values are ±~10 % unless you are that size;
+- uses 2D angles in every view (front-view angles are less reliable than with 3D);
+- extrapolates `HAND` from the forearm when the backend has no hand point (Halpe-26).
+
+**Which one is best on the wall (E5).** All five variants ran on the five wall clips;
+30 random frames were then judged blind (the five skeletons side by side in random
+order, each hand and foot point right or wrong, ~110 points per model). Errors: MediaPipe
+full 25, heavy 17, RTMPose-m 4, RTMPose-x 4, RTMW-x 1. Most MediaPipe errors came from
+losing or jumping off the climber (`coordination`) and feet on the knee or swapped. The
+RTM models also swap left/right feet less (mostly 0–2 per minute, at most 5, vs up to 13
+for MediaPipe full), and with RTMPose-x and RTMW-x the feet wobble least while on a hold. Full numbers in PLAN.md (E5); the comparison tool is
+`tools/compare_pose.py` (8.5).
 
 Important properties to remember:
 
 - *Left/right are the person's*, not the image's. Facing the camera, the person's left
   appears on the image's right.
-- Hidden landmarks are still predicted (the model guesses); low visibility warns you.
-- The model has never seen your body: it can mis-place a limb that points at the camera
-  (e.g. a raised knee in a front view) or is hidden behind the body.
+- Hidden points are still predicted (the model guesses); low visibility warns you.
+- A model can mis-place a limb that points at the camera (e.g. a raised knee in a front
+  view) or is hidden behind the body.
 
-The MediaPipe backend is one implementation of the `PoseEstimator` protocol
+Every backend implements the `PoseEstimator` protocol
 (`estimate(frame_bgr, time_ms) -> RawPose | None`); adding a model means one module with
 its point names and a mapping onto `J` (8.5). `landmarks.csv` stores the backend's
 **raw** points, so a better mapping can be applied to old results without re-running pose.
@@ -1115,10 +1171,26 @@ class Estimator:
 ```
 
 and one line in `BACKENDS` (`engine/backends/__init__.py`). `MAPPING` says which of its
-points make each canonical joint (several are averaged; visibility = the lowest). Joints
-it lacks stay NaN and everything that needs them degrades gracefully (e.g. no 3D → no 3D
-angles or scale). Nothing else changes: old results keep working because `landmarks.csv`
-records which backend wrote it.
+points make each canonical joint (several are averaged; visibility = the lowest).
+Optional: `DERIVED = {J.L_HAND: (J.L_ELBOW, J.L_WRIST, 0.3)}` fills a joint the backend
+lacks by extrapolation; `WORLD = False` for 2D-only models. Other missing joints stay NaN
+and everything that needs them degrades gracefully (no 3D → 2D angles, scale from an
+assumed body size). Top-down ONNX models can reuse `backends/_topdown.py` (detector,
+one-person tracking, model files from `models/`). Nothing else changes: old results keep
+working because `landmarks.csv` records which backend wrote it.
+
+**Comparing backends** (how E5 was done): run each variant with `climbvision pose` into
+`outputs/_bench/<clip>/<variant>/` (the clip's own folder `outputs/<clip>/` must have the
+camera layer), then
+
+```bash
+python tools/compare_pose.py metrics outputs/_bench   # compare.json: automatic measures
+python tools/compare_pose.py sheets  outputs/_bench   # blind side-by-side frames + key
+```
+
+The automatic measures need no ground truth (points on the climber's silhouette, L/R
+swaps, wobble of feet on holds, wall-layer results); the sheets are for judging by eye
+with the model names hidden (`sheets_key.json` reveals them afterwards).
 
 ### 8.6 Testing with synthetic skeletons
 
@@ -1246,6 +1318,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Person turning mid-clip | View/near side fixed per clip | Keep orientation constant |
 | Arms overhead vs hanging | Indistinguishable from pose alone | Bar scene set by the recipe |
 | Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
+| 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge | Hold detection in `wall.jpg` (later) |
 | Ground from colour | The floor is recognised by its colour at the bottom of the wall image; a floor the same colour as the wall, or a camera that never shows the floor, means no ground is found | Film the start from the floor |

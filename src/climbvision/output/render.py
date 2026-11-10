@@ -58,8 +58,9 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
         resize = target != size
         size = target
         trail: deque[np.ndarray] = deque(maxlen=max(1, int(trail_seconds * reader.info.fps)))
-        with VideoWriter(out_path, reader.info.fps, size) as writer:
-            for i, t, img in reader.frames():
+        step = int(info.get("frame_step", 1))
+        with VideoWriter(out_path, reader.info.fps / step, size) as writer:
+            for i, (_, t, img) in enumerate(reader.frames(step=step)):
                 if i >= track.n:
                     break
                 if resize:
