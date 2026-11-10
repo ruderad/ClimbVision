@@ -3,6 +3,8 @@
     climbvision analyze clip.mp4 [--recipe squat]   pose, analysis and annotated video
     climbvision metrics outputs/clip [...]          re-run the analysis only (seconds)
     climbvision render outputs/clip [--video v.mp4] redraw annotated.mp4 from results
+    climbvision camera outputs/clip [--video v.mp4] camera layer: camera.csv, wall.jpg,
+                                                    wall_view.mp4 (handheld video)
     climbvision summary outputs/*                   one line per clip + summary.csv
     climbvision recipes                             list recipes
     climbvision signals                             list the signals recipes can use
@@ -29,6 +31,19 @@ def _print_metrics(m: dict) -> None:
     print(json.dumps(keep, indent=2))
 
 
+def _camera(video: Path, out: Path, video_out: bool) -> None:
+    from climbvision.engine.camera import run_camera
+
+    cam = run_camera(video, out)
+    state = "fixed camera" if cam.static else "moving camera"
+    print(f"[climbvision] camera: {state}, {cam.info.get('registered_pct')}% of frames "
+          f"registered to the wall -> {out / 'camera.csv'}, {out / 'wall.jpg'}")
+    if video_out:
+        from climbvision.output.wall_view import render_wall_view
+
+        print(f"[climbvision] wrote {render_wall_view(video, out)}")
+
+
 def _add_recipe_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--recipe", "--exercise", dest="recipe", default="auto", help=RECIPE_HELP)
     p.add_argument("--recipes", type=Path, action="append", default=[],
@@ -49,7 +64,10 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--backend", default=None, help="pose backend (default: mediapipe)")
     a.add_argument("--model", choices=["lite", "full", "heavy"], default="full",
                    help="MediaPipe model size: lite is fastest, heavy most accurate")
-    a.add_argument("--no-video", action="store_true", help="skip writing annotated.mp4")
+    a.add_argument("--no-video", action="store_true",
+                   help="skip writing annotated.mp4 / wall_view.mp4")
+    a.add_argument("--no-camera", action="store_true",
+                   help="skip the camera layer (assume a fixed camera)")
     a.add_argument("--max-frames", type=int, default=None)
 
     m = sub.add_parser("metrics", help="re-run the analysis from existing results")
@@ -60,6 +78,12 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
     r.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
+
+    c = sub.add_parser("camera", help="camera layer: register frames to the wall")
+    c.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
+    c.add_argument("--video", type=Path, default=None,
+                   help="source video (default: the path stored in summary.json)")
+    c.add_argument("--no-video", action="store_true", help="skip wall_view.mp4")
 
     sm = sub.add_parser("summary", help="one-line result per clip (table + CSV)")
     sm.add_argument("results", nargs="+", type=Path, help="result folders")
@@ -114,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 est.close()
             print(json.dumps(summary, indent=2))
+            if not args.no_camera:
+                _camera(video, out, not args.no_video)
             _print_metrics(run_analysis(out, args.recipe, recipe_dirs=args.recipes))
             if not args.no_video:
                 from climbvision.output.render import render
@@ -127,6 +153,14 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             print(f"[climbvision] {d}")
             _print_metrics(run_analysis(d, args.recipe, recipe_dirs=args.recipes))
+
+    elif args.cmd == "camera":
+        for d in args.results:
+            video = args.video or Path(json.loads((d / "summary.json").read_text())["video"])
+            if not video.exists():
+                print(f"[climbvision] {d}: source video {video} not found, use --video")
+                continue
+            _camera(video, d, not args.no_video)
 
     elif args.cmd == "render":
         from climbvision.output.render import render

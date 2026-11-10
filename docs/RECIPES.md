@@ -179,8 +179,11 @@ Inside a hold: `t_start`, `duration` (s), `i_start`, `i_end`, `n_win` (frames), 
 | Centre of mass | `com_x_px`, `com_y_px`, `com_x_cm` |
 | Support | `margin_cm`, `on_floor`, `stance`, `ppm` |
 | Bar | `on_bar`, `hanging`, `swing_cm`, `bar_y` |
+| Camera / wall | `wall_speed_l_hand`, `_r_hand`, `_l_foot`, `_r_foot` (body lengths/s with the camera motion removed), `image_speed_…` (the same in the image), `camera_ok`, `camera_speed` |
 
-Image y points **down**: a smaller y is higher.
+Image y points **down**: a smaller y is higher. The `wall_…` signals use the camera layer
+when the clip has one (`camera.csv`); otherwise the camera is assumed fixed and they
+equal the `image_…` versions.
 
 A measurement that no signal provides is a few lines in `engine/signals.py` (GUIDE 8.4).
 Keep signals generic ("hip below knee"), and put movement-specific logic in recipes.

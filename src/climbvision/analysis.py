@@ -24,11 +24,19 @@ def clip_info(result_dir: Path) -> dict:
 
 
 def load_clip(result_dir: str | Path, bar: bool = False) -> Clip:
+    """All engine layers for a results folder. The camera layer (camera.csv) is used
+    when present; otherwise the camera is assumed fixed."""
+    from climbvision.engine.camera import CameraTrack
+
     result_dir = Path(result_dir)
     info = clip_info(result_dir)
     track = Track.from_csv(result_dir / "landmarks.csv")
+    cam = None
+    if (result_dir / "camera.csv").exists():
+        cam = CameraTrack.load(result_dir / "camera.csv")
     return Clip.build(track, info.get("sex_model", "male"),
-                      tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar)
+                      tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
+                      camera=cam)
 
 
 def resolve_recipe(result_dir: Path, recipe: str | Recipe = "auto",
@@ -72,6 +80,10 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
                  "body_yaw_deg": clip.angles.yaw_deg, "near_side": clip.angles.side,
                  "angle_ranges": angle_ranges(clip), **res.metrics,
                  "stability": stability_summary(clip.stability, clip.t)}
+    if clip.camera is not None:
+        from climbvision.engine.camera import camera_summary
+
+        out["camera"] = camera_summary(clip.camera, clip.stability.scale.px_per_m)
     if plot:
         from climbvision.output.report import plot_report
 

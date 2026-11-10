@@ -83,6 +83,7 @@ climbvision analyze data/videos/*.MOV data/videos/*.mov
 | `climbvision analyze VIDEO` | Runs pose estimation (slow), then the analysis and the annotated video | a few × the clip length |
 | `climbvision metrics outputs/CLIP` | Re-runs the analysis (everything except pose) from the saved CSVs | seconds |
 | `climbvision render outputs/CLIP` | Redraws `annotated.mp4` from saved results | about the clip length |
+| `climbvision camera outputs/CLIP` | Camera layer: lines every frame up with the wall (handheld video); `wall.jpg`, `wall_view.mp4` | about 1–2 × the clip length |
 | `climbvision summary outputs/*` | One line per clip (table + `outputs/summary.csv`) | instant |
 | `climbvision recipes` / `signals` | List the recipes, or the signals recipes can use | instant |
 
@@ -98,7 +99,8 @@ from the test clips:
 
 | Rule | Why |
 |---|---|
-| **Fixed camera** (tripod or propped phone) for now | The floor line, scale and sway all assume the image doesn't move. Handheld support is planned (E2). |
+| **Off the wall: fixed camera** (tripod or propped phone) | The floor line, scale and sway are measured in the image, so they assume it doesn't move. |
+| **On the wall: handheld is fine** — pan smoothly, keep plenty of wall in view, don't walk around | The camera layer (6.13) removes the camera motion using the wall. It needs wall texture (holds) around the climber, and works best when the filmer stays in one place and turns the phone. |
 | **Whole body in frame, including feet, plus some floor** | Contacts and stability need visible feet. Clips with feet cut off are flagged "feet out of frame". |
 | **Camera at about hip height, roughly level** | A low camera looking up tilts "vertical", distorts trunk lean and the 3D estimate. |
 | **One person in frame** | The pose model tracks one person. |
@@ -138,7 +140,7 @@ You can always override with `--recipe NAME` (or `--recipe my_recipe.yaml`).
 ```
 climbvision analyze VIDEO [VIDEO ...] [--out DIR] [--recipe NAME|FILE] [--recipes DIR]
                     [--sex male|female] [--backend NAME] [--model lite|full|heavy]
-                    [--no-video] [--max-frames N]
+                    [--no-camera] [--no-video] [--max-frames N]
 ```
 
 | Option | Default | Meaning |
@@ -149,7 +151,8 @@ climbvision analyze VIDEO [VIDEO ...] [--out DIR] [--recipe NAME|FILE] [--recipe
 | `--backend` | `mediapipe_pose33` | Pose backend (8.4) |
 | `--sex` | `male` | Which body-segment table to use for the centre of mass (section 6.3) |
 | `--model` | `full` | MediaPipe model size. `lite` is ~2× faster and less accurate; `heavy` is ~2× slower and slightly more accurate |
-| `--no-video` | off | Skip `annotated.mp4` (faster) |
+| `--no-camera` | off | Skip the camera layer (6.13); the camera is then assumed fixed |
+| `--no-video` | off | Skip `annotated.mp4` and `wall_view.mp4` (faster) |
 | `--max-frames` | all | Only process the first N frames (quick tests) |
 
 ### 3.2 `climbvision metrics`
@@ -173,7 +176,18 @@ Redraws `annotated.mp4`. The source video path is read from `summary.json`; pass
 `--video` if it moved. If the results were computed on a resized copy of the video,
 the original is resized to match before drawing.
 
-### 3.4 `climbvision summary`
+### 3.4 `climbvision camera`
+
+```
+climbvision camera outputs/CLIP [outputs/CLIP2 ...] [--video PATH] [--no-video]
+```
+
+Runs the camera layer (6.13) on existing results — e.g. clips analysed before the camera
+layer existed — and writes `camera.csv`, `camera.json`, `wall.jpg`, `wall.json` and
+`wall_view.mp4`. Needs the source video (path from `summary.json`, or `--video`).
+`analyze` runs it automatically unless `--no-camera`.
+
+### 3.5 `climbvision summary`
 
 ```
 climbvision summary outputs/* [--csv PATH]
@@ -184,7 +198,7 @@ parallel, knee 36°", "10.6 s on L foot, sway sd 0.9 cm", …) and any warnings 
 writes the same as `summary.csv` (default: next to the result folders). Use it to
 compare sessions or to spot clips that need a look.
 
-### 3.5 Using it from Python
+### 3.6 Using it from Python
 
 Everything the CLI does is a normal function call:
 
@@ -235,6 +249,9 @@ Every clip gets a folder `outputs/<clip>/`:
 | `metrics.json` | `metrics` | All clip-level results |
 | `report.png` | `metrics` | Four-panel plot |
 | `annotated.mp4` | `render` | The video with everything drawn on it |
+| `camera.csv`, `camera.json` | `camera` | The camera layer: one homography per frame (frame → wall) and its quality (4.7) |
+| `wall.jpg`, `wall.json` | `camera` | The wall without the climber, in wall coordinates; `wall.json` holds the mapping from wall coordinates to its pixels |
+| `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails |
 
 ### 4.1 `landmarks.csv`
 
@@ -294,7 +311,22 @@ Always present:
 | `angle_ranges` | min / median / max of the main angles |
 | `stability` | See 5.2 |
 
-Plus the recipe's results (5.3).
+Plus the recipe's results (5.3), and `camera` when the camera layer ran: `static`,
+`registered_pct` (frames lined up with the wall), `keyframes`, `pan_px` / `pan_m`
+(how far the view travelled over the wall, x and y) and `lost_frames`.
+
+### 4.7 `camera.csv`
+
+| Column | Meaning |
+|---|---|
+| `frame`, `time_s` | Frame index and time |
+| `status` | 0 = lost (no H), 1 = tracked, 2 = anchored to a keyframe this frame |
+| `inliers` | Points that agree with H (more = more reliable) |
+| `h00 … h22` | The 3×3 homography, row by row: frame pixels → wall coordinates |
+
+`camera.json` has the frame size, `static`, the working scale, number of keyframes and
+`registered_pct`. To map a point (x, y) of frame *i*: (u, v, w) = H·(x, y, 1), wall
+position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 
 ---
 
@@ -454,6 +486,7 @@ its point names and a mapping onto `J` (8.5). `landmarks.csv` stores the backend
 | System | Origin | Axes | Units | Used for |
 |---|---|---|---|---|
 | Image | top-left pixel | x right, **y down** | pixels | Everything measured in the picture: 2D angles, floor, contacts, support, COM path |
+| Wall | top-left pixel of the first registered frame | x right, **y down** | pixels of that frame | Positions with the camera motion removed (6.13): hands and feet on holds |
 | World (backend 3D) | hip centre, *moves with the person* | x right, y down, z depth (camera axes) | metres | 3D angles, scale, depth-dependent quantities |
 
 Consequences:
@@ -677,6 +710,62 @@ pose) looks the same as "hanging from a bar". The recipe (`scene: bar`) supplies
 context. On the wall the same idea becomes *anchors*: a hand or foot still on the wall for
 ~0.5 s is on a hold (milestone E4).
 
+### 6.13 Camera motion: wall coordinates (`engine/camera.py`)
+
+**Plain terms.** In a handheld video the whole picture moves, so a foot resting on a
+hold still moves *in the image*. The camera layer works out, for every frame, how the
+picture has to be shifted, rotated and stretched to line up with the first frame. Undo
+that and the wall stands still: the foot on the hold stops moving. Positions measured
+this way are in **wall coordinates**.
+
+**Why one homography per frame is enough.** A homography is a 3×3 matrix that maps one
+image of a *plane* onto another image of it, whatever the camera's position and angle.
+A climbing wall panel is close to a plane, and a handheld camera filmed by someone
+standing still mostly *rotates*; for a pure rotation a homography is exact for
+everything in view. So H[i] (frame *i* → wall) captures the camera motion. Parts that
+stick out of the plane (big volumes, a roof seen from below while the filmer walks) show
+small errors (parallax); those are the main limit (section 9).
+
+**How H[i] is found** (at ~960 px working resolution):
+
+1. *Only the wall votes.* Pixels on the climber (capsules around the bones from the pose
+   layer, torso, head, hands and feet) and a thin image border are masked out.
+2. *Tracking.* Corners on the wall are followed frame to frame with pyramidal
+   Lucas–Kanade optical flow, kept only if tracking backwards returns to the start
+   (< 1 px). Each point carries the wall position it had when it was first seen, so H[i]
+   is fitted **directly from frame *i* to the wall** with robust RANSAC (MAGSAC++), not
+   by chaining frame-to-frame motions (chaining lets small errors add up: drift).
+3. *New points* are added when fewer than 250 survive (the climber covers them, the view
+   moves on); they get wall positions through the current H.
+4. *Keyframes and loop closure.* When the view has moved on (less than 75 % overlap with
+   the last keyframe) the frame is stored as a keyframe (ORB features with their wall
+   positions). Every 5th frame, the current frame is matched against keyframes at least
+   1 s old that see the same part of the wall; those matches join the fit and re-anchor
+   the tracked points. Points that disagree with the anchored fit (e.g. sliding along
+   the edge of another person) are dropped.
+5. *Lost tracking* (camera covered, extreme blur, climber filling the frame): the frame
+   gets no H (NaN, status 0) until it can be matched against the keyframes again.
+
+**Wall coordinates** are the pixel coordinates of the first registered frame, extended
+past its edges as the camera pans. A fixed camera gives H ≈ identity and `static: true`.
+
+**The wall image** (`wall.jpg`): every 0.5 s (at most 40 frames, spread over the clip) a
+frame is warped into wall coordinates with the climber masked out; the per-pixel
+**median** over those frames is the wall without the climber. It is the background
+needed to separate the climber from the wall (E3) and to find holds (E4).
+
+**How we know it works.** Two independent checks:
+
+- *Synthetic video* (`tests/test_camera.py`): a textured wall filmed by a camera with
+  known motion (pan up and back, shake, roll, zoom, a large moving "climber"): the frame
+  corners land within ~1–2 px of the truth, also after panning away and back.
+- *Real clips*: textured patches of `wall.jpg` (holds, mostly) are searched for in every
+  3rd frame after warping the frame into wall coordinates; the offset of the best match
+  is the registration error at that spot and time. On the five handheld wall clips
+  (PLAN.md, E2): 100 % of frames registered; median error 0.06–0.15 cm, 90 % of checks
+  under 0.5 cm; the worst clip (`coordination_failed`, where the pose sometimes sits on
+  a volume so the climber isn't masked) has 1.4 % of checks over 2 cm.
+
 ---
 
 ## 7. Architecture and design philosophy
@@ -712,7 +801,7 @@ context. On the wall the same idea becomes *anchors*: a hand or foot still on th
 | Layer | Module | What it produces | Status |
 |---|---|---|---|
 | Video | `engine/video.py` | frames with their real timestamps | ✅ |
-| Camera | – | each frame registered to a fixed view of the wall (handheld video) | E2 |
+| Camera | `engine/camera.py` | each frame registered to the wall (H per frame), the wall image | ✅ |
 | Subject | – | the climber locked and separated from the wall and other people | E3 |
 | Pose | `engine/pose.py`, `engine/backends/` | a backend's raw points per frame → `landmarks.csv` | ✅ MediaPipe |
 | Skeleton | `engine/skeleton.py`, `engine/track.py` | canonical joints as arrays (`Track`) | ✅ |
@@ -759,6 +848,7 @@ results**, and **video + CSVs → annotated video**.
 | `engine/backends/` | Pose backends + mapping to `J` | `BACKENDS`, `to_canonical`, `mediapipe.Estimator` |
 | `engine/video.py` | Read/write video, real timestamps | `VideoReader`, `VideoWriter` |
 | `engine/pose.py` | The slow pass: video → CSVs | `run_pose`, `make_estimator` |
+| `engine/camera.py` | Camera layer: frame → wall homographies, wall image | `estimate_camera`, `run_camera`, `CameraTrack`, `WallImage`, `CameraParams` |
 | `engine/track.py` | A clip as arrays; load from CSV; smoothing | `Track.from_csv`, `Track.from_raw`, `smooth`, `window` |
 | `engine/biomech.py` | Segment model, COM, angles, view | `whole_body_com`, `compute_angles`, `Angles.primary` |
 | `engine/scale.py` | Pixels per metre | `estimate_scale`, `Scale` |
@@ -771,7 +861,7 @@ results**, and **video + CSVs → annotated video**.
 | `recipes/expr.py` | The safe expression language | `evaluate` |
 | `recipes/library/` | Shipped recipes | `squat.yaml`, `pullup.yaml`, … |
 | `analysis.py` | Results folder → all analysis outputs | `run_analysis`, `load_clip` |
-| `output/` | report.png, CSV tables, drawing, video, summary | `plot_report`, `render`, `headline` |
+| `output/` | report.png, CSV tables, drawing, video, wall view, summary | `plot_report`, `render`, `render_wall_view`, `headline` |
 | `cli.py` | Command line | `main` |
 
 ### 7.5 Key data structures
@@ -798,8 +888,13 @@ Stability
   .labels [str] (n)   .com_px (n,2)  .com_x_cm (n,)  .support_lo_px/.support_hi_px (n,)
   .margin_cm (n,)  .on_bar/.hanging (n,)  .swing_cm (n,)  .feet_out_of_frame (n,)
 
+CameraTrack    # camera layer
+  .H (n,3,3) frame px -> wall coords   .status (n,)  .ok (n,) bool  .static
+  .to_wall(points (n,...,2)) -> wall coords   .centre_path()
+
 Clip           # what a recipe sees
-  .track .angles .stability .t
+  .track .angles .stability .camera (CameraTrack or None) .t
+  .wall (n,23,2)            # joints in wall coordinates
   .signal("knee") -> (n,)   # cached; `climbvision signals` lists every name
 ```
 
@@ -1014,6 +1109,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Pull-up rep / chin tolerance | 0.12 / 0.05 body; ±5 cm | `pullup.yaml` |
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
+| Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 
 Change one and run `pytest`: the regression tests show which real clips it affects.
 
@@ -1022,7 +1118,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 1. Watch `annotated.mp4`. Is the skeleton right? If not, it's the video (section 2) or
    the pose model (`--model heavy` may help).
 2. Look at `report.png`: which panel looks wrong?
-3. Load the clip in Python (3.5) and plot the raw signal, e.g. contact heights:
+3. Load the clip in Python (3.6) and plot the raw signal, e.g. contact heights:
    ```python
    clip = load_clip("outputs/clip")
    st = clip.stability
@@ -1055,7 +1151,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Camera tilt | "Vertical" tilts; trunk lean and margins shift | Level camera at hip height |
 | Person turning mid-clip | View/near side fixed per clip | Keep orientation constant |
 | Arms overhead vs hanging | Indistinguishable from pose alone | Bar scene set by the recipe |
-| Handheld camera | Floor, contacts and sway assume a still image; on the wall, footholds are missed | E2: register frames to the wall |
+| Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
+| Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |
 | Several people / wall features | Skeleton can jump to another person or onto holds | E3: subject lock |
 | Hanging whole clip | Floor unknown | Start standing on the floor |
 | Face hidden at the top of a pull-up | Pose model still predicts a face | Chin estimated from the body; ±5 cm reported as `at bar` |
@@ -1093,6 +1190,9 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | **Swing** | Horizontal COM offset from the grip when hanging |
 | **Body length** | Trunk + leg length in pixels; the unit for most tolerances |
 | **px/m (ppm)** | Pixels per metre at the person's distance |
+| **Homography** | A 3×3 matrix mapping one picture of a plane onto another |
+| **Wall coordinates** | Positions with the camera motion removed (pixels of the first frame) |
+| **Keyframe** | A stored frame the camera layer re-aligns to, so errors don't build up |
 
 ---
 
@@ -1110,6 +1210,12 @@ Change one and run `pytest`: the regression tests show which real clips it affec
   the ACM*, 24(6), 381–395. — RANSAC (6.6)
 - Hartley, R. & Zisserman, A. (2004). *Multiple View Geometry in Computer Vision*.
   Cambridge University Press. — pinhole camera model (6.6)
+- Lucas, B. D. & Kanade, T. (1981). An iterative image registration technique with an
+  application to stereo vision. *IJCAI*, 674–679. — point tracking (6.13)
+- Rublee, E. et al. (2011). ORB: an efficient alternative to SIFT or SURF. *ICCV*. —
+  keyframe features (6.13)
+- Barath, D. et al. (2020). MAGSAC++, a fast, reliable and accurate robust estimator.
+  *CVPR*. — robust homography fitting (6.13)
 - Bosco, C., Luhtanen, P. & Komi, P. V. (1983). A simple method for measurement of
   mechanical power in jumping. *European Journal of Applied Physiology*, 50, 273–282.
   — jump height from flight time (6.9)

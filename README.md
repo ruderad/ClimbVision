@@ -27,6 +27,8 @@ climbvision analyze data/videos/IMG_1234.MOV --recipe squat
 climbvision metrics outputs/*
 # redraw the annotated video from existing results
 climbvision render outputs/squat_side
+# camera layer for clips analysed before it existed (handheld wall videos)
+climbvision camera outputs/traverse
 ```
 
 The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
@@ -60,6 +62,7 @@ Each video gets a folder `outputs/<video name>/` with:
 | `angles.csv` | per-frame joint angles, both sides, 2D (image) and 3D versions |
 | `metrics.json` | view (side/front, body yaw), near side, angle ranges, recipe results (table above) and `stability` |
 | `stability.csv` | per frame: what's touching the floor, support span, COM-to-edge margin (cm) |
+| `camera.csv`, `wall.jpg`, `wall_view.mp4` | the camera layer: each frame lined up with the wall (handheld video), the wall without the climber, and the video in wall coordinates |
 | `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline |
 
 `metrics.json` → `stability` holds: contact time per body part, time in each stance
@@ -69,7 +72,8 @@ Stability is measured along the camera's horizontal axis: front–back in a side
 left–right in a front view. **Feet must be in frame** — the report warns when they
 aren't.
 
-Options: `--no-video` (data only, faster), `--max-frames N`, `--out DIR`.
+Options: `--no-video` (data only, faster), `--no-camera` (skip the camera layer),
+`--max-frames N`, `--out DIR`.
 
 ## Compare clips
 
@@ -107,7 +111,7 @@ See [docs/RECIPES.md](docs/RECIPES.md) for everything a recipe can do.
 
 ```
 src/climbvision/
-  engine/          the layers: video, pose + backends/, skeleton (canonical joints, no
+  engine/          the layers: video, camera (wall registration), pose + backends/, skeleton (canonical joints, no
                    face), track, biomech (COM, angles), scale, surfaces (floor),
                    contacts (floor, bar grips), support, events, signals
   recipes/         recipe runner + expression language; library/*.yaml = shipped recipes

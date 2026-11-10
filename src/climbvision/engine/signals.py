@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from climbvision.engine.biomech import JOINT_ANGLES, Angles, Sex, compute_angles
+from climbvision.engine.camera import CameraTrack
 from climbvision.engine.skeleton import J, side_joint
 from climbvision.engine.support import Stability, compute_stability
 from climbvision.engine.track import Track
@@ -31,14 +32,25 @@ class Clip:
     angles: Angles
     stability: Stability
     bar: bool = False
+    camera: CameraTrack | None = None  # None = fixed camera assumed
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod
     def build(cls, track: Track, sex: Sex = "male",
-              frame_size: tuple[int, int] | None = None, bar: bool = False) -> Clip:
+              frame_size: tuple[int, int] | None = None, bar: bool = False,
+              camera: CameraTrack | None = None) -> Clip:
         ang = compute_angles(track)
         st = compute_stability(track, ang.view, sex, frame_size, bar=bar)
-        return cls(track, ang, st, bar)
+        return cls(track, ang, st, bar, camera)
+
+    @property
+    def wall(self) -> np.ndarray:
+        """(n, N_JOINTS, 2) joints in wall coordinates: camera motion removed. Without a
+        camera layer the camera is assumed fixed (wall = image)."""
+        if "_wall" not in self._cache:
+            self._cache["_wall"] = (self.camera.to_wall(self.track.image)
+                                    if self.camera is not None else self.track.image.copy())
+        return self._cache["_wall"]
 
     @property
     def t(self) -> np.ndarray:
@@ -189,3 +201,46 @@ def _bar_y(c: Clip) -> np.ndarray:
     if not ys:
         return np.full(c.track.n, np.nan)
     return _nanmean(*ys)
+
+
+# ------------------------------------------------------------------ wall coordinates (camera layer)
+
+_PARTS = {"l_hand": (J.L_WRIST, J.L_HAND), "r_hand": (J.R_WRIST, J.R_HAND),
+          "l_foot": (J.L_HEEL, J.L_TOE), "r_foot": (J.R_HEEL, J.R_TOE)}
+
+
+def _part_speed(c: Clip, joints: tuple[J, ...], wall: bool) -> np.ndarray:
+    from climbvision.engine.track import smooth
+
+    pts = c.wall if wall else c.track.image
+    p = _nanmean(*(pts[:, j] for j in joints))
+    win = max(1, int(c.track.fps * 0.1))
+    p = np.column_stack([smooth(p[:, 0], win), smooth(p[:, 1], win)])
+    v = np.linalg.norm(np.gradient(p, c.t, axis=0), axis=1)
+    return v / c.stability.scale.body_px
+
+
+for _name, _joints in _PARTS.items():
+    register(f"wall_speed_{_name}", f"speed of the {_name.replace('_', ' ')} on the wall "
+             "(body lengths/s, camera motion removed)")(
+        lambda c, j=_joints: _part_speed(c, j, wall=True))
+    register(f"image_speed_{_name}", f"speed of the {_name.replace('_', ' ')} in the image "
+             "(body lengths/s, includes camera motion)")(
+        lambda c, j=_joints: _part_speed(c, j, wall=False))
+
+
+@register("camera_ok", "frame registered to the wall (always true without a camera layer)")
+def _camera_ok(c: Clip) -> np.ndarray:
+    return c.camera.ok if c.camera is not None else np.ones(c.track.n, bool)
+
+
+@register("camera_speed", "how fast the view moves over the wall (body lengths/s)")
+def _camera_speed(c: Clip) -> np.ndarray:
+    if c.camera is None:
+        return np.zeros(c.track.n)
+    from climbvision.engine.track import smooth
+
+    p = c.camera.centre_path()
+    win = max(1, int(c.track.fps * 0.2))
+    p = np.column_stack([smooth(p[:, 0], win), smooth(p[:, 1], win)])
+    return np.linalg.norm(np.gradient(p, c.t, axis=0), axis=1) / c.stability.scale.body_px

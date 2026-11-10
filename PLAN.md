@@ -171,7 +171,7 @@ layers one at a time.
 | Step | What | Done when |
 |---|---|---|
 | **E1 ✅** | Layered engine: canonical skeleton (no face), backend mapping, layers re-run from saved data, recipe system, today's exercises as YAML recipes | the 20 reference clips give the same results |
-| E2 | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
+| **E2 ✅** | Camera layer: register every frame to a reference view / mosaic of the wall (handheld video) | holds stay put in wall coordinates on the handheld clips |
 | E3 | Subject lock: track + segment the climber, reject poses on holds/other people | no skeleton jumps on `coordination`, `coordination_failed` |
 | E4 | Anchors on the wall: hand/foot still ~0.5 s in wall coordinates = on a hold; support polygon on the wall | footholds found on the traverse clips |
 | E5 | Pose backend benchmark on your Mac (RTMPose Halpe26 with feet, RTMW, ViTPose), switch if better | hand/foot accuracy measured on the wall clips |
@@ -196,6 +196,44 @@ layers one at a time.
   crow hold time.
 - Off-the-wall recipes stay in this repo until the engine settles; they can then move
   to a separate package that depends on the engine.
+
+## E2 — camera layer ✅ (2026-11-10)
+- `engine/camera.py`: one homography per frame (frame → wall coordinates). Wall corners
+  tracked with Lucas–Kanade, each carrying its wall position, so every frame is fitted
+  straight to the wall (MAGSAC++), not chained; keyframes (ORB) re-anchor every 5th frame
+  and close loops when the camera comes back. The climber is masked out using the pose.
+- `wall.jpg`: the wall without the climber (median of frames in wall coordinates) — the
+  background for E3 (subject separation) and E4 (holds).
+- `wall_view.mp4`: the video in wall coordinates, hand/foot trails.
+- `climbvision camera` (also run by `analyze`; `--no-camera` to skip); `metrics.json`
+  gets a `camera` block; signals `wall_speed_*`, `image_speed_*`, `camera_ok`,
+  `camera_speed`; `Clip.wall` = joints in wall coordinates.
+- Fixed cameras are detected (`static: true`; standing_onefoot_front: 0.3 px travel).
+
+Results on the 5 handheld wall clips (720p copies). Error = offset of wall patches
+(holds) re-found in every 3rd frame after warping it into wall coordinates:
+
+| clip | registered | camera pan (x, y) | checks | median | 90 % | 99 % | > 2 cm |
+|---|---|---|---|---|---|---|---|
+| traverse | 100 % | 26 × 120 cm | 24 376 | 0.06 cm | 0.14 cm | 0.29 cm | 0.06 % |
+| coordination | 100 % | 44 × 56 cm | 52 038 | 0.12 cm | 0.26 cm | 0.50 cm | 0.12 % |
+| coordination_failed | 100 % | 44 × 39 cm | 28 252 | 0.15 cm | 0.47 cm | 3.77 cm | 1.44 % |
+| moonboard | 100 % | 4 × 14 cm | 45 175 | 0.07 cm | 0.11 cm | 0.23 cm | 0 % |
+| overhang | 100 % | 23 × 25 cm | 44 043 | 0.10 cm | 0.19 cm | 0.32 cm | 0.14 % |
+
+- This check measures whether every frame agrees with the wall map; absolute accuracy
+  of the map itself comes from the synthetic tests (known camera motion: corners within
+  ~1–2 px, no drift after panning away and back).
+- coordination_failed is the weakest because the skeleton sometimes sits on the orange
+  volume, so the real climber is not masked out (fixed by E3), and the volume is not
+  flat.
+- Finding: in these clips the camera moves slowly (pans of 0.1–1.2 m over 30–60 s,
+  mostly between moves). That is enough to put the same hold up to a metre apart in
+  image coordinates at different times — fixed now — but hand/foot *stillness* was
+  barely affected by it. The missing footholds are therefore mainly E4 (contacts are
+  still defined by a floor, which the wall doesn't have) and pose noise on the feet
+  (E5): feet are "still" only 27–63 % of the time even in wall coordinates, and the
+  feet appear to swap left/right at times (traverse wall view).
 
 ---
 
