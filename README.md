@@ -2,8 +2,9 @@
 
 Movement analysis from video: a generic engine (pose → canonical skeleton → centre of
 mass, angles, contacts, support) plus **recipes** — small YAML files that say what to
-measure for one movement. Off-the-wall movements and first climbing analyses (holds,
-moves, contacts) work today.
+measure for one movement. Version 1.0 analyses floor exercises and climbing: handheld
+wall video, holds, moves, the route, rests and balance on the wall. See
+[CHANGELOG.md](CHANGELOG.md).
 See [PLAN.md](PLAN.md) for the milestones and **[docs/GUIDE.md](docs/GUIDE.md) for the
 complete guide**: recording tips, every output explained, the science behind each
 measurement, the architecture, and how to extend the package.
@@ -23,14 +24,20 @@ pip install -e ".[dev]"
 climbvision analyze data/videos/squat_side.mp4
 climbvision analyze data/videos/*.mp4 --sex female --model heavy
 climbvision analyze data/videos/IMG_1234.MOV --recipe squat
+climbvision analyze data/videos            # every video in the folder
 
 # re-run the analysis on existing results (seconds), e.g. after changing a recipe
 climbvision metrics outputs/*
 # redraw the annotated video from existing results
 climbvision render outputs/squat_side
+climbvision render outputs                 # every results folder
 # camera layer for clips analysed before it existed (handheld wall videos)
 climbvision camera outputs/traverse
+climbvision --version                      # version + where the code is loaded from
 ```
+
+If a video file is replaced after it was analysed, every command warns: re-run
+`analyze` on it (old results don't line up with the new video).
 
 The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 `.yaml` file; `climbvision recipes` lists them, `--recipes DIR` adds your own):
@@ -46,7 +53,8 @@ The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 | `pullup` | `pullup`, `chinup` | reps, COM rise (cm), chin over bar, tempo, swing, kipping |
 | `leg_raise` | `leg_raise`, `toes_to_bar`, `knee_raise` | reps, hip/knee angle, toes to bar |
 | `dead_hang` | `dead_hang`, `hang…` (not `overhang`) | hang time, arm straightness, swing |
-| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route` | hands/feet on holds (still ~0.5 s on the wall), holds used, moves, limbs on holds over time, COM over the feet |
+| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route`, `slab`, `crimp`, `dyno` — and **any name that matches nothing else** | hands/feet on holds (still ~0.5 s on the wall), holds used, the route move by move (`moves.csv`, `route.png`), rests, feet cuts, limbs on holds over time, COM over the feet and inside the base of support |
+| `none` | `lunge`, `standing_still`, `walk`, `stretch` | angles, stability and jumps only |
 
 Every clip also gets jumps (flight time, jump height from flight time), stances and
 the stability margin. Judge squat, plank and pike form from **side-view** clips.
@@ -60,7 +68,7 @@ Each video gets a folder `outputs/<video name>/` with:
 
 | File | What's in it |
 |---|---|
-| `annotated.mp4` | skeleton, COM (pink) with a 2-second trail, floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line — green when the COM is over the support, red when not |
+| `annotated.mp4` | skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, the base of support (yellow), the latest move |
 | `landmarks.csv` | the pose backend's raw points per frame (MediaPipe: 33): pixel coords, 3D world coords (m), visibility |
 | `com.csv` | whole-body COM per frame and a confidence score. `com_*_px` = position in the image; `com_*_m` = 3D position in metres **relative to the hip centre** (shows body shape, not where the body is in the room) |
 | `summary.json` | detection rate, COM mean / spread / range |
@@ -68,7 +76,8 @@ Each video gets a folder `outputs/<video name>/` with:
 | `metrics.json` | view (side/front, body yaw), near side, angle ranges, recipe results (table above) and `stability` |
 | `stability.csv` | per frame: what's touching the floor, support span, COM-to-edge margin (cm) |
 | `camera.csv`, `wall.jpg`, `wall_view.mp4` | the camera layer: each frame lined up with the wall (handheld video), the wall without the climber, and the video in wall coordinates |
-| `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline |
+| `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline (on the wall: holds, moves, rests, feet cuts) |
+| `route.png`, `moves.csv`, `holds.csv`, `wall.csv` | wall clips: the route map, every move, every hold, per-frame contacts on the wall |
 
 `metrics.json` → `stability` holds: contact time per body part, time in each stance
 (both feet, L foot, feet + forearms, ...), the stability margin (median / min / % of
@@ -89,7 +98,7 @@ climbvision summary outputs/*     # one line per clip + outputs/summary.csv
 ## Tests
 
 ```bash
-pytest                      # synthetic tests + 20 real-clip regression tests (~5 s)
+pytest                      # synthetic tests + 26 real-clip regression tests (~30 s)
 pytest -m "not regression"  # synthetic only
 ```
 
@@ -116,9 +125,11 @@ See [docs/RECIPES.md](docs/RECIPES.md) for everything a recipe can do.
 
 ```
 src/climbvision/
-  engine/          the layers: video, camera (wall registration), wall (anchors, holds), pose + backends/, skeleton (canonical joints, no
-                   face), track, biomech (COM, angles), scale, surfaces (floor),
-                   contacts (floor, bar grips), support, events, signals
+  engine/          the layers: video, camera (wall registration), pose + backends/,
+                   cleanup (pose repair), skeleton (canonical joints, no face), track,
+                   biomech (COM, angles), scale, surfaces (floor), contacts (floor,
+                   bar grips), support, wall (anchors, holds), route (moves, rests),
+                   events, signals
   recipes/         recipe runner + expression language; library/*.yaml = shipped recipes
   output/          report.png, CSV tables, drawing, annotated video, one-line summary
   analysis.py      results folder -> all analysis outputs

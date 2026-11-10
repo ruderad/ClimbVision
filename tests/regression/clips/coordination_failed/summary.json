@@ -1,0 +1,29 @@
+{
+  "video": "data/videos/coordination_failed.MOV",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 849,
+  "fps": 29.97352162400706,
+  "duration_s": 28.292,
+  "frames_with_pose": 849,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      398.1,
+      1148.3
+    ],
+    "std": [
+      62.36,
+      158.4
+    ],
+    "range": [
+      246.1,
+      629.1
+    ]
+  },
+  "mean_confidence": 1.0
+}

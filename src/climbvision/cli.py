@@ -50,12 +50,50 @@ def _add_recipe_args(p: argparse.ArgumentParser) -> None:
                    help="extra folder of recipe .yaml files (repeatable)")
 
 
+RESULTS_HELP = "results folders, or a folder of them (e.g. outputs)"
+VIDEO_EXT = {".mov", ".mp4", ".m4v", ".avi", ".mkv"}
+
+
+def version_text() -> str:
+    """Version and where the code is loaded from (an old install shows up here)."""
+    import climbvision
+
+    return f"climbvision {climbvision.__version__} ({Path(climbvision.__file__).parent})"
+
+
+def expand_videos(paths: list[Path]) -> list[Path]:
+    """A folder stands for every video in it."""
+    out: list[Path] = []
+    for p in paths:
+        if p.is_dir():
+            out += sorted(q for q in p.iterdir()
+                          if q.suffix.lower() in VIDEO_EXT and not q.name.startswith("."))
+        else:
+            out.append(p)
+    return out
+
+
+def expand_results(paths: list[Path]) -> list[Path]:
+    """A results folder is used as is; a folder of results folders (e.g. `outputs`)
+    stands for every results folder in it (names starting with _ or . are skipped)."""
+    out: list[Path] = []
+    for p in paths:
+        if p.is_dir() and not (p / "summary.json").exists():
+            out += sorted(q for q in p.iterdir() if q.is_dir() and (q / "summary.json").exists()
+                          and not q.name.startswith(("_", ".")))
+        else:
+            out.append(p)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="climbvision")
+    p.add_argument("--version", action="version", version=version_text())
     sub = p.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("analyze", help="pose, centre of mass and analysis for videos")
-    a.add_argument("videos", nargs="+", type=Path)
+    a.add_argument("videos", nargs="+", type=Path,
+                   help="video files, or folders (every video in them)")
     a.add_argument("--out", type=Path, default=Path("outputs"),
                    help="results go to OUT/<video name>/ (default: outputs)")
     _add_recipe_args(a)
@@ -74,11 +112,11 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--max-frames", type=int, default=None)
 
     m = sub.add_parser("metrics", help="re-run the analysis from existing results")
-    m.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
+    m.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     _add_recipe_args(m)
 
     r = sub.add_parser("render", help="redraw annotated.mp4 from existing results")
-    r.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
+    r.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     r.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
 
@@ -95,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="stop after this many seconds and resume on the next call")
 
     c = sub.add_parser("camera", help="camera layer: register frames to the wall")
-    c.add_argument("results", nargs="+", type=Path, help="folders containing landmarks.csv")
+    c.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     c.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
     c.add_argument("--no-video", action="store_true", help="skip wall_view.mp4")
@@ -111,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("signals", help="list the signals recipes can use")
 
     args = p.parse_args(argv)
+    if hasattr(args, "videos"):
+        args.videos = expand_videos(args.videos)
+    if hasattr(args, "results"):
+        args.results = expand_results(args.results)
 
     if args.cmd == "summary":
         from climbvision.output.summary import markdown_table, summarize_results, write_summary

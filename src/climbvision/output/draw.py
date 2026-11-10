@@ -47,18 +47,29 @@ def draw_skeleton(frame: np.ndarray, sk: Skeleton, min_visibility: float = 0.5) 
 
 
 def draw_com(frame: np.ndarray, com_xy: np.ndarray, trail: Sequence[np.ndarray] = (),
-             inside: bool | None = None) -> None:
+             inside: bool | None = None, trail_inside: Sequence[bool | None] | None = None
+             ) -> None:
     """COM dot with its trail. `inside`: True = green (within the base of support),
-    False = red, None = pink (no base of support to judge against)."""
+    False = red, None = pink (no base of support to judge against). `trail_inside`
+    colours each piece of the trail the same way, so the trail shows how balance
+    changed over the last seconds (older pieces fade)."""
     s = _scale(frame)
-    pts = [p for p in trail if np.all(np.isfinite(p))]
-    for i in range(1, len(pts)):
-        cv2.line(frame, _pt(pts[i - 1]), _pt(pts[i]), TRAIL_COLOR, max(1, int(2 * s)),
-                 cv2.LINE_AA)
+
+    def colour(b):
+        return COM_COLOR if b is None else (INSIDE_COLOR if b else OUTSIDE_COLOR)
+
+    n = len(trail)
+    for i in range(1, n):
+        a, b = trail[i - 1], trail[i]
+        if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+            continue
+        col = TRAIL_COLOR if trail_inside is None else colour(trail_inside[i])
+        fade = 0.35 + 0.65 * i / n  # older = dimmer
+        col = tuple(int(c * fade) for c in col)
+        cv2.line(frame, _pt(a), _pt(b), col, max(1, int(2.5 * s)), cv2.LINE_AA)
     if np.all(np.isfinite(com_xy)):
         r = max(4, int(8 * s))
-        col = COM_COLOR if inside is None else (INSIDE_COLOR if inside else OUTSIDE_COLOR)
-        cv2.circle(frame, _pt(com_xy), r, col, -1, cv2.LINE_AA)
+        cv2.circle(frame, _pt(com_xy), r, colour(inside), -1, cv2.LINE_AA)
         cv2.circle(frame, _pt(com_xy), r + 2, (255, 255, 255), max(1, int(s)), cv2.LINE_AA)
 
 

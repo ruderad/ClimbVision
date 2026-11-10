@@ -453,6 +453,16 @@ results match their videos (a few frames short at the end, normal for .MOV).
 - Clip names that match no recipe are now analysed as climbs (`recipes.DEFAULT_RECIPE`);
   `lunge`, `standing_still`, `walk`, `stretch` keep the plain analysis.
 
+## v1.0.0 released (2026-11-11)
+Before tagging: the COM trail is coloured by balance like the dot (one colour, one
+meaning: green inside the base of support, red outside; kept in wall coordinates on
+the wall); results remember their video and warn when it was replaced; `--version`;
+commands take folders; 6 climbs added to the regression tests (26 clips, ~30 s). See
+CHANGELOG.md.
+
+Next (1.x), in order of value: `--height` (real centimetres), comparing attempts at the
+same problem, hold detection in `wall.jpg`, wall angle.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

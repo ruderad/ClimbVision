@@ -1,0 +1,29 @@
+{
+  "video": "data/videos/overhang.MOV",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 1461,
+  "fps": 29.974354590528296,
+  "duration_s": 48.708,
+  "frames_with_pose": 1461,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      458.3,
+      1040.7
+    ],
+    "std": [
+      208.68,
+      284.24
+    ],
+    "range": [
+      647.8,
+      1505.1
+    ]
+  },
+  "mean_confidence": 0.996
+}

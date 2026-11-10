@@ -460,7 +460,10 @@ def run_camera(video_path: str | Path, result_dir: str | Path,
                params: CameraParams | None = None) -> CameraTrack:
     """Camera layer for a results folder: reads landmarks.csv (climber mask), writes
     camera.csv/.json and wall.jpg/.json."""
+    from climbvision.engine.video import warn_if_changed
+
     result_dir = Path(result_dir)
+    warn_if_changed(result_dir, video_path)
     track = None
     if (result_dir / "landmarks.csv").exists():
         track = Track.from_csv(result_dir / "landmarks.csv")

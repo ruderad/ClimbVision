@@ -146,7 +146,7 @@
           "margin_cm",
           "median"
         ],
-        "approx": 63.7,
+        "approx": 63.5,
         "tol": 8
       },
       {
@@ -176,7 +176,7 @@
           "stance_time_s",
           "hands"
         ],
-        "approx": 12.91,
+        "approx": 12.81,
         "tol": 2.0
       }
     ]
@@ -461,7 +461,7 @@
           "balance",
           "hold_s"
         ],
-        "approx": 10.81,
+        "approx": 10.74,
         "tol": 1.0
       },
       {
@@ -649,6 +649,405 @@
         ],
         "approx": 32.0,
         "tol": 12
+      }
+    ]
+  },
+  "traverse": {
+    "exercise": "climb",
+    "verified": "Handheld, camera close to the wall (no floor in view): the dark lower panel must not be taken for the floor (was 6 s on the wall).",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 30.86,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 27,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 13,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 14,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 52.0,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 84.1,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": false
+      }
+    ]
+  },
+  "slab": {
+    "exercise": "climb",
+    "verified": "Fixed camera. Palming the wall for balance at the start and a mantle near the end: hands at the hip are holds, not chalking (4 points was 45 % with the chalking rule).",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 25.44,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 25,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 12,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 12,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 53.1,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 82.3,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": true
+      }
+    ]
+  },
+  "overhang": {
+    "exercise": "climb",
+    "verified": "Handheld. Drop knees with the knee hidden behind the body (clean-up layer).",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 43.24,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 31,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 15,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 23,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 57.8,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 79.7,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": false
+      }
+    ]
+  },
+  "coordination_failed": {
+    "exercise": "climb",
+    "verified": "Handheld. Start of the coordination move read as dyno/jump moves.",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 18.02,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 12,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 5,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 5,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 51.5,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 60.5,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": false
+      }
+    ]
+  },
+  "moonboard2": {
+    "exercise": "climb",
+    "verified": "Fixed camera.",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 27.7,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 22,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 8,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 16,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 47.9,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 79.4,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": true
+      }
+    ]
+  },
+  "gardash2": {
+    "exercise": "climb",
+    "verified": "Handheld, 60 fps. The start hold becomes an undercling for the right hand from ~7 s to 20 s after stepping up: the right hand must stay on a hold (was off 7.2-20.3 s).",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 26.41,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 17,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 8,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 12,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 67.7,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 86.7,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": false
+      },
+      {
+        "path": [
+          "wall",
+          "on_hold_pct",
+          "R hand"
+        ],
+        "approx": 95.1,
+        "tol": 8
       }
     ]
   }

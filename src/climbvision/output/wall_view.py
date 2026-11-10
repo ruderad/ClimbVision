@@ -39,6 +39,9 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
                      trail_seconds: float = 2.0) -> Path:
     result_dir = Path(result_dir)
     out_path = Path(out_path) if out_path else result_dir / "wall_view.mp4"
+    from climbvision.engine.video import warn_if_changed
+
+    warn_if_changed(result_dir, video_path)
     cam = CameraTrack.load(result_dir / "camera.csv")
     wall = WallImage.load(result_dir)
     ws = route = None

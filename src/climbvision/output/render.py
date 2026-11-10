@@ -44,6 +44,9 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
         rec = resolve_recipe(result_dir, recipe)
     except ValueError:  # a recipe from a folder that isn't loaded now
         rec = resolve_recipe(result_dir, "auto")
+    from climbvision.engine.video import warn_if_changed
+
+    warn_if_changed(result_dir, video_path)
     clip = load_clip(result_dir, bar=rec.bar)
     track, st = clip.track, clip.stability
     wall_scene = rec.scene == "wall"
@@ -61,8 +64,15 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
         target = tuple(info["frame_size"]) if "frame_size" in info else size
         resize = target != size
         size = target
-        trail: deque[np.ndarray] = deque(maxlen=max(1, int(trail_seconds * reader.info.fps)))
         step = int(info.get("frame_step", 1))
+        trail: deque = deque(maxlen=max(1, int(trail_seconds * reader.info.fps / step)))
+        # balance per frame: True = COM inside the base of support, False = outside,
+        # None = no base to judge (the COM dot and its trail use the same colours)
+        if wall_scene:
+            pm = ws.polygon_margin_cm
+        else:
+            pm = st.margin_cm
+        inside = [bool(v > 0) if np.isfinite(v) else None for v in pm]
         with VideoWriter(out_path, reader.info.fps / step, size) as writer:
             for i, (_, t, img) in enumerate(reader.frames(step=step)):
                 if i >= track.n:
@@ -70,7 +80,9 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                 if resize:
                     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
                 com = st.com_px[i]
-                trail.append(com)
+                # on the wall the trail is kept in wall coordinates, so it stays on the
+                # wall when the camera pans
+                trail.append((ws.com[i] if wall_scene else com, inside[i]))
                 if np.isfinite(fl.y0[i]) and not wall_scene:
                     draw_floor(img, fl.slope, fl.y0[i])
                 lines = [f"t={t:5.2f}s  {labels[i]}"]
@@ -99,9 +111,12 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                                 colors.append(INSIDE_COLOR if inside else OUTSIDE_COLOR)
                         draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, inside)
                         draw_contacts(img, np.array(img_pts).reshape(-1, 2))
-                        pm = ws.polygon_margin_cm[i]  # COM inside the hull (>= 3 limbs)
-                        draw_com(img, com, list(trail),
-                                 bool(pm > 0) if np.isfinite(pm) else None)
+                        past = [p for p, _ in trail]
+                        img_trail = _to_image(clip, i, past) if past else []
+                        if len(img_trail) != len(past):
+                            img_trail = [np.full(2, np.nan)] * len(past)
+                        draw_com(img, com, img_trail, inside[i],
+                                 trail_inside=[b for _, b in trail])
                         draw_label(img, lines, colors)
                         writer.write(img)
                         continue
@@ -120,8 +135,8 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                         if np.isfinite(sw):
                             lines.append(f"swing {sw:+.1f} cm")
                             colors.append((255, 160, 210))
-                    m = st.margin_cm[i]
-                    draw_com(img, com, list(trail), bool(m > 0) if np.isfinite(m) else None)
+                    draw_com(img, com, [p for p, _ in trail], inside[i],
+                             trail_inside=[b for _, b in trail])
                 else:
                     lines[0] = f"t={t:5.2f}s  no pose"
                 if st.feet_out_of_frame[i]:

@@ -1,0 +1,29 @@
+{
+  "video": "data/videos/gardash2.MOV",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    752,
+    1214
+  ],
+  "frames": 1909,
+  "fps": 59.95289191311175,
+  "duration_s": 31.825,
+  "frames_with_pose": 1909,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      502.4,
+      699.6
+    ],
+    "std": [
+      73.61,
+      129.54
+    ],
+    "range": [
+      362.2,
+      764.5
+    ]
+  },
+  "mean_confidence": 1.0
+}

@@ -103,6 +103,20 @@ climbvision analyze data/videos/*.MOV data/videos/*.mov
 | `climbvision camera outputs/CLIP` | Camera layer: lines every frame up with the wall (handheld video); `wall.jpg`, `wall_view.mp4` | about 1–2 × the clip length |
 | `climbvision summary outputs/*` | One line per clip (table + `outputs/summary.csv`) | instant |
 | `climbvision recipes` / `signals` | List the recipes, or the signals recipes can use | instant |
+| `climbvision --version` | The version, and where the code is loaded from | instant |
+
+Every command takes folders too: `analyze data/videos` runs every video in the folder;
+`metrics outputs`, `render outputs`, `camera outputs`, `summary outputs` run on every
+results folder in it (folders starting with `_` are skipped).
+
+**A replaced video.** Results remember the video they came from (file size, frames,
+fps; `video_fingerprint` in `summary.json`). If the file has changed since, `metrics`,
+`render` and `camera` print a warning: the skeleton would no longer line up, so re-run
+`analyze` on it. (Results from before 1.0 are checked on fps and frame count.)
+
+If results look like an older version made them, `climbvision --version` shows which
+code runs: it should be the `src/climbvision` folder of this project
+(`pip install -e .` makes it so).
 
 The split matters: pose estimation is the only slow step, so it runs once. When you
 change an algorithm or a threshold, re-run `metrics` (and `render`) on existing results.
@@ -375,7 +389,7 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Drawing | Meaning |
 |---|---|
 | White lines, yellow dots | Skeleton. Grey = low visibility (the model is guessing) |
-| Dot + light trail | Centre of mass and its last 2 s. **Green** = inside the base of support, **red** = outside, pink = no base to judge (on the wall: the hull of the limbs on holds, needs 3+ limbs; on the floor: the support span) |
+| Dot + trail | Centre of mass and its path over the last 2 s. **Green** = inside the base of support, **red** = outside, pink = no base to judge (on the wall: the hull of the limbs on holds, needs 3+ limbs; on the floor: the support span). The trail is coloured the same way, frame by frame, so it shows how balance changed along the way (older parts fade); on the wall it is kept in wall coordinates, so it stays put when the camera pans |
 | Thin grey line | The floor as the system estimated it |
 | Cyan rings | Points touching the floor |
 | Thick bar on the floor | Base of support; **green** = COM above it, **red** = outside |
@@ -1344,9 +1358,14 @@ view (for a side view, left and right at different depths, otherwise the yaw say
 ### 8.7 Regression tests on real clips
 
 Synthetic tests prove the logic; they can't tell you that a change made results on
-real people worse. For that, `tests/regression/` holds **20 real clips** — the pose
-data only (`landmarks.csv.gz`, `com.csv.gz`, `summary.json`; ~6 MB in total, no
-video) — and `expected.json` says what the analysis must produce for each.
+real people worse. For that, `tests/regression/` holds **26 real clips** (20 floor
+exercises, 6 climbs) — the pose data only (`landmarks.csv.gz`, `com.csv.gz`,
+`summary.json`; climbs also the camera layer: `camera.csv.gz`, `camera.json`,
+`wall.jpg`, `wall.json`; ~15 MB, no video) — and `expected.json` says what the
+analysis must produce for each. The climbs (traverse, slab, overhang,
+coordination_failed, moonboard2, gardash2) cover a close handheld camera with no floor in
+view, palming and a mantle, drop knees, a dyno start, a fixed camera and a 60 fps
+undercling; their notes say which past bug each one guards against.
 
 Pose data is the input of everything after the slow pass (7.1), so `pytest` re-runs
 every engine layer and every recipe on real data in seconds, without a pose model or

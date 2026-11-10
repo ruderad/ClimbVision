@@ -1,0 +1,29 @@
+{
+  "video": "data/videos/moonboard2.MOV",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 1019,
+  "fps": 29.82251963922025,
+  "duration_s": 33.937,
+  "frames_with_pose": 1019,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      345.1,
+      1104.2
+    ],
+    "std": [
+      187.94,
+      306.3
+    ],
+    "range": [
+      956.2,
+      1012.0
+    ]
+  },
+  "mean_confidence": 1.0
+}

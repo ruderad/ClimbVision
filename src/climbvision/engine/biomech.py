@@ -132,7 +132,8 @@ JOINT_ANGLES: dict[str, tuple[str, str, str]] = {
 def angle_at(a: np.ndarray, v: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Angle a-v-b in degrees for arrays of points (..., D)."""
     u, w = a - v, b - v
-    cos = np.sum(u * w, axis=-1) / (np.linalg.norm(u, axis=-1) * np.linalg.norm(w, axis=-1))
+    with np.errstate(invalid="ignore", divide="ignore"):  # coincident points -> NaN
+        cos = np.sum(u * w, axis=-1) / (np.linalg.norm(u, axis=-1) * np.linalg.norm(w, axis=-1))
     return np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
 
 

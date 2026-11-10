@@ -83,6 +83,11 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
     from climbvision.output.tables import write_angles_csv, write_stability_csv
 
     result_dir = Path(result_dir)
+    info = clip_info(result_dir)
+    if info.get("video"):
+        from climbvision.engine.video import warn_if_changed
+
+        warn_if_changed(result_dir, info["video"])
     rec = resolve_recipe(result_dir, recipe, recipe_dirs)
     clip = load_clip(result_dir, bar=rec.bar)
     write_angles_csv(result_dir / "angles.csv", clip.angles)

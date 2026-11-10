@@ -1,0 +1,11 @@
+{
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "static": true,
+  "work_scale": 0.5,
+  "keyframes": 1,
+  "registered_pct": 100.0,
+  "camera_travel_px": 1.5
+}

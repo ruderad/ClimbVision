@@ -25,18 +25,23 @@ HERE = Path(__file__).parent
 CLIPS = HERE / "clips"
 EXPECTED = HERE / "expected.json"
 FILES = ("landmarks.csv", "com.csv", "summary.json")
+# wall clips also need the camera layer (computed from the video, which isn't kept)
+OPTIONAL = ("camera.csv", "camera.json", "wall.jpg", "wall.json")
+GZ = (".csv",)
 
 
 def add_clip(result_dir: Path) -> None:
     dest = CLIPS / result_dir.name
     dest.mkdir(parents=True, exist_ok=True)
-    for name in FILES:
+    for name in FILES + OPTIONAL:
         src = result_dir / name
-        if name.endswith(".json"):
-            shutil.copy(src, dest / name)
-        else:
+        if name in OPTIONAL and not src.exists():
+            continue
+        if name.endswith(GZ):
             with src.open("rb") as fi, gzip.open(dest / f"{name}.gz", "wb", compresslevel=9) as fo:
                 shutil.copyfileobj(fi, fo)
+        else:
+            shutil.copy(src, dest / name)
     print(f"fixture: {dest}")
 
 
@@ -45,12 +50,14 @@ def unpack(clip: str, workdir: Path) -> Path:
     out = workdir / clip
     out.mkdir(parents=True, exist_ok=True)
     src = CLIPS / clip
-    for name in FILES:
-        if name.endswith(".json"):
-            shutil.copy(src / name, out / name)
-        else:
+    for name in FILES + OPTIONAL:
+        if name.endswith(GZ):
+            if not (src / f"{name}.gz").exists():
+                continue
             with gzip.open(src / f"{name}.gz", "rb") as fi, (out / name).open("wb") as fo:
                 shutil.copyfileobj(fi, fo)
+        elif (src / name).exists():
+            shutil.copy(src / name, out / name)
     return out
 
 

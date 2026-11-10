@@ -99,6 +99,12 @@ def write_pose_layer(out_dir: str | Path, video_path: str | Path, name: str,
                      "duration_s": round(frames[-1][1], 3) if frames else 0.0,
                      "frames_with_pose": int(detected.sum()),
                      "detection_rate": float(detected.mean()) if n else 0.0}
+    try:  # identifies the video, so a replaced file is noticed later
+        from climbvision.engine.video import fingerprint
+
+        summary["video_fingerprint"] = fingerprint(video_path)
+    except Exception:  # noqa: BLE001 - e.g. a synthetic or missing video
+        pass
     if detected.any():
         px = com_px[detected]
         summary["com_px"] = {"mean": px.mean(axis=0).round(1).tolist(),

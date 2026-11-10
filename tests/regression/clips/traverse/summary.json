@@ -1,0 +1,33 @@
+{
+  "video": "data/videos/traverse.mov",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 1017,
+  "fps": 29.54339424590868,
+  "frame_step": 1,
+  "pose_seconds": 197.6,
+  "pose_ms_per_frame": 194.3,
+  "detector_runs": 12,
+  "duration_s": 33.897,
+  "frames_with_pose": 1017,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      598.6,
+      895.5
+    ],
+    "std": [
+      157.17,
+      213.81
+    ],
+    "range": [
+      633.9,
+      860.8
+    ]
+  },
+  "mean_confidence": 1.0
+}

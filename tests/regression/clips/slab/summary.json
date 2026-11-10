@@ -1,0 +1,29 @@
+{
+  "video": "data/videos/slab.MOV",
+  "backend": "rtmw_wholebody133",
+  "sex_model": "male",
+  "frame_size": [
+    1080,
+    1920
+  ],
+  "frames": 767,
+  "fps": 29.325695784820372,
+  "duration_s": 25.535,
+  "frames_with_pose": 767,
+  "detection_rate": 1.0,
+  "com_px": {
+    "mean": [
+      417.7,
+      743.1
+    ],
+    "std": [
+      208.29,
+      172.24
+    ],
+    "range": [
+      697.2,
+      789.3
+    ]
+  },
+  "mean_confidence": 1.0
+}
