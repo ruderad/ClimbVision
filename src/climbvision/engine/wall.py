@@ -240,6 +240,7 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
     if len(px) < 50:
         return None
     k = 3
+    cv2.setRNGSeed(0)  # k-means starts at random: same wall image, same floor
     _, lbl, centres = cv2.kmeans(px, k, None,
                                  (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0),
                                  3, cv2.KMEANS_PP_CENTERS)
