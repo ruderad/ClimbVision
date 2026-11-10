@@ -46,7 +46,10 @@ def draw_skeleton(frame: np.ndarray, sk: Skeleton, min_visibility: float = 0.5) 
                    -1, cv2.LINE_AA)
 
 
-def draw_com(frame: np.ndarray, com_xy: np.ndarray, trail: Sequence[np.ndarray] = ()) -> None:
+def draw_com(frame: np.ndarray, com_xy: np.ndarray, trail: Sequence[np.ndarray] = (),
+             inside: bool | None = None) -> None:
+    """COM dot with its trail. `inside`: True = green (within the base of support),
+    False = red, None = pink (no base of support to judge against)."""
     s = _scale(frame)
     pts = [p for p in trail if np.all(np.isfinite(p))]
     for i in range(1, len(pts)):
@@ -54,7 +57,8 @@ def draw_com(frame: np.ndarray, com_xy: np.ndarray, trail: Sequence[np.ndarray] 
                  cv2.LINE_AA)
     if np.all(np.isfinite(com_xy)):
         r = max(4, int(8 * s))
-        cv2.circle(frame, _pt(com_xy), r, COM_COLOR, -1, cv2.LINE_AA)
+        col = COM_COLOR if inside is None else (INSIDE_COLOR if inside else OUTSIDE_COLOR)
+        cv2.circle(frame, _pt(com_xy), r, col, -1, cv2.LINE_AA)
         cv2.circle(frame, _pt(com_xy), r + 2, (255, 255, 255), max(1, int(s)), cv2.LINE_AA)
 
 

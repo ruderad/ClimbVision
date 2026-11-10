@@ -6,7 +6,8 @@ hands and feet. If the camera layer works, the wall stands still while the camer
 and a hand or foot resting on a hold leaves a dot instead of a streak.
 
 From the wall layer: holds used so far (white rings with their id), limbs on holds
-(filled discs), the hull of the limbs on holds (yellow) and the COM (pink). From the
+(filled discs), the hull of the limbs on holds (yellow) and the COM (green inside the
+hull, red outside, pink with fewer than 3 limbs on holds). From the
 route layer: an arrow for every move so far (the route builds up), and the latest move
 in the label.
 """
@@ -145,8 +146,11 @@ def _draw_wall_layer(frame: np.ndarray, ws, i: int, T: np.ndarray, s: float) -> 
     if len(on) >= 3:
         hull = cv2.convexHull(np.array(on, np.int32))
         cv2.polylines(frame, [hull], True, (0, 230, 255), max(1, int(2 * s)), cv2.LINE_AA)
-    if np.isfinite(ws.com[i]).all():
-        cv2.circle(frame, pt(ws.com[i]), int(r * 0.6), (200, 60, 255), -1, cv2.LINE_AA)
+    if np.isfinite(ws.com[i]).all():  # green inside the hull, red outside, pink: no hull
+        pm = ws.polygon_margin_cm[i]
+        col = (200, 60, 255) if not np.isfinite(pm) else (90, 210, 60) if pm > 0 else (
+            50, 50, 240)
+        cv2.circle(frame, pt(ws.com[i]), int(r * 0.6), col, -1, cv2.LINE_AA)
 
 
 def _draw_route_so_far(frame: np.ndarray, ws, route, i: int, T: np.ndarray, s: float) -> None:

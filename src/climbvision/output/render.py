@@ -99,7 +99,9 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                                 colors.append(INSIDE_COLOR if inside else OUTSIDE_COLOR)
                         draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, inside)
                         draw_contacts(img, np.array(img_pts).reshape(-1, 2))
-                        draw_com(img, com, list(trail))
+                        pm = ws.polygon_margin_cm[i]  # COM inside the hull (>= 3 limbs)
+                        draw_com(img, com, list(trail),
+                                 bool(pm > 0) if np.isfinite(pm) else None)
                         draw_label(img, lines, colors)
                         writer.write(img)
                         continue
@@ -118,7 +120,8 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                         if np.isfinite(sw):
                             lines.append(f"swing {sw:+.1f} cm")
                             colors.append((255, 160, 210))
-                    draw_com(img, com, list(trail))
+                    m = st.margin_cm[i]
+                    draw_com(img, com, list(trail), bool(m > 0) if np.isfinite(m) else None)
                 else:
                     lines[0] = f"t={t:5.2f}s  no pose"
                 if st.feet_out_of_frame[i]:

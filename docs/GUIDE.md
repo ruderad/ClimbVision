@@ -375,7 +375,7 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Drawing | Meaning |
 |---|---|
 | White lines, yellow dots | Skeleton. Grey = low visibility (the model is guessing) |
-| Pink dot + light trail | Centre of mass and its last 2 s |
+| Dot + light trail | Centre of mass and its last 2 s. **Green** = inside the base of support, **red** = outside, pink = no base to judge (on the wall: the hull of the limbs on holds, needs 3+ limbs; on the floor: the support span) |
 | Thin grey line | The floor as the system estimated it |
 | Cyan rings | Points touching the floor |
 | Thick bar on the floor | Base of support; **green** = COM above it, **red** = outside |
