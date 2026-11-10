@@ -131,7 +131,8 @@ def test_find_cycles_counts_dips():
     ("crow_pose_side", "balance"), ("standing_onefoot_side", "balance"),
     ("lunge_side", "none"), ("hang_front", "dead_hang"), ("dead_hang", "dead_hang"),
     ("narrow_pullup_front", "pullup"), ("knee_raise_hold_front", "leg_raise"),
-    ("overhang_traverse", "climb"), ("coordination_failed", "climb"), ("moonboard", "climb")])
+    ("overhang_traverse", "climb"), ("coordination_failed", "climb"), ("moonboard", "climb"),
+    ("gardash1", "climb"), ("esimo2", "climb"), ("standing_still_front", "none")])
 def test_guess_recipe(name, expected):
     from synth import RECIPES
 

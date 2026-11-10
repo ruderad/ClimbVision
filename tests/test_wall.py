@@ -172,27 +172,6 @@ def test_floor_mask_ignores_a_textured_wall_of_the_floor_colour_and_fills_a_towe
     assert m[:360].mean() < 0.05  # the wall is not floor
 
 
-def test_hand_at_the_hip_is_not_a_hold():
-    """Chalking: the right hand rests at the hip for 1 s; it is not a hold and no move."""
-    def plan(ti):
-        rh = H["B"]
-        if 3.0 <= ti < 5.0:
-            rh = lerp(H["B"], (560, 650), (ti - 3.0) / 0.3) if ti < 4.0 else \
-                lerp((560, 650), H["B"], (ti - 4.0) / 0.3)
-        return H["A"], rh, H["C"], H["D"]
-
-    pts, t = climb(plan, seconds=7)
-    # put the hand at the actual right hip while it rests there
-    from climbvision.engine.skeleton import J as JJ
-    rest = (t >= 3.4) & (t < 4.0)
-    pts[rest, JJ.R_HAND] = pts[rest, JJ.R_HIP] + [10, 10]
-    pts[rest, JJ.R_WRIST] = pts[rest, JJ.R_HAND] + [0, -30]
-    ws = compute_wall_support(pts, t, BODY, PPM)
-    assert any(a.body for a in ws.anchors["r_hand"])
-    assert all(a.hold != -1 for a in ws.anchors["r_hand"] if a.on_hold)
-    assert moves(ws, t) == []
-
-
 def test_dark_wall_panel_with_holds_at_the_bottom_is_not_floor():
     """Camera close to the wall: the bottom of the wall image is a flat dark panel full
     of holds, no floor."""

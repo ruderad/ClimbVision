@@ -72,7 +72,10 @@ class Recipe:
         return any(re.search(p, clip_name, re.IGNORECASE) for p in self.spec.get("match", []))
 
 
-NONE = Recipe("none", {"name": "none", "description": "no movement-specific analysis"})
+# floor movements without a recipe of their own: no specific analysis
+NONE = Recipe("none", {"name": "none", "description": "no movement-specific analysis",
+                       "match": ["lunge|standing_still|walk|stretch"], "priority": 200})
+DEFAULT_RECIPE = "climb"  # a clip whose name matches no recipe is a climb
 
 
 def load_recipe(path: str | Path) -> Recipe:
@@ -96,10 +99,12 @@ def load_recipes(extra_dirs: list[Path] | None = None) -> dict[str, Recipe]:
 
 
 def guess_recipe(clip_name: str, recipes: dict[str, Recipe]) -> Recipe:
+    """The recipe whose `match` fits the clip name (lowest priority number first);
+    a name that matches nothing is a climb (DEFAULT_RECIPE)."""
     for r in sorted(recipes.values(), key=lambda r: (r.priority, r.name)):
         if r.matches(clip_name):
             return r
-    return NONE
+    return recipes.get(DEFAULT_RECIPE, NONE)
 
 
 # ------------------------------------------------------------------ evaluation context
@@ -378,5 +383,5 @@ def _run_hold(sc: Scope, h: dict, out: dict, plot: dict) -> None:
         out.update(res)
 
 
-__all__ = ["LIBRARY", "NONE", "Recipe", "Result", "guess_recipe", "load_recipe",
+__all__ = ["DEFAULT_RECIPE", "LIBRARY", "NONE", "Recipe", "Result", "guess_recipe", "load_recipe",
            "load_recipes", "run_recipe", "runs"]

@@ -131,8 +131,7 @@ def _wall_panels(ax_m, ax_c, clip: Clip) -> None:
     dt = np.median(np.diff(t)) if len(t) > 1 else 0.03
     for k, limb in enumerate(LIMBS):
         for a in ws.anchors[limb]:
-            col = "0.6" if a.ground else "0.85" if a.body else (
-                "C1" if "hand" in limb else "C0")
+            col = "0.6" if a.ground else ("C1" if "hand" in limb else "C0")
             ax_c.broken_barh([(t[a.start], t[a.end - 1] - t[a.start] + dt)], (k - 0.4, 0.8),
                              color=col)
             if a.on_hold and t[a.end - 1] - t[a.start] > 0.8:
@@ -150,5 +149,5 @@ def _wall_panels(ax_m, ax_c, clip: Clip) -> None:
                   color="C3" if {"dyno", "jump"} & set(m.tags) else "0.15")
     ax_c.set_yticks(range(len(LIMBS)), [LABEL[limb] for limb in LIMBS], fontsize=8)
     ax_c.set_ylim(-0.6, len(LIMBS) + 0.1)
-    ax_c.set_title("on holds (hold id; grey = ground, light = hand at the hip) · move numbers "
+    ax_c.set_title("on holds (hold id; grey = ground) · move numbers "
                    "(red = dyno) · green = rest, red = feet cut", fontsize=10)

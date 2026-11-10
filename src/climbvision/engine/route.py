@@ -14,9 +14,7 @@ holds numbered in the order they were first used). Here:
     of mass moves at least `dyno_speed` (`jump` when nothing is on a hold at all);
   - `feet cut`: during a hand move both feet are off holds;
   - `high step`: a foot lands at or above the centre of mass;
-  - `foot on handhold`: a foot lands on a hold a hand used before;
-  - `after chalk`: the hand rested at the hip on the way (chalking / shaking out); the
-    move is timed from when it left the hip.
+  - `foot on handhold`: a foot lands on a hold a hand used before.
   Moves from or to the ground (stepping on / off) are not counted.
 - **Rests**: all four limbs on holds and the centre of mass still (< `rest_speed`) for
   at least `rest_min_s`.
@@ -152,16 +150,13 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
                 continue
             if not (ws.on_wall[a.end - 1] or ws.on_wall[b.start]):
                 continue  # stepping off / on from the ground
-            # a hand that chalked or shook out on the way: the move starts when it
-            # leaves the hip
-            rest = [x for x in ws.anchors[limb] if x.body and a.end <= x.start and x.end <= b.start]
-            raw.append((limb, a, b, rest[-1].end - 1 if rest else None))
+            raw.append((limb, a, b))
     raw.sort(key=lambda x: x[2].start)
 
     moves: list[Move] = []
     in_move = np.zeros(n, int)
-    for k, (limb, a, b, after_chalk) in enumerate(raw, start=1):
-        rel, cat = (a.end - 1 if after_chalk is None else after_chalk), b.start
+    for k, (limb, a, b) in enumerate(raw, start=1):
+        rel, cat = a.end - 1, b.start
         span = slice(rel + 1, max(cat, rel + 1))
         in_move[span] += 1
         others = [x for x in LIMBS if x != limb]
@@ -178,7 +173,7 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
         win = speed[rel:cat + 1]
         peak = float(np.nanmax(win)) * ws.body_px / ws.px_per_m if np.isfinite(win).any() \
             else float("nan")
-        tags = [] if after_chalk is None else ["after chalk"]
+        tags = []
         if limb in HANDS:
             o = OTHER[limb]
             if hold_at[o][cat] == b.hold or (

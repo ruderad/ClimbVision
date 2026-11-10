@@ -71,11 +71,10 @@ class Anchor:
     spread_px: float  # 80th percentile distance of the limb from pos while anchored
     hold: int = -1  # hold id (-1 = none: ground or resting)
     ground: bool = False
-    body: bool = False  # a hand resting at the hip: chalking or shaking out, not a hold
 
     @property
     def on_hold(self) -> bool:
-        return not (self.ground or self.body)
+        return not self.ground
 
 
 @dataclass
@@ -101,8 +100,6 @@ class WallParams:
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
     stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
     level_tol: float = 0.06  # body lengths: both feet this level = standing
-    hip_tol: float = 0.2  # body lengths: a hand resting this close to a hip is chalking /
-    #                       shaking out, not on a hold
 
 
 def median_filter(p: np.ndarray, k: int) -> np.ndarray:
@@ -344,32 +341,6 @@ def mark_ground(anchors: dict[str, list[Anchor]], wall_image, body_px: float,
     return True
 
 
-def mark_body(anchors: dict[str, list[Anchor]], wall_points: np.ndarray, body_px: float,
-              prm: WallParams) -> None:
-    """A hand still at the hip (chalk bag, shaking out with the arm down) is not on a
-    hold. Judged on the median over the anchor: hand within `hip_tol` of either hip and
-    not above the hips by more than that. (A mantle with a hand pressing at the hip looks
-    the same; it is rare except at a top-out.)"""
-    pts = limb_points(wall_points)
-    for limb in ("l_hand", "r_hand"):
-        hand = pts[limb]
-        for an in anchors[limb]:
-            if an.ground:
-                continue
-            seg = slice(an.start, an.end)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", RuntimeWarning)
-                hp = np.nanmedian(hand[seg], axis=0)
-                hips = [np.nanmedian(wall_points[seg, J[f"{s}_HIP"]], axis=0) for s in "LR"]
-            if not np.isfinite(hp).all():
-                continue
-            d = min(float(np.linalg.norm(hp - h)) for h in hips if np.isfinite(h).all()) \
-                if any(np.isfinite(h).all() for h in hips) else np.inf
-            hip_y = min(h[1] for h in hips if np.isfinite(h).all()) if np.isfinite(d) else 0
-            if d < prm.hip_tol * body_px and hp[1] > hip_y - prm.hip_tol * body_px:
-                an.body = True
-
-
 def cluster_holds(anchors: list[Anchor], radius_px: float) -> list[Hold]:
     """Greedy clustering of anchor positions, in time order."""
     holds: list[Hold] = []
@@ -470,7 +441,6 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                 low = np.nanmedian(pts[h][seg, 1]) > np.nanmedian(sh[seg])
             if on_ground[seg].mean() > 0.5 and low:
                 an.ground = True
-    mark_body(anchors, wall_points, body_px, prm)
     hold_anchors = [an for limb in LIMBS for an in anchors[limb] if an.on_hold]
     holds = cluster_holds(hold_anchors, prm.hold_radius * body_px)
     on_hold = {limb: _on_mask([a for a in anchors[limb] if a.on_hold], n) for limb in LIMBS}

@@ -403,7 +403,7 @@ New layer `engine/route.py` (GUIDE §6.16, outputs §5.6), on top of the wall la
 1. **Moves** (`moves.csv`, `route.moves_detail`): numbered in the order they land; from/to
    hold, time off holds, distance, direction, the other limbs at the weakest moment,
    COM over the feet before/after, COM peak speed, tags (match, cross, dyno, jump,
-   feet cut, high step, foot on handhold, after chalk).
+   feet cut, high step, foot on handhold).
 2. **Route map** (`route.png`): holds numbered in order of use, every move an arrow in
    the limb's colour, COM path, START/TOP.
 3. **Hold usage** (`holds.csv`): time per limb, used as hand/foot hold, matched.
@@ -414,9 +414,12 @@ New layer `engine/route.py` (GUIDE §6.16, outputs §5.6), on top of the wall la
 5. **Report**: the timeline panel shows move numbers, rests and feet cuts.
 
 Fixes found while checking the clips by eye:
-- *Hands at the hip* (chalk bag, shaking out) became "holds" next to the feet, with
-  1 m+ "moves" down and back up. Now marked as not on a hold; the move after is timed
-  from when the hand left the hip (`after chalk`).
+- *Hands at the hip*: a first version marked a hand still at the hip as chalking /
+  shaking out (not a hold), after a 1 m "move" down to the hip on the traverse. That
+  move came from the stale traverse results (below), not from chalking: on the 8 clips
+  every hand-at-the-hip anchor was checked by eye and all were real — palming the slab
+  for balance, mantles, a hand on a hold beside the hip in a rock-over. The rule was
+  removed (there is no chalking in these clips).
 - *False dynos*: "both hands off holds" alone happened when a hand anchor was missed.
   A dyno now also needs the COM ≥ 0.8 m/s within ≤ 1.5 s (traverse: 6 → 0).
 - *A wall panel taken for the floor*: the new traverse video is filmed close to the wall,
@@ -432,13 +435,13 @@ results match their videos (a few frames short at the end, normal for .MOV).
 
 | Clip | On wall | Holds | Moves (hand/foot) | Tags | Rests | Feet cut |
 |---|---|---|---|---|---|---|
-| traverse (new video) | 30.9 s | 24 | 11 / 14 | after chalk 1, match 1, foot on handhold 1, feet cut 1 | 2 (2.8 s) | 1.1 s |
+| traverse (new video) | 30.9 s | 27 | 13 / 14 | match 1, feet cut 1 | 3 (6.2 s) | 1.1 s |
 | moonboard | 43.1 s | 28 | 9 / 25 | high step 4, foot on handhold 2 | 7 (8.3 s) | 2.4 s |
 | overhang | 43.2 s | 31 | 15 / 23 | foot on handhold 8, high step 6, match 4, cross 2 | 7 (8.6 s) | 2.7 s |
-| coordination | 38.0 s | 25 | 13 / 20 | jump 7, match 6, high step 3, foot on handhold 3 | 1 (1.1 s) | 7.2 s |
+| coordination | 38.0 s | 24 | 14 / 20 | jump 7, match 7, foot on handhold 4, high step 3, feet cut 1 | 1 (1.1 s) | 7.2 s |
 | coordination_failed | 18.0 s | 12 | 5 / 5 | dyno 2, jump 2, match 2 | 1 (1.9 s) | 5.9 s |
-| slab | 25.4 s | 23 | 9 / 12 | after chalk 2, foot on handhold 2, high step 1, jump 1 | 4 (7.0 s) | 1.4 s |
-| overhang2 | 18.6 s | 16 | 9 / 9 | after chalk 2, match 2, feet cut 1, cross 1 | 1 (1.3 s) | 5.2 s |
+| slab | 25.4 s | 25 | 12 / 12 | foot on handhold 2, cross 1, high step 1, jump 1 | 4 (7.0 s) | 1.4 s |
+| overhang2 | 18.6 s | 17 | 11 / 9 | cross 2, match 2, feet cut 1, high step 1 | 1 (1.3 s) | 5.2 s |
 | moonboard2 | 27.7 s | 22 | 8 / 16 | foot on handhold 5, cross 2, match 2 | 4 (4.6 s) | 0 s |
 
 - coordination: the start is read as the jump it is — both hands from the start hold to
@@ -446,8 +449,9 @@ results match their videos (a few frames short at the end, normal for .MOV).
   with matches up the arête.
 - Hand moves take 0.3–0.5 s off holds (median), 32–51 cm.
 - Not checked move by move yet against the video for every clip: watch the labels in
-  `annotated.mp4`. `slab`'s 4-limb share dropped 53 → 45 % because chalking no longer
-  counts as a hand on a hold.
+  `annotated.mp4`.
+- Clip names that match no recipe are now analysed as climbs (`recipes.DEFAULT_RECIPE`);
+  `lunge`, `standing_still`, `walk`, `stretch` keep the plain analysis.
 
 ## Test clips to record (for M1–M5)
 
