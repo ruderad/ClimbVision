@@ -7,9 +7,7 @@
   re-grips, straight arms, pause before hand moves, time per hand move, COM path
   efficiency and pushes (stop-and-go), feet stayed on during hand moves. Per move in
   `moves.csv`: `pause_before_s`, `cycle_s`, `com_path_efficiency`, `com_pushes`.
-- On `annotated.mp4`: holding arms turn orange when bent; the move label adds the pause
-  before the move and the number of pushes; re-placements and re-grips flash in the
-  label (also in `wall_view.mp4`).
+- On `annotated.mp4`: holding arms turn orange when bent.
 
 ### Accurate scale
 - **Climber profiles** (`data/climbers.yaml`, git-ignored; template

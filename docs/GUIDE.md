@@ -404,7 +404,7 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Yellow outline, lightly filled (wall) | Base of support on the wall: the hull of the limbs on holds (a line for two) |
 | Dashed line from the COM (wall) | Its plumb line down the wall; **green** = COM over the feet on holds, **red** = not (on the wall only) |
 | Red joint dots | Repaired or doubtful points from the clean-up layer (§6.15) |
-| Yellow line under the label (wall) | The latest move for 1.2 s after it lands, with its tags, the pause before it and how many pushes it took, e.g. `move 12: R hand 9 -> 13 (deadpoint) · after 0.4 s · 1 push`; `rest 2.1 s` while resting; `feet cut`; events for 1.2 s: `L foot re-placed`, `R hand re-grip`. Pause or slow the video to read them |
+| Yellow line under the label (wall) | The latest move for 1.2 s after it lands, e.g. `move 12: R hand 9 -> 13 (deadpoint)`; `rest 2.1 s` while resting; `feet cut` |
 | Orange arm (wall) | A hand on a hold with its arm bent (elbow < 150° in the picture); straight holding arms stay white |
 | Top-left box | Time, stance, margin (or swing on a bar), warnings |
 

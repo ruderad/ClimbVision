@@ -88,13 +88,7 @@ class Move:
 
     def label(self) -> str:
         tags = f" ({', '.join(self.tags)})" if self.tags else ""
-        out = f"move {self.n}: {LABEL[self.limb]} {self.from_hold} -> {self.to_hold}{tags}"
-        if np.isfinite(self.pause_before_s) and self.pause_before_s >= 0.1:
-            out += f" · after {self.pause_before_s:.1f} s"
-        if np.isfinite(self.com_pushes) and self.com_pushes >= 1:
-            k = int(self.com_pushes)
-            out += f" · {k} push" + ("" if k == 1 else "es")
-        return out
+        return f"move {self.n}: {LABEL[self.limb]} {self.from_hold} -> {self.to_hold}{tags}"
 
     def as_dict(self) -> dict:
         def r(v, k=1):
@@ -266,8 +260,9 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
 
 
 def build_labels(route: Route, t: np.ndarray) -> list[str]:
-    """Per frame, for the videos: the latest move (for label_s after it lands), a rest
-    or feet cut in progress, and events (re-placements, re-grips) for label_s."""
+    """Per frame, for the videos: the latest move (for label_s after it lands) and a
+    rest or feet cut in progress. (Re-placement / re-grip events are kept in
+    route.events but not shown: too quick to read at normal speed.)"""
     n = len(t)
     state = [""] * n
     for i in range(n):
@@ -281,12 +276,7 @@ def build_labels(route: Route, t: np.ndarray) -> list[str]:
         last = int(np.searchsorted(t, m.catch_s + route.label_s))
         for i in range(m.catch, min(n, last)):
             move[i] = m.label()
-    events: list[list[str]] = [[] for _ in range(n)]
-    for f, text in route.events:
-        last = int(np.searchsorted(t, t[f] + route.label_s))
-        for i in range(f, min(n, last)):
-            events[i].append(text)
-    return [" · ".join(x for x in (move[i], state[i], *events[i]) if x) for i in range(n)]
+    return [" · ".join(x for x in (move[i], state[i]) if x) for i in range(n)]
 
 
 def hold_usage(ws: WallSupport, t: np.ndarray, hold_at: dict | None = None) -> list[dict]:
