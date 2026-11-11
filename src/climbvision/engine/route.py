@@ -88,7 +88,13 @@ class Move:
 
     def label(self) -> str:
         tags = f" ({', '.join(self.tags)})" if self.tags else ""
-        return f"move {self.n}: {LABEL[self.limb]} {self.from_hold} -> {self.to_hold}{tags}"
+        out = f"move {self.n}: {LABEL[self.limb]} {self.from_hold} -> {self.to_hold}{tags}"
+        if np.isfinite(self.pause_before_s) and self.pause_before_s >= 0.1:
+            out += f" · after {self.pause_before_s:.1f} s"
+        if np.isfinite(self.com_pushes) and self.com_pushes >= 1:
+            k = int(self.com_pushes)
+            out += f" · {k} push" + ("" if k == 1 else "es")
+        return out
 
     def as_dict(self) -> dict:
         def r(v, k=1):
@@ -120,6 +126,8 @@ class Route:
     feet_off: np.ndarray  # (n,) bool: feet cut
     in_move: np.ndarray  # (n,) number of limbs between holds (moving)
     labels: list[str]  # per frame: the latest move / rest / feet cut, for the video
+    events: list = field(default_factory=list)  # (frame, text): e.g. "L foot re-placed"
+    label_s: float = 1.2
 
 
 def _com_speed(ws: WallSupport, t: np.ndarray) -> np.ndarray:
@@ -251,20 +259,34 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
             cuts.append((int(a), int(b)))
             feet_off[a:b] = True
 
-    labels = [""] * n
+    route = Route(moves, hold_usage(ws, t, hold_at), rests, cuts, resting, feet_off,
+                  in_move, [], [], prm.label_s)
+    route.labels = build_labels(route, t)
+    return route
+
+
+def build_labels(route: Route, t: np.ndarray) -> list[str]:
+    """Per frame, for the videos: the latest move (for label_s after it lands), a rest
+    or feet cut in progress, and events (re-placements, re-grips) for label_s."""
+    n = len(t)
+    state = [""] * n
     for i in range(n):
-        if resting[i]:
-            a = next(r for r in rests if r[0] <= i < r[1])
-            labels[i] = f"rest {t[i] - t[a[0]]:.1f} s"
-        elif feet_off[i]:
-            labels[i] = "feet cut"
-    state = list(labels)
-    for m in moves:  # the latest move landed within label_s
-        last = int(np.searchsorted(t, m.catch_s + prm.label_s))
+        if route.resting[i]:
+            a = next(r for r in route.rests if r[0] <= i < r[1])
+            state[i] = f"rest {t[i] - t[a[0]]:.1f} s"
+        elif route.feet_off[i]:
+            state[i] = "feet cut"
+    move = [""] * n
+    for m in route.moves:  # the latest move landed within label_s
+        last = int(np.searchsorted(t, m.catch_s + route.label_s))
         for i in range(m.catch, min(n, last)):
-            labels[i] = m.label() + (f" · {state[i]}" if state[i] else "")
-    return Route(moves, hold_usage(ws, t, hold_at), rests, cuts, resting, feet_off,
-                 in_move, labels)
+            move[i] = m.label()
+    events: list[list[str]] = [[] for _ in range(n)]
+    for f, text in route.events:
+        last = int(np.searchsorted(t, t[f] + route.label_s))
+        for i in range(f, min(n, last)):
+            events[i].append(text)
+    return [" · ".join(x for x in (move[i], state[i], *events[i]) if x) for i in range(n)]
 
 
 def hold_usage(ws: WallSupport, t: np.ndarray, hold_at: dict | None = None) -> list[dict]:

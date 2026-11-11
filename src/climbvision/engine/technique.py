@@ -31,6 +31,7 @@ import numpy as np
 
 from climbvision.engine.biomech import angle_at
 from climbvision.engine.skeleton import J
+from climbvision.engine.wall import LABEL
 
 HANDS = ("l_hand", "r_hand")
 FEET = ("l_foot", "r_foot")
@@ -102,12 +103,15 @@ def compute_technique(clip, prm: TechniqueParams | None = None) -> dict:
 
     # quiet feet, re-grips
     fp = fr = hp = hr = 0
+    events = []
     for f in FEET:
-        p, r, _ = _replacements(ws, f, prm.lift)
+        p, r, frames = _replacements(ws, f, prm.lift)
         fp, fr = fp + p, fr + r
+        events += [(i, f"{LABEL[f]} re-placed") for i in frames]
     for h in HANDS:
-        p, r, _ = _replacements(ws, h, prm.lift)
+        p, r, frames = _replacements(ws, h, prm.lift)
         hp, hr = hp + p, hr + r
+        events += [(i, f"{LABEL[h]} re-grip") for i in frames]
     out["foot_placements"] = fp
     out["foot_replacements"] = fr
     out["quiet_feet_pct"] = round(100 * (1 - fr / (fp + fr)), 1) if fp + fr else None
@@ -162,4 +166,9 @@ def compute_technique(clip, prm: TechniqueParams | None = None) -> dict:
     out["com_path_efficiency_median"] = med([m.com_path_efficiency for m in hand_moves])
     out["com_pushes_median"] = med([m.com_pushes for m in hand_moves])
     out["feet_stayed_on_pct"] = round(100 * float(np.mean(feet_on)), 1) if feet_on else None
+    # the video labels now include the technique (pause, pushes) and the events
+    from climbvision.engine.route import build_labels
+
+    route.events = sorted(events)
+    route.labels = build_labels(route, t)
     return out
