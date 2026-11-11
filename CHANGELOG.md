@@ -2,6 +2,12 @@
 
 ## 1.1.0 — unreleased
 
+### Technique (1.2)
+- `technique` in metrics.json and on `route.png`: quiet feet (re-placements), hand
+  re-grips, straight arms, pause before hand moves, time per hand move, COM path
+  efficiency and pushes (stop-and-go), feet stayed on during hand moves. Per move in
+  `moves.csv`: `pause_before_s`, `cycle_s`, `com_path_efficiency`, `com_pushes`.
+
 ### Accurate scale
 - **Climber profiles** (`data/climbers.yaml`, git-ignored; template
   `climbers.example.yaml`): height (sets every metre), mass, arm span (ape index), sex.

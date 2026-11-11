@@ -543,7 +543,22 @@ margins.
 `to_hold`, `release_s`, `catch_s`, `time_s`, `distance_cm`, `direction_deg` (0 = right,
 90 = up, 180 = left, −90 = down), `others` (the other limbs on holds at the weakest
 moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
-`_after_cm`, `com_speed_peak_ms`, `com_speed_catch_ms`, `limb_speed_peak_ms`, `tags`.
+`_after_cm`, `com_speed_peak_ms`, `com_speed_catch_ms`, `limb_speed_peak_ms`,
+`pause_before_s`, `cycle_s`, `com_path_efficiency`, `com_pushes` (technique, below),
+`tags`.
+
+**`technique`** in metrics.json (§6.18), also on the last line of `route.png`:
+
+| Key | Meaning |
+|---|---|
+| `quiet_feet_pct` | Foot placements that needed no re-placement (the foot lifted ≥ 9 cm and put back on the same hold) |
+| `foot_placements`, `foot_replacements`, `hand_regrips` | The counts behind it; re-grips are the same for hands |
+| `straight_arms_pct` | While a hand is on a hold, % of time that arm is straight (elbow ≥ 150° in the picture) |
+| `pause_before_hand_move_s_median` | Time from the last limb landing to the next hand move: reading, setting up, hesitating |
+| `time_per_hand_move_s` | Median time from one hand move landing to the next |
+| `com_path_efficiency_median` | COM straight-line distance / path length over each hand move's cycle (1 = straight) |
+| `com_pushes_median` | Separate COM speed peaks per cycle: 1 = one smooth movement, 3+ = stop-and-go |
+| `feet_stayed_on_pct` | Hand moves with both feet on holds all the way |
 
 | Tag | When |
 |---|---|
@@ -1073,6 +1088,39 @@ corrected metres. Differentiating raw positions would amplify the pose jitter
 cleaner accelerations. Per move (`moves.csv`): COM peak speed, COM speed at the catch,
 peak speed of the moving hand or foot, and the `deadpoint` tag.
 
+### 6.18 Technique (`engine/technique.py`)
+
+What coaches look at, from what the video shows reliably. None of it needs the scale
+except the COM path (a ratio, so a uniform scale cancels out).
+
+- **Quiet feet.** A *re-placement* is a foot landing again on the same hold (or closer
+  than a move) after really leaving it: at least 0.1 body lengths (~9 cm) away in
+  between. The first version also counted an anchor that restarted a frame later a few
+  cm on — on the traverse and overhang these were most of the "re-placements" (a foot
+  sliding or the pose wobbling, 1 frame apart, never leaving), so they're excluded.
+- **Straight arms.** Elbow angle in the picture (cleaned pose) while that hand is on a
+  hold. An arm pointing at the camera looks bent; with the camera behind the climber
+  arms are mostly in the picture plane.
+- **Hesitation.** Per move, the time since the last limb landed. Long pauses mean
+  reading, resting or hesitating; the video tells which.
+- **COM path.** Over each hand move's cycle (previous hand move landed → this one
+  landed): COM displacement / path length, with the path from the smoothed velocity
+  (jitter doesn't add length), and the number of separate speed peaks (two peaks are
+  separate when the speed between them drops below half the smaller one).
+
+First numbers on the test clips:
+
+| Clip | Quiet feet | Straight arms | Pause before hand moves | COM path straight | Pushes per move | Feet stayed on |
+|---|---|---|---|---|---|---|
+| slab | 100 % | 40 % | 0.6 s | 77 % | 1 | 67 % |
+| traverse | 76 % | 74 % | 0.6 s | 84 % | 1 | 62 % |
+| overhang | 93 % | 59 % | 1.1 s | 53 % | 3 | 60 % |
+| coordination | 100 % | 74 % | 0.6 s | 45 % | 3 | 36 % |
+| coordination_failed | 88 % | 78 % | 3.9 s | 39 % | 4 | 40 % |
+
+Not measured: how activated the core is (that needs EMG), and hips-to-wall distance
+(needs depth, 1.4).
+
 ### 6.16 The route (`engine/route.py`)
 
 The wall layer says *when* each limb is on *which* hold. The route layer turns that into
@@ -1477,6 +1525,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Wall perspective correction | used when body-size spread ≥ 0.07, drops by ≥ 25 %, trunk agrees; at most 0.3 per body length | `metric.fit_wall_metric(min_spread, max_ab)` |
 | Velocity / acceleration | quadratic over 0.2 s | `kinematics.derivatives(window_s)` |
 | Deadpoint | COM up ≥ 0.3 m/s during the move, ≤ 0.15 m/s at the catch | `route.RouteParams` |
+| Technique: lift, straight arm, pushes | 0.1 body; elbow ≥ 150°; peaks ≥ 0.1 m/s, dip < 50 % | `technique.TechniqueParams` |
 | Floor vs wall panel | ≥ 30 objects inside = wall | `wall.floor_mask(max_objects)` |
 | Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
