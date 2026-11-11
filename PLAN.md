@@ -463,6 +463,19 @@ CHANGELOG.md.
 Next (1.x), in order of value: `--height` (real centimetres), comparing attempts at the
 same problem, hold detection in `wall.jpg`, wall angle.
 
+## 1.1 Accurate scale — in progress (2026-11-11)
+Climber profiles, perspective correction with the body as the ruler, heights above the
+floor, COM velocity / acceleration, deadpoint tag (GUIDE §6.17). Waiting for the
+tape-measured hold heights and the LiDAR test climbs to check the heights and set the
+vertical/horizontal aspect.
+
+## 1.2 Technique ✅ (2026-11-11)
+Quiet feet, re-grips, straight arms, hesitation, time per hand move, COM path
+efficiency and pushes, feet stayed on (GUIDE §6.18); per move in `moves.csv`, summary on
+`route.png`. On the video: holding arms turn orange when bent. (Move labels with the
+pause / pushes and re-placement flashes were tried and dropped: too quick to read.)
+Checked against the climber's own judgement of the clips.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:
