@@ -76,6 +76,11 @@ class Move:
     tags: list[str] = field(default_factory=list)
     com_speed_catch_ms: float = float("nan")  # COM speed when the limb lands
     limb_speed_peak_ms: float = float("nan")  # the moving hand / foot
+    # technique (engine/technique.py)
+    pause_before_s: float = float("nan")  # since the last limb landed
+    cycle_s: float = float("nan")  # hand moves: since the previous hand move landed
+    com_path_efficiency: float = float("nan")  # straight / path of the COM over the cycle
+    com_pushes: float = float("nan")  # separate COM speed peaks over the cycle
 
     @property
     def kind(self) -> str:
@@ -99,6 +104,9 @@ class Move:
                 "com_speed_peak_ms": r(self.com_speed_peak_ms, 2),
                 "com_speed_catch_ms": r(self.com_speed_catch_ms, 2),
                 "limb_speed_peak_ms": r(self.limb_speed_peak_ms, 2),
+                "pause_before_s": r(self.pause_before_s, 2), "cycle_s": r(self.cycle_s, 2),
+                "com_path_efficiency": r(self.com_path_efficiency, 2),
+                "com_pushes": None if not np.isfinite(self.com_pushes) else int(self.com_pushes),
                 "tags": list(self.tags)}
 
 

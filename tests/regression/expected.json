@@ -730,6 +730,30 @@
         ],
         "approx": 32.1,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 76.2,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 74.0,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 0.6,
+        "tol": 0.4
       }
     ]
   },
@@ -811,6 +835,30 @@
         ],
         "approx": 33.3,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 100.0,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 39.5,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 0.62,
+        "tol": 0.4
       }
     ]
   },
@@ -892,6 +940,30 @@
         ],
         "approx": 39.5,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 92.6,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 58.9,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 1.13,
+        "tol": 0.4
       }
     ]
   },
@@ -973,6 +1045,30 @@
         ],
         "approx": 42.9,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 87.5,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 78.4,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 3.94,
+        "tol": 0.4
       }
     ]
   },
@@ -1054,6 +1150,30 @@
         ],
         "approx": 50.9,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 100.0,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 48.9,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 1.45,
+        "tol": 0.4
       }
     ]
   },
@@ -1144,6 +1264,30 @@
         ],
         "approx": 54.8,
         "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 87.5,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 39.1,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 0.41,
+        "tol": 0.4
       }
     ]
   }

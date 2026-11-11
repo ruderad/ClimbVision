@@ -128,6 +128,7 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
         out["wall"] = wall_summary(clip.wall_support, clip.t)
         write_wall_csv(result_dir / "wall.csv", clip.wall_support, clip.t)
         route = clip.route
+        out["technique"] = clip.technique  # before moves_detail: fills per-move fields
         out["route"] = {**route_summary(route, clip.wall_support, clip.t),
                         "moves_detail": [m.as_dict() for m in route.moves]}
         write_moves_csv(result_dir / "moves.csv", route)

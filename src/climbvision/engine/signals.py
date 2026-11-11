@@ -74,6 +74,16 @@ class Clip:
         return self._cache["_route"]
 
     @property
+    def technique(self) -> dict:
+        """Technique summary (quiet feet, straight arms, hesitation, COM path); also
+        fills the per-move technique fields of the route."""
+        if "_technique" not in self._cache:
+            from climbvision.engine.technique import compute_technique
+
+            self._cache["_technique"] = compute_technique(self)
+        return self._cache["_technique"]  # type: ignore[return-value]
+
+    @property
     def wall(self) -> np.ndarray:
         """(n, N_JOINTS, 2) joints in wall coordinates: camera motion removed. Without a
         camera layer the camera is assumed fixed (wall = image)."""
