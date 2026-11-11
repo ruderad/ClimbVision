@@ -2,6 +2,14 @@
 
 ## 1.1.0 — unreleased
 
+### Forces (1.3)
+- Load on each hand and foot in the wall plane (`engine/forces.py`): least-effort split
+  under balance (soft moment balance: matched hands let the body swing), feet push only
+  within friction. `forces` in metrics.json, `forces.csv`, a load panel in
+  `report.png`, `catch_load_pct_bw` per hand move, signals `load_*_pct_bw`,
+  `hands_load_pct_bw`, `feet_load_pct_bw`, `hands_share_pct`. Newtons with the mass.
+- `--climber unknown`: an average adult, whatever the profile file's default.
+
 ### Technique (1.2)
 - `technique` in metrics.json and on `route.png`: quiet feet (re-placements), hand
   re-grips, straight arms, pause before hand moves, time per hand move, COM path

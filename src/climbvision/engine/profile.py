@@ -11,7 +11,9 @@
         sex: male             # which segment-mass table (De Leva)
 
 A clip is tied to a climber with `--climber NAME` (`analyze` or `metrics`), stored in
-its `summary.json`. Without a profile the engine assumes an average 1.75 m adult.
+its `summary.json`. Without a profile the engine assumes an average 1.75 m adult;
+`--climber unknown` says so explicitly (e.g. someone else on the wall while your profile
+is the default).
 The file is looked up at $CLIMBVISION_CLIMBERS, else `data/climbers.yaml` in the
 project folder.
 """
@@ -26,6 +28,7 @@ from climbvision.engine.scale import ASSUMED_BODY_M
 
 BODY_RATIO = 0.531  # trunk + leg / stature (Drillis & Contini; 0.93 m of 1.75 m)
 ASSUMED_HEIGHT_M = round(ASSUMED_BODY_M / BODY_RATIO, 2)
+UNKNOWN = ("unknown", "none")  # --climber unknown: an average adult, whatever the default
 
 
 @dataclass
@@ -90,6 +93,8 @@ def _num(v) -> float | None:
 
 def find_climber(name: str | None = None, path: str | Path | None = None) -> Climber:
     """The named climber (or the file's default); an unknown name raises."""
+    if name in UNKNOWN:
+        return Climber()
     climbers, default = load_climbers(path)
     name = name or default
     if not name:

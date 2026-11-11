@@ -129,6 +129,11 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
         write_wall_csv(result_dir / "wall.csv", clip.wall_support, clip.t)
         route = clip.route
         out["technique"] = clip.technique  # before moves_detail: fills per-move fields
+        from climbvision.engine.forces import forces_summary
+        from climbvision.output.tables import write_forces_csv
+
+        out["forces"] = forces_summary(clip.forces, clip.wall_support, clip.t, clip.route)
+        write_forces_csv(result_dir / "forces.csv", clip.forces, clip.t)
         out["route"] = {**route_summary(route, clip.wall_support, clip.t),
                         "moves_detail": [m.as_dict() for m in route.moves]}
         write_moves_csv(result_dir / "moves.csv", route)

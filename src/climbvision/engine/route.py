@@ -81,6 +81,8 @@ class Move:
     cycle_s: float = float("nan")  # hand moves: since the previous hand move landed
     com_path_efficiency: float = float("nan")  # straight / path of the COM over the cycle
     com_pushes: float = float("nan")  # separate COM speed peaks over the cycle
+    catch_load_pct_bw: float = float("nan")  # hand moves: peak load on that hand, 0.3 s
+    #                                          after the catch (engine/forces.py)
 
     @property
     def kind(self) -> str:
@@ -107,6 +109,7 @@ class Move:
                 "pause_before_s": r(self.pause_before_s, 2), "cycle_s": r(self.cycle_s, 2),
                 "com_path_efficiency": r(self.com_path_efficiency, 2),
                 "com_pushes": None if not np.isfinite(self.com_pushes) else int(self.com_pushes),
+                "catch_load_pct_bw": r(self.catch_load_pct_bw),
                 "tags": list(self.tags)}
 
 

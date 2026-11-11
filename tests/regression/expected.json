@@ -754,6 +754,22 @@
         ],
         "approx": 0.6,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 27.2,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 118.5,
+        "tol": 40
       }
     ]
   },
@@ -859,6 +875,22 @@
         ],
         "approx": 0.62,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 27.2,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 146.9,
+        "tol": 40
       }
     ]
   },
@@ -964,6 +996,22 @@
         ],
         "approx": 1.13,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 48.9,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 137.5,
+        "tol": 40
       }
     ]
   },
@@ -1069,6 +1117,22 @@
         ],
         "approx": 3.94,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 49.9,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 211.0,
+        "tol": 40
       }
     ]
   },
@@ -1174,6 +1238,22 @@
         ],
         "approx": 1.45,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 33.5,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 109.5,
+        "tol": 40
       }
     ]
   },
@@ -1288,6 +1368,22 @@
         ],
         "approx": 0.41,
         "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 33.0,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 119.3,
+        "tol": 40
       }
     ]
   }

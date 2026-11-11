@@ -84,6 +84,16 @@ class Clip:
         return self._cache["_technique"]  # type: ignore[return-value]
 
     @property
+    def forces(self):
+        """Forces at the hands and feet in the wall plane (engine/forces.py)."""
+        if "_forces" not in self._cache:
+            from climbvision.engine.forces import compute_forces
+
+            self._cache["_forces"] = compute_forces(self.wall_support, self.t,
+                                                    self.climber.mass_kg)
+        return self._cache["_forces"]
+
+    @property
     def wall(self) -> np.ndarray:
         """(n, N_JOINTS, 2) joints in wall coordinates: camera motion removed. Without a
         camera layer the camera is assumed fixed (wall = image)."""
@@ -308,6 +318,15 @@ register("feet_cut", "on the wall with a hand on a hold and both feet off holds 
     lambda c: c.route.feet_off)
 register("limbs_moving", "number of limbs travelling between holds (0-4)")(
     lambda c: c.route.in_move.astype(float))
+for _limb in LIMBS:
+    register(f"load_{_limb}_pct_bw", f"force on the {_limb.replace('_', ' ')} from its hold, "
+             "% body weight (wall plane)")(lambda c, limb=_limb: c.forces.load[limb])
+register("hands_load_pct_bw", "both hands together, % body weight (wall plane)")(
+    lambda c: c.forces.hands_bw)
+register("feet_load_pct_bw", "both feet together, % body weight (wall plane)")(
+    lambda c: c.forces.feet_bw)
+register("hands_share_pct", "hands' share of the load from holds (%)")(
+    lambda c: c.forces.hands_pct)
 register("wall_contacts", "label of the limbs on holds, e.g. '2 hands + R foot'")(
     lambda c: np.array(c.wall_support.labels, dtype=object))
 
