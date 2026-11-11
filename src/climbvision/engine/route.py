@@ -14,7 +14,9 @@ holds numbered in the order they were first used). Here:
     of mass moves at least `dyno_speed` (`jump` when nothing is on a hold at all);
   - `feet cut`: during a hand move both feet are off holds;
   - `high step`: a foot lands at or above the centre of mass;
-  - `foot on handhold`: a foot lands on a hold a hand used before.
+  - `foot on handhold`: a foot lands on a hold a hand used before;
+  - `deadpoint`: the body rose during a hand move and the hand caught the hold at the
+    top, with the COM (nearly) still vertically — the moment the hold takes least load.
   Moves from or to the ground (stepping on / off) are not counted.
 - **Rests**: all four limbs on holds and the centre of mass still (< `rest_speed`) for
   at least `rest_min_s`.
@@ -32,6 +34,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from climbvision.engine.events import runs
+from climbvision.engine.kinematics import derivatives
 from climbvision.engine.wall import LABEL, LIMBS, WallSupport, contact_label
 
 HANDS = ("l_hand", "r_hand")
@@ -47,6 +50,8 @@ class RouteParams:
     cross_tol: float = 0.03  # body lengths: hands this far past each other = crossed
     dyno_speed: float = 0.8  # m/s: COM at least this fast during a dyno / jump
     dyno_max_s: float = 1.5  # a dyno is quick: hand off its hold at most this long
+    deadpoint_rise: float = 0.3  # m/s: the COM rose at least this fast during the move ...
+    deadpoint_still: float = 0.15  # m/s: ... and moved up/down less than this at the catch
     label_s: float = 1.2  # a move's label stays on the video this long after it lands
 
 
@@ -69,6 +74,8 @@ class Move:
     com_over_feet_after_cm: float
     com_speed_peak_ms: float
     tags: list[str] = field(default_factory=list)
+    com_speed_catch_ms: float = float("nan")  # COM speed when the limb lands
+    limb_speed_peak_ms: float = float("nan")  # the moving hand / foot
 
     @property
     def kind(self) -> str:
@@ -90,6 +97,8 @@ class Move:
                 "com_over_feet_before_cm": r(self.com_over_feet_before_cm),
                 "com_over_feet_after_cm": r(self.com_over_feet_after_cm),
                 "com_speed_peak_ms": r(self.com_speed_peak_ms, 2),
+                "com_speed_catch_ms": r(self.com_speed_catch_ms, 2),
+                "limb_speed_peak_ms": r(self.limb_speed_peak_ms, 2),
                 "tags": list(self.tags)}
 
 
@@ -106,18 +115,16 @@ class Route:
 
 
 def _com_speed(ws: WallSupport, t: np.ndarray) -> np.ndarray:
-    """COM speed, body lengths / s, smoothed over ~0.3 s."""
-    c = ws.com
-    n = len(t)
-    if n < 3:
-        return np.zeros(n)
-    k = max(1, int(0.15 / max(float(np.median(np.diff(t))), 1e-3)))
-    v = np.full(n, np.nan)
-    for i in range(n):
-        a, b = max(0, i - k), min(n - 1, i + k)
-        if b > a and np.isfinite(c[[a, b]]).all():
-            v[i] = np.linalg.norm(c[b] - c[a]) / (t[b] - t[a])
-    return v / ws.body_px
+    """COM speed, m/s (local quadratic fit over 0.2 s)."""
+    if ws.com_v is not None:
+        return np.linalg.norm(ws.com_v, axis=1)
+    v, _ = derivatives(ws.to_m(ws.com), t)
+    return np.linalg.norm(v, axis=1)
+
+
+def _limb_speed(ws: WallSupport, limb: str, t: np.ndarray) -> np.ndarray:
+    v, _ = derivatives(ws.to_m(ws.points[limb]), t)
+    return np.linalg.norm(v, axis=1)
 
 
 def _hold_at(ws: WallSupport, limb: str, n: int) -> np.ndarray:
@@ -135,7 +142,8 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
     speed = _com_speed(ws, t)
     hold_at = {limb: _hold_at(ws, limb, n) for limb in LIMBS}
     on = ws.on_hold
-    to_cm = 100.0 / ws.px_per_m
+    limb_speed = {limb: _limb_speed(ws, limb, t) for limb in LIMBS}
+    vy = ws.com_v[:, 1] if ws.com_v is not None else np.full(n, np.nan)
     hand_holds_before: dict[int, int] = {}  # hold -> first frame a hand used it
     for h in HANDS:
         for a in ws.anchors[h]:
@@ -171,8 +179,9 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
         d = b.pos - a.pos
         ang = float(np.degrees(np.arctan2(-d[1], d[0])))  # wall y points down
         win = speed[rel:cat + 1]
-        peak = float(np.nanmax(win)) * ws.body_px / ws.px_per_m if np.isfinite(win).any() \
-            else float("nan")
+        peak = float(np.nanmax(win)) if np.isfinite(win).any() else float("nan")
+        lw = limb_speed[limb][rel:cat + 1]
+        limb_peak = float(np.nanmax(lw)) if np.isfinite(lw).any() else float("nan")
         tags = []
         if limb in HANDS:
             o = OTHER[limb]
@@ -194,6 +203,12 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
                 feet_off = ~on["l_foot"][span] & ~on["r_foot"][span] & ws.on_wall[span]
                 if feet_off.sum() >= max(2, int(prm.cut_min_s * fps)):
                     tags.append("feet cut")
+            # deadpoint: the body rose and the hand caught at the top, when the COM
+            # was (nearly) still: the moment of least load
+            rise = vy[rel:cat + 1]
+            if np.isfinite(rise).any() and np.nanmax(rise) >= prm.deadpoint_rise and \
+                    np.isfinite(vy[cat]) and abs(vy[cat]) <= prm.deadpoint_still:
+                tags.append("deadpoint")
         else:
             if hold_at[OTHER[limb]][cat] == b.hold:
                 tags.append("match")
@@ -205,13 +220,14 @@ def compute_route(ws: WallSupport, t: np.ndarray, prm: RouteParams | None = None
                 tags.append("jump")
         moves.append(Move(
             k, limb, a.hold, b.hold, rel, cat, float(t[rel]), float(t[cat]),
-            float(t[cat] - t[rel]), float(np.linalg.norm(d)) * to_cm, ang, others_lab,
+            float(t[cat] - t[rel]),
+            100 * float(np.linalg.norm(ws.to_m(b.pos) - ws.to_m(a.pos))), ang, others_lab,
             others_min, float(ws.com_over_feet_cm[rel]), float(ws.com_over_feet_cm[cat]),
-            peak, tags))
+            peak, tags, float(speed[cat]), limb_peak))
 
     # rests: four on holds and the COM still
     four = (ws.n_contacts == 4) & ws.on_wall
-    still = np.nan_to_num(speed, nan=np.inf) < prm.rest_speed
+    still = np.nan_to_num(speed, nan=np.inf) < prm.rest_speed * ws.body_m
     resting = np.zeros(n, bool)
     rests = []
     for a, b in runs(four & still):

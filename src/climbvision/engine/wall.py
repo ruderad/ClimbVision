@@ -42,6 +42,9 @@ import numpy as np
 
 from climbvision.engine.biomech import whole_body_com
 from climbvision.engine.events import runs
+from climbvision.engine.kinematics import derivatives
+from climbvision.engine.metric import WallMetric, fit_wall_metric
+from climbvision.engine.scale import ASSUMED_BODY_M
 from climbvision.engine.skeleton import J
 
 LIMBS = ("l_hand", "r_hand", "l_foot", "r_foot")
@@ -379,14 +382,40 @@ class WallSupport:
     labels: list[str]
     floor_seen: bool = False
     min_move_px: float = 0.0
+    metric: WallMetric | None = None  # wall px -> metres (perspective corrected)
+    com_m: np.ndarray | None = None  # (n, 2) COM in metres, x right, y up
+    com_v: np.ndarray | None = None  # (n, 2) COM velocity, m/s (x right, y up)
+    com_a: np.ndarray | None = None  # (n, 2) COM acceleration, m/s^2
+
+    @property
+    def body_m(self) -> float:
+        return self.body_px / self.px_per_m
+
+    def to_m(self, p: np.ndarray) -> np.ndarray:
+        """Wall px -> metres (x right, y up)."""
+        if self.metric is not None:
+            return self.metric.to_m(p)
+        q = np.asarray(p, float) / self.px_per_m
+        return q * np.array([1.0, -1.0])
+
+    def height_m(self, p: np.ndarray) -> np.ndarray:
+        """Height above the floor (when the climber stood on it in the clip), else above
+        the lowest hold."""
+        if self.metric is not None and self.metric.ground_y_m is not None:
+            return self.metric.height_m(p)
+        y = self.to_m(p)[..., 1]
+        low = min((float(self.to_m(h.pos)[1]) for h in self.holds), default=0.0)
+        return y - low
+
+    @property
+    def heights_above_floor(self) -> bool:
+        return self.metric is not None and self.metric.ground_y_m is not None
 
     def hold_xy_m(self, h: Hold) -> tuple[float, float]:
         """Hold position in metres: x right from the first hold, y up from the ground
         (or from the lowest hold when there is no ground)."""
-        x0 = self.holds[0].pos[0] if self.holds else 0.0
-        base = self.ground_y if self.ground_y is not None else max(
-            (hh.pos[1] for hh in self.holds), default=0.0)
-        return (float(h.pos[0] - x0) / self.px_per_m, float(base - h.pos[1]) / self.px_per_m)
+        x0 = float(self.to_m(self.holds[0].pos)[0]) if self.holds else 0.0
+        return (float(self.to_m(h.pos)[0]) - x0, float(self.height_m(h.pos)))
 
 
 def _signed_hull_distance(hull: np.ndarray, p: np.ndarray) -> float:
@@ -411,7 +440,9 @@ def contact_label(on: dict[str, bool]) -> str:
 
 def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                          px_per_m: float, sex: str = "male", camera_ok: np.ndarray | None = None,
-                         wall_image=None, prm: WallParams | None = None) -> WallSupport:
+                         wall_image=None, prm: WallParams | None = None,
+                         body_m: float = ASSUMED_BODY_M,
+                         correct_perspective: bool = True) -> WallSupport:
     """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall)."""
     prm = prm or WallParams()
     n = len(t)
@@ -447,34 +478,39 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     on_hold = {limb: _on_mask([a for a in anchors[limb] if a.on_hold], n) for limb in LIMBS}
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
     com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
-    to_cm = 100.0 / px_per_m
+    # metres on the wall: perspective corrected with the body as the ruler (metric.py)
+    ground_px = np.array([a.pos for f in ("l_foot", "r_foot") for a in anchors[f]
+                          if a.ground]).reshape(-1, 2)
+    metric = fit_wall_metric(wall_points, on_wall, body_m, ground_px,
+                             correct=correct_perspective, px_per_m=px_per_m)
+    com_m = metric.to_m(com)
+    com_v, com_a = derivatives(com_m, t)
     feet_m = np.full(n, np.nan)
     poly_m = np.full(n, np.nan)
-    pad = FOOT_RADIUS_M * px_per_m
     pos_at = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
     for limb in LIMBS:
         for an in anchors[limb]:
             if an.on_hold:
-                pos_at[limb][an.start:an.end] = an.pos
+                pos_at[limb][an.start:an.end] = metric.to_m(an.pos)
     for i in range(n):
-        if not np.isfinite(com[i]).all():
+        if not np.isfinite(com_m[i]).all():
             continue
         fx = [pos_at[f][i, 0] for f in ("l_foot", "r_foot") if on_hold[f][i]]
         if fx:
-            lo, hi = min(fx) - pad, max(fx) + pad
-            feet_m[i] = min(com[i, 0] - lo, hi - com[i, 0]) * to_cm
+            lo, hi = min(fx) - FOOT_RADIUS_M, max(fx) + FOOT_RADIUS_M
+            feet_m[i] = min(com_m[i, 0] - lo, hi - com_m[i, 0]) * 100
         hull_pts = [pos_at[limb][i] for limb in LIMBS if on_hold[limb][i]]
         if len(hull_pts) >= 3:
-            hull = cv2.convexHull(np.array(hull_pts, np.float32))
-            if cv2.contourArea(hull) > 1.0:
-                poly_m[i] = _signed_hull_distance(hull, com[i]) * to_cm
+            hull = cv2.convexHull(np.array(hull_pts, np.float32) * 1000)  # mm
+            if cv2.contourArea(hull) > 100.0:
+                poly_m[i] = _signed_hull_distance(hull, com_m[i] * 1000) / 10
     labels = [contact_label({limb: bool(on_hold[limb][i]) for limb in LIMBS})
               if on_wall[i] else ("on the ground" if on_ground[i] else "–") for i in range(n)]
     ground = [a.pos[1] for f in ("l_foot", "r_foot") for a in anchors[f] if a.ground]
     ground_y = float(np.median(ground)) if ground else None
     return WallSupport(pts, anchors, holds, on_hold, on_ground, on_wall, ground_y, com,
-                       n_contacts, feet_m, poly_m, px_per_m, body_px, labels, floor_seen,
-                       prm.min_move * body_px)
+                       n_contacts, feet_m, poly_m, metric.s * metric.per_m, body_px, labels,
+                       floor_seen, prm.min_move * body_px, metric, com_m, com_v, com_a)
 
 
 def moves(ws: WallSupport, t: np.ndarray) -> list[dict]:
@@ -484,7 +520,7 @@ def moves(ws: WallSupport, t: np.ndarray) -> list[dict]:
         seq = [a for a in ws.anchors[limb] if a.on_hold]
         for a, b in zip(seq, seq[1:], strict=False):
             if a.hold != b.hold and np.linalg.norm(b.pos - a.pos) >= ws.min_move_px:
-                d = float(np.linalg.norm(b.pos - a.pos)) / ws.px_per_m
+                d = float(np.linalg.norm(ws.to_m(b.pos) - ws.to_m(a.pos)))
                 out.append({"limb": limb, "from_hold": a.hold, "to_hold": b.hold,
                             "release_s": round(float(t[a.end - 1]), 2),
                             "catch_s": round(float(t[b.start]), 2),
@@ -517,7 +553,10 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
                                  sorted(tc.items(), key=lambda kv: -kv[1])}
         cy = ws.com[on, 1]
         if np.isfinite(cy).any():
-            out["com_height_gain_m"] = round(float(np.nanmax(cy) - np.nanmin(cy)) / ws.px_per_m, 2)
+            ym = ws.com_m[on, 1] if ws.com_m is not None else -cy / ws.px_per_m
+            out["com_height_gain_m"] = round(float(np.nanmax(ym) - np.nanmin(ym)), 2)
+            if ws.heights_above_floor:
+                out["com_top_above_floor_m"] = round(float(np.nanmax(ws.height_m(ws.com[on]))), 2)
         for key, arr in (("com_over_feet_cm", ws.com_over_feet_cm),
                          ("polygon_margin_cm", ws.polygon_margin_cm)):
             v = arr[on]

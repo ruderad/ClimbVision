@@ -19,7 +19,11 @@ summary:
   com_over_feet_pct: >-
     pct(com_over_feet_cm > 0, where=on_wall & isfinite(com_over_feet_cm))
     if any(on_wall & isfinite(com_over_feet_cm)) else None
-  height_gain_m: ["max(where(on_wall, com_height_m, nan)) if any(on_wall) else None", 2]
+  height_gain_m:
+    - "max(where(on_wall, com_height_m, nan)) - min(where(on_wall, com_height_m, nan)) if any(on_wall) else None"
+    - 2
+  com_top_m: ["max(where(on_wall, com_height_m, nan)) if any(on_wall) else None", 2]
+  com_speed_peak_ms: ["max(where(on_wall, com_speed_ms, nan)) if any(on_wall) else None", 2]
   rest_s: [time(resting), 1]
   feet_cut_s: [time(feet_cut), 1]
 
@@ -41,4 +45,4 @@ headline: >-
 
 plot:
   signal: com_height_m
-  label: COM height on the wall (m)
+  label: COM height (m, above the floor when it's seen)

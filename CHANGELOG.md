@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 — unreleased
+
+### Accurate scale
+- **Climber profiles** (`data/climbers.yaml`, git-ignored; template
+  `climbers.example.yaml`): height (sets every metre), mass, arm span (ape index), sex.
+  `--climber NAME` on `analyze` / `metrics`; `scale` in metrics.json says which height
+  was used and whether it was assumed.
+- **Perspective-corrected wall** (`engine/metric.py`): the body as a ruler across the
+  wall; body sizes up to 1.6x apart on handheld clips are made uniform.
+- **Heights above the floor** when the climber stood on it (`com_height_m`,
+  `com_top_above_floor_m`, `com_top_m`); `height_gain_m` is now the gain on the wall.
+- **Velocity and acceleration** of the COM (signals `com_speed_ms`, `com_vy_ms`,
+  `com_vx_ms`, `com_acc_ms2`), per move: COM speed at the catch, peak speed of the moving
+  limb, `deadpoint` tag.
+
 ## 1.0.0 — 2026-11-11
 
 First release: movement analysis from video, on the floor and on the climbing wall.

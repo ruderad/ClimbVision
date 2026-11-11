@@ -8,6 +8,7 @@ metrics.json, report.png. Fast (seconds): no video or pose model needed.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,29 @@ from climbvision.recipes import Recipe, guess_recipe, load_recipes, run_recipe
 def clip_info(result_dir: Path) -> dict:
     p = Path(result_dir) / "summary.json"
     return json.loads(p.read_text()) if p.exists() else {}
+
+
+def climber_of(result_dir: str | Path):
+    """The climber profile for a results folder (summary.json's `climber`, else the
+    default in data/climbers.yaml, else an average adult)."""
+    from climbvision.engine.profile import Climber, find_climber
+
+    try:
+        return find_climber(clip_info(Path(result_dir)).get("climber"))
+    except ValueError as e:
+        print(f"[climbvision] {e}; using an average adult", file=sys.stderr)
+        return Climber()
+
+
+def set_climber(result_dir: str | Path, name: str) -> None:
+    """Tie a results folder to a climber (stored in its summary.json)."""
+    from climbvision.engine.profile import find_climber
+
+    find_climber(name)  # fails early on an unknown name
+    p = Path(result_dir) / "summary.json"
+    info = json.loads(p.read_text())
+    info["climber"] = name
+    p.write_text(json.dumps(info, indent=2))
 
 
 def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = None) -> Clip:
@@ -46,7 +70,7 @@ def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = No
         track, report = clean_track(track, cam)
     clip = Clip.build(track, info.get("sex_model", "male"),
                       tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
-                      camera=cam, wall_image=wall)
+                      camera=cam, wall_image=wall, climber=climber_of(result_dir))
     clip.cleanup = report
     return clip
 
@@ -114,6 +138,9 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
             draw_route_map(result_dir / "route.png", clip)
     else:
         out["stability"] = stability_summary(clip.stability, clip.t)
+    out["scale"] = clip.climber.summary()
+    if rec.scene == "wall" and clip.wall_support.metric is not None:
+        out["scale"].update(clip.wall_support.metric.summary())
     if clip.camera is not None:
         from climbvision.engine.camera import camera_summary
 

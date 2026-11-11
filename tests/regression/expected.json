@@ -714,6 +714,22 @@
           "static"
         ],
         "eq": false
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 0.93,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 32.1,
+        "tol": 6
       }
     ]
   },
@@ -779,6 +795,22 @@
           "static"
         ],
         "eq": true
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 1.66,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 33.3,
+        "tol": 6
       }
     ]
   },
@@ -844,6 +876,22 @@
           "static"
         ],
         "eq": false
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 1.83,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 39.5,
+        "tol": 6
       }
     ]
   },
@@ -909,6 +957,22 @@
           "static"
         ],
         "eq": false
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 1.05,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 42.9,
+        "tol": 6
       }
     ]
   },
@@ -974,6 +1038,22 @@
           "static"
         ],
         "eq": true
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 1.51,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 50.9,
+        "tol": 6
       }
     ]
   },
@@ -1048,6 +1128,22 @@
         ],
         "approx": 95.1,
         "tol": 8
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 1.52,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 54.8,
+        "tol": 6
       }
     ]
   }

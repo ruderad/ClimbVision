@@ -1,0 +1,11 @@
+# Copy to data/climbers.yaml (git-ignored: it holds personal data) and fill in.
+# Tie a clip to a climber with:  climbvision analyze VIDEO --climber alex
+#                          or:  climbvision metrics outputs/CLIP --climber alex
+default: alex            # used when a clip names no climber
+
+climbers:
+  alex:
+    height_m: 1.78       # sets the scale: every distance, height and speed
+    mass_kg: 70          # for forces (1.3)
+    arm_span_m: 1.82     # fingertip to fingertip; ape index = arm span - height
+    sex: male            # which segment-mass table (De Leva): male / female

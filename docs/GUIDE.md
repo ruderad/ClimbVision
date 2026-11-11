@@ -85,6 +85,12 @@ files (section 4). Analyse several at once:
 climbvision analyze data/videos/*.MOV data/videos/*.mov
 ```
 
+**Tell it who is climbing** (once): copy `climbers.example.yaml` to
+`data/climbers.yaml` and fill in your height (and mass, arm span). Every distance,
+height and speed is then in your real units instead of an average adult's. The file is
+git-ignored: it never leaves your computer. Name the climber per clip with
+`--climber NAME` (`analyze` or `metrics`); without it the file's `default` is used.
+
 ### 1.3 Look at the results
 
 1. Open `outputs/<clip>/annotated.mp4` — does the skeleton follow the body? If not,
@@ -537,7 +543,7 @@ margins.
 `to_hold`, `release_s`, `catch_s`, `time_s`, `distance_cm`, `direction_deg` (0 = right,
 90 = up, 180 = left, −90 = down), `others` (the other limbs on holds at the weakest
 moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
-`_after_cm`, `com_speed_peak_ms`, `tags`.
+`_after_cm`, `com_speed_peak_ms`, `com_speed_catch_ms`, `limb_speed_peak_ms`, `tags`.
 
 | Tag | When |
 |---|---|
@@ -548,6 +554,7 @@ moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
 | `feet cut` | during a hand move both feet are off holds for ≥ 0.3 s |
 | `high step` | a foot lands at or above the COM |
 | `foot on handhold` | a foot lands on a hold a hand used before |
+| `deadpoint` | the body rose (COM ≥ 0.3 m/s up) during a hand move and the hand caught the hold with the COM (nearly) still vertically (≤ 0.15 m/s): the moment the hold takes least load |
 
 `route.png`: the wall image (dimmed), cropped to the climb. Holds are numbered in the
 order they were first used (white ring = hand hold, green = foot hold, both = double
@@ -1020,6 +1027,52 @@ it can't: a limb wrong for a long stretch in a consistent way (the median then f
 the wrong position), or a body part out of the frame. The rules are deliberately
 conservative: nothing is invented without good frames of the same limb on both sides.
 
+### 6.17 Metres on the wall (`engine/metric.py`, `engine/profile.py`, `engine/kinematics.py`)
+
+**The scale.** Distances in pixels become metres through the climber's body: trunk + leg
+length in the picture (90th percentile over the clip — a picture can shorten a body
+part, never lengthen it) against the same length in metres, 0.531 × height (Drillis &
+Contini). Without a profile the height is an average adult's (1.75 m), so all metres
+are off by your height's ratio to that.
+
+**Perspective.** Wall coordinates are the first registered frame's view of the wall, in
+perspective: the camera looks up at the wall, or the wall leans towards it. On the
+handheld test clips the climber's trunk looked up to 1.6× bigger high on the wall than
+low, so one pixels-per-metre for the whole wall is wrong. The correction uses the body
+as a ruler that travels across the wall: a projective correction (2 parameters) is
+chosen so each body segment's upper length is the same in every region the climber
+visited. It is kept only if the sizes become clearly more uniform (spread down by a
+quarter) and the trunk — the stiffest ruler — agrees; it is limited to the strength of
+perspective seen on real clips. `scale` in metrics.json shows the spread of body sizes
+before and after.
+
+| Clip | Body-size spread before → after | Height gained (old → corrected) |
+|---|---|---|
+| gardash2 (handheld) | 0.147 → 0.055 | 1.43 → 1.52 m |
+| esimo3 | 0.146 → 0.100 | 1.40 → 1.49 m |
+| slab (fixed, off to the side) | 0.115 → 0.064 | 1.75 → 1.66 m |
+| overhang | 0.078 → 0.054 | 1.84 → 1.83 m |
+| traverse, moonboard2, overhang2 … | below 0.07 or no clear gain: left as is | — |
+
+What the body can't calibrate: the **aspect ratio** (vertical vs horizontal). Climbing
+postures stretch arms and legs up and down far more than sideways, which biases it, so
+it stays 1 until a known length on the wall or depth (LiDAR) sets it. On steep
+overhangs the body leaves the wall plane (hanging hips, legs towards the camera), so the
+body ruler is weaker there.
+
+**Height above the floor.** When the climber stands on the floor in the clip (ground
+anchors), heights are measured from it: `com_height_m` and `com_top_above_floor_m`.
+Otherwise from the lowest point of the climb. *The old "COM height ≈ 1.5 m" was the
+height gained from the lowest point on the wall, not the height above the floor:* on
+gardash2 the COM tops out 2.7 m above the floor.
+
+**Velocity and acceleration** (`com_speed_ms`, `com_vy_ms`, `com_vx_ms`,
+`com_acc_ms2`): a quadratic fitted to 0.2 s around every frame (Savitzky-Golay), in
+corrected metres. Differentiating raw positions would amplify the pose jitter
+(acceleration twice over); a gap in the data gives NaN, not a guess. 60 fps clips give
+cleaner accelerations. Per move (`moves.csv`): COM peak speed, COM speed at the catch,
+peak speed of the moving hand or foot, and the `deadpoint` tag.
+
 ### 6.16 The route (`engine/route.py`)
 
 The wall layer says *when* each limb is on *which* hold. The route layer turns that into
@@ -1421,6 +1474,9 @@ clips that once failed: they keep the fix from silently breaking again.
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
 | Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
 | Route: rest, dyno, cross, feet cut, label | 4 on + COM < 0.12 body/s for ≥ 1 s; COM ≥ 0.8 m/s within ≤ 1.5 s; 0.03 body; ≥ 0.3 s; 1.2 s on the video | `route.RouteParams` |
+| Wall perspective correction | used when body-size spread ≥ 0.07, drops by ≥ 25 %, trunk agrees; at most 0.3 per body length | `metric.fit_wall_metric(min_spread, max_ab)` |
+| Velocity / acceleration | quadratic over 0.2 s | `kinematics.derivatives(window_s)` |
+| Deadpoint | COM up ≥ 0.3 m/s during the move, ≤ 0.15 m/s at the catch | `route.RouteParams` |
 | Floor vs wall panel | ≥ 30 objects inside = wall | `wall.floor_mask(max_objects)` |
 | Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
