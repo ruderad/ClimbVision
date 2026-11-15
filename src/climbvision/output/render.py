@@ -29,6 +29,7 @@ from climbvision.output.draw import (
     draw_grips,
     draw_label,
     draw_skeleton,
+    draw_smears,
     draw_support,
 )
 
@@ -113,12 +114,18 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                     if wall_scene:
                         held = [ws.points[limb][i] for limb in ws.on_hold
                                 if ws.on_hold[limb][i]]
+                        smears = [ws.points[limb][i] for limb in ws.on_hold
+                                  if ws.on_smear is not None and ws.on_smear[limb][i]]
                         img_pts = [p for p in _to_image(clip, i, held) if np.isfinite(p).all()]
+                        smear_pts = [p for p in _to_image(clip, i, smears)
+                                     if np.isfinite(p).all()]
                         plumb, over_feet = None, None
                         c = ws.com[i]
-                        if held and ws.on_wall[i] and np.isfinite(c).all():  # straight down
+                        support = held + smears
+                        if support and ws.on_wall[i] and np.isfinite(c).all():  # straight down
                             # down to the lowest hold, at least a quarter body
-                            low = max(max(float(p[1]) for p in held), c[1] + 0.25 * ws.body_px)
+                            low = max(max(float(p[1]) for p in support),
+                                      c[1] + 0.25 * ws.body_px)
                             ends = _to_image(clip, i, [c, np.array([c[0], low])])
                             plumb = tuple(ends) if len(ends) == 2 else None
                             m = ws.com_over_feet_cm[i]
@@ -126,8 +133,10 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                                 over_feet = bool(m > 0)
                                 lines.append(f"COM over feet {m:+.0f} cm")
                                 colors.append(INSIDE_COLOR if over_feet else OUTSIDE_COLOR)
-                        draw_base(img, np.array(img_pts).reshape(-1, 2), plumb, over_feet)
+                        draw_base(img, np.array(img_pts + smear_pts).reshape(-1, 2), plumb,
+                                  over_feet)
                         draw_contacts(img, np.array(img_pts).reshape(-1, 2))
+                        draw_smears(img, np.array(smear_pts).reshape(-1, 2))
                         past = [p for p, _ in trail]
                         img_trail = _to_image(clip, i, past) if past else []
                         if len(img_trail) != len(past):

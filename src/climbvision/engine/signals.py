@@ -39,6 +39,7 @@ class Clip:
     sex: str = "male"
     climber: Climber = field(default_factory=Climber)
     cleanup: dict | None = None  # clean-up layer report (None = not run)
+    hold_boxes: object = None  # holds detected in the wall image (holddetect.py), or None
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -61,7 +62,7 @@ class Clip:
             self._cache["_wall_support"] = compute_wall_support(
                 self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
                 camera_ok=self.camera.ok if self.camera is not None else None,
-                wall_image=self.wall_image)
+                wall_image=self.wall_image, hold_boxes=self.hold_boxes)
         return self._cache["_wall_support"]  # type: ignore[return-value]
 
     @property

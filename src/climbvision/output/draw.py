@@ -164,6 +164,18 @@ def draw_base(frame: np.ndarray, points: np.ndarray, plumb: tuple | None = None,
             cv2.line(frame, _pt(p0), _pt(p1), col, max(2, int(2 * s)), cv2.LINE_AA)
 
 
+def draw_smears(frame: np.ndarray, points: np.ndarray) -> None:
+    """Limbs resting on the wall with no hold under them: dashed white rings."""
+    s = _scale(frame)
+    r = max(5, int(10 * s))
+    for p in points:
+        if not np.all(np.isfinite(p)):
+            continue
+        for a in range(0, 360, 45):
+            cv2.ellipse(frame, _pt(p), (r, r), 0, a, a + 25, (235, 235, 235),
+                        max(2, int(3 * s)), cv2.LINE_AA)
+
+
 def draw_grips(frame: np.ndarray, points: Sequence[np.ndarray]) -> None:
     """Hands on a bar: purple squares, joined by the bar line when both hands hold."""
     s = _scale(frame)

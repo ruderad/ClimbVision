@@ -47,7 +47,8 @@ def set_climber(result_dir: str | Path, name: str) -> None:
     p.write_text(json.dumps(info, indent=2))
 
 
-def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = None) -> Clip:
+def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = None,
+              detect_holds: bool = True) -> Clip:
     """All engine layers for a results folder. The camera layer (camera.csv) is used
     when present; otherwise the camera is assumed fixed. `clean`: run the clean-up layer
     on the pose (None = for 2D-only backends, i.e. the climbing models)."""
@@ -72,6 +73,13 @@ def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = No
                       tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
                       camera=cam, wall_image=wall, climber=climber_of(result_dir))
     clip.cleanup = report
+    if wall is not None and detect_holds:
+        try:
+            from climbvision.engine.holddetect import load_or_detect
+
+            clip.hold_boxes = load_or_detect(result_dir, wall)
+        except ImportError:  # onnxruntime not installed: holds from rests only
+            clip.hold_boxes = None
     return clip
 
 

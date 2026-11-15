@@ -144,6 +144,9 @@ def _draw_wall_layer(frame: np.ndarray, ws, i: int, T: np.ndarray, s: float) -> 
     on = []
     for limb, anchors in ws.anchors.items():
         for a in anchors:
+            if a.start <= i < a.end and a.smear:  # on the wall, off any hold: hollow
+                on.append(pt(a.pos))
+                cv2.circle(frame, pt(a.pos), int(r * 0.7), LIMB_COLOUR[limb], 2, cv2.LINE_AA)
             if a.start <= i < a.end and a.on_hold:
                 on.append(pt(a.pos))
                 cv2.circle(frame, pt(a.pos), int(r * 0.7), LIMB_COLOUR[limb], -1, cv2.LINE_AA)

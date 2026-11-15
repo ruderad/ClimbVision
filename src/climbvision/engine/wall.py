@@ -72,11 +72,18 @@ class Anchor:
     end: int  # exclusive
     pos: np.ndarray  # (2,) wall px
     spread_px: float  # 80th percentile distance of the limb from pos while anchored
-    hold: int = -1  # hold id (-1 = none: ground or resting)
+    hold: int = -1  # hold id (-1 = none: ground, smear)
     ground: bool = False
+    smear: bool = False  # resting on the wall with no detected hold under it
+    box: int = -1  # the detected hold (holddetect.py) it rests on, if any
 
     @property
     def on_hold(self) -> bool:
+        return not (self.ground or self.smear)
+
+    @property
+    def on_wall_contact(self) -> bool:
+        """On a hold or smearing: part of the base of support."""
         return not self.ground
 
 
@@ -86,6 +93,7 @@ class Hold:
     pos: np.ndarray  # (2,) wall px, mean of its anchors
     limbs: set = field(default_factory=set)
     anchors: list = field(default_factory=list)
+    box: int = -1  # the detected hold, if holds were detected
 
 
 @dataclass
@@ -98,6 +106,8 @@ class WallParams:
     max_gap_s: float = 0.25  # missing data bridged inside an anchor
     merge_gap_s: float = 0.4  # same limb, same place, short break -> one anchor
     hold_radius: float = 0.09  # body lengths (~11 cm): anchors this close = one hold
+    hold_margin: float = 0.05  # body lengths (~5 cm): a rest this close to a detected hold
+    #                            is on it (the grip point / toe sits at the hold's edge)
     min_move: float = 0.1  # body lengths: shorter re-placements are adjustments, not moves
     floor_lab_tol: float = 25.0  # Lab colour distance to the floor colour
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
@@ -346,8 +356,23 @@ def mark_ground(anchors: dict[str, list[Anchor]], wall_image, body_px: float,
 
 
 def cluster_holds(anchors: list[Anchor], radius_px: float) -> list[Hold]:
-    """Greedy clustering of anchor positions, in time order."""
+    """Anchors -> holds, numbered in the order first used. With detected holds, one hold
+    per detected box; without, greedy clustering of anchor positions (anchors closer
+    than radius_px = one hold)."""
     holds: list[Hold] = []
+    if anchors and all(a.box >= 0 for a in anchors):
+        by_box: dict[int, Hold] = {}
+        for an in sorted(anchors, key=lambda a: a.start):
+            h = by_box.get(an.box)
+            if h is None:
+                h = Hold(len(holds), an.pos.copy(), box=an.box)
+                by_box[an.box] = h
+                holds.append(h)
+            h.anchors.append(an)
+            h.limbs.add(an.limb)
+            h.pos = np.mean([a.pos for a in h.anchors], axis=0)
+            an.hold = h.id
+        return holds
     for an in sorted(anchors, key=lambda a: a.start):
         best, dist = None, radius_px
         for h in holds:
@@ -382,6 +407,9 @@ class WallSupport:
     labels: list[str]
     floor_seen: bool = False
     min_move_px: float = 0.0
+    on_smear: dict | None = None  # limb -> (n,) bool: resting on the wall off any hold
+    hold_boxes: object = None  # HoldBoxes from the detector, or None
+    holds_source: str = "rests"  # "detected" (holds from the wall image) or "rests"
     metric: WallMetric | None = None  # wall px -> metres (perspective corrected)
     com_m: np.ndarray | None = None  # (n, 2) COM in metres, x right, y up
     com_v: np.ndarray | None = None  # (n, 2) COM velocity, m/s (x right, y up)
@@ -442,7 +470,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                          px_per_m: float, sex: str = "male", camera_ok: np.ndarray | None = None,
                          wall_image=None, prm: WallParams | None = None,
                          body_m: float = ASSUMED_BODY_M,
-                         correct_perspective: bool = True) -> WallSupport:
+                         correct_perspective: bool = True, hold_boxes=None) -> WallSupport:
     """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall)."""
     prm = prm or WallParams()
     n = len(t)
@@ -473,9 +501,20 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                 low = np.nanmedian(pts[h][seg, 1]) > np.nanmedian(sh[seg])
             if on_ground[seg].mean() > 0.5 and low:
                 an.ground = True
+    # a rest counts as a hold only on a detected hold; elsewhere it is a smear
+    detected_holds = hold_boxes is not None and len(hold_boxes) > 0
+    if detected_holds:
+        margin = prm.hold_margin * body_px
+        for limb in LIMBS:
+            for an in anchors[limb]:
+                if an.ground:
+                    continue
+                an.box = hold_boxes.containing(an.pos, margin)
+                an.smear = an.box < 0
     hold_anchors = [an for limb in LIMBS for an in anchors[limb] if an.on_hold]
     holds = cluster_holds(hold_anchors, prm.hold_radius * body_px)
     on_hold = {limb: _on_mask([a for a in anchors[limb] if a.on_hold], n) for limb in LIMBS}
+    on_smear = {limb: _on_mask([a for a in anchors[limb] if a.smear], n) for limb in LIMBS}
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
     com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
     # metres on the wall: perspective corrected with the body as the ruler (metric.py)
@@ -488,29 +527,41 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     feet_m = np.full(n, np.nan)
     poly_m = np.full(n, np.nan)
     pos_at = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
+    # the base of support: limbs on holds and smearing limbs
+    contact = {limb: on_hold[limb] | on_smear[limb] for limb in LIMBS}
     for limb in LIMBS:
         for an in anchors[limb]:
-            if an.on_hold:
+            if an.on_wall_contact:
                 pos_at[limb][an.start:an.end] = metric.to_m(an.pos)
     for i in range(n):
         if not np.isfinite(com_m[i]).all():
             continue
-        fx = [pos_at[f][i, 0] for f in ("l_foot", "r_foot") if on_hold[f][i]]
+        fx = [pos_at[f][i, 0] for f in ("l_foot", "r_foot") if contact[f][i]]
         if fx:
             lo, hi = min(fx) - FOOT_RADIUS_M, max(fx) + FOOT_RADIUS_M
             feet_m[i] = min(com_m[i, 0] - lo, hi - com_m[i, 0]) * 100
-        hull_pts = [pos_at[limb][i] for limb in LIMBS if on_hold[limb][i]]
+        hull_pts = [pos_at[limb][i] for limb in LIMBS if contact[limb][i]]
         if len(hull_pts) >= 3:
             hull = cv2.convexHull(np.array(hull_pts, np.float32) * 1000)  # mm
             if cv2.contourArea(hull) > 100.0:
                 poly_m[i] = _signed_hull_distance(hull, com_m[i] * 1000) / 10
-    labels = [contact_label({limb: bool(on_hold[limb][i]) for limb in LIMBS})
+    labels = [_label_with_smears(on_hold, on_smear, i)
               if on_wall[i] else ("on the ground" if on_ground[i] else "–") for i in range(n)]
     ground = [a.pos[1] for f in ("l_foot", "r_foot") for a in anchors[f] if a.ground]
     ground_y = float(np.median(ground)) if ground else None
     return WallSupport(pts, anchors, holds, on_hold, on_ground, on_wall, ground_y, com,
                        n_contacts, feet_m, poly_m, metric.s * metric.per_m, body_px, labels,
-                       floor_seen, prm.min_move * body_px, metric, com_m, com_v, com_a)
+                       floor_seen, prm.min_move * body_px, metric=metric, com_m=com_m,
+                       com_v=com_v, com_a=com_a, on_smear=on_smear, hold_boxes=hold_boxes,
+                       holds_source="detected" if detected_holds else "rests")
+
+
+def _label_with_smears(on_hold: dict, on_smear: dict, i: int) -> str:
+    lab = contact_label({limb: bool(on_hold[limb][i]) for limb in LIMBS})
+    sm = [LABEL[limb] for limb in LIMBS if on_smear[limb][i]]
+    if sm:
+        lab = ("" if lab == "no holds" else lab + " + ") + " + ".join(s + " smear" for s in sm)
+    return lab
 
 
 def moves(ws: WallSupport, t: np.ndarray) -> list[dict]:
@@ -535,6 +586,8 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
     on = ws.on_wall
     wall_s = float(dt[on].sum())
     out: dict = {"on_wall_s": round(wall_s, 2),
+                 "holds_from": ("detected in the wall image" if ws.holds_source == "detected"
+                                else "where limbs rested (no hold detector)"),
                  "ground": ("stood on" if ws.ground_y is not None else
                             "in view, not stood on" if ws.floor_seen else "not seen"),
                  "holds_used": len(ws.holds),
@@ -578,6 +631,12 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
             "limbs": sorted(LABEL[limb] for limb in h.limbs),
             "first_s": round(float(t[min(a.start for a in h.anchors)]), 2),
             "time_s": round(float(sum(t[a.end - 1] - t[a.start] for a in h.anchors)), 2)})
+    if ws.on_smear is not None and ws.holds_source == "detected":
+        sm = {LABEL[limb]: round(float(dt[ws.on_smear[limb] & on].sum()), 1) for limb in LIMBS}
+        out["smears"] = {"count": sum(a.smear for limb in LIMBS for a in ws.anchors[limb]),
+                         "time_s": {k: v for k, v in sm.items() if v > 0}}
+        if ws.hold_boxes is not None:
+            out["holds_detected"] = len(ws.hold_boxes)
     warn = []
     if wall_s < 0.5 * (t[-1] - t[0]) if n > 1 else False:
         warn.append(f"on the wall only {wall_s:.1f} s of {t[-1] - t[0]:.1f} s")

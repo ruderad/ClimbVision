@@ -71,6 +71,11 @@ Optional, faster: RTMPose-m Halpe-26
 (<https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7-halpe26_700e-256x192-4d3e73dd_20230605.zip>).
 `$CLIMBVISION_MODELS` can point to another folder.
 
+Optional, **hold detection** (§6.20): put a YOLOv8 climbing-hold detector in ONNX form in
+`models/` with "hold" or "climb" in its name, e.g. `yolov8n-freeclimbs-detect-2-fp32.onnx`
+from <https://huggingface.co/jwlarocque/yolov8n-freeclimbs-detect-2> (AGPL-3.0: keep it
+out of git; `models/` is ignored). Without it every rest counts as a hold, as before.
+
 ### 1.2 Analyse a video
 
 ```bash
@@ -1171,6 +1176,47 @@ First numbers (median share of the load on the hands): slab 27 %, traverse 27 %,
 gardash2 33 %, moonboard2 34 % (40° board: too low, see above), overhang 49 %,
 coordination_failed 50 %.
 
+### 6.20 Holds and smears (`engine/holddetect.py`)
+
+**Why.** The wall layer (§6.14) finds where a hand or foot *rested*. That alone also
+counts a foot pressed flat on the wall for balance, a palm on the wall or a limb paused
+in the air as "on a hold": extra holds on the route map, extra moves, and a base of
+support built from places that aren't holds.
+
+**Detection.** A pretrained detector finds the holds in `wall.jpg` (the wall with the
+climber removed, §6.13). It runs once per clip, on the CPU (onnxruntime, ~5 s), at three
+sizes of the image (the model's 2560 px, 1/2 and 5/16 of it) and merges the boxes: the
+small sizes find big holds and volumes that fill the frame, the big one small crimps and
+foot chips. Boxes are stored in wall coordinates in `holds_detected.json` with a picture,
+`holds_detected.jpg` (look at it first when a hold seems wrong). The cache is redone
+when `wall.jpg` or the model changes.
+
+**Holds vs smears.** A rest whose grip point / toe is on a detected hold (box grown by
+0.05 body lengths, ~5 cm: the grip point sits at the hold's edge) is **on a hold**; a
+rest on the wall with no hold under it is a **smear**. Then:
+
+| | hold | smear |
+|---|---|---|
+| route map, hold ids, moves, hold usage | yes | no |
+| technique (quiet feet, re-grips, ...) | yes | no |
+| base of support, COM over the feet, balance colours | yes | yes |
+| forces (a smear carries load) | yes | yes |
+| `annotated.mp4` | as before | dashed white ring |
+| `report.png` contacts | solid bar | hatched bar |
+
+With detected holds each detected hold is one hold id (two holds 5 cm apart stay
+apart; one big volume touched in two places stays one). `metrics.json` → `wall`:
+`holds_from` (`detected` or `rests`), `holds_detected`, `smears {count, time_s}`.
+
+**How good it is.** On the test walls: the moonboard (220 boxes), traverse and slab
+are well covered. On the overhang, coordination_failed and gardash2 walls (big volumes,
+colours close to the panels) the 3-size scan doubled the count, but some holds are still
+missed — e.g. gardash2's long pink foot rail at the start — and a foot on a missed hold
+reads as a smear. Of the 27 smears on the six wall clips, about 20 are real (palms and
+feet on the wall at the start of the slab, feet on the overhang's plywood, the slab's
+mantle) and ~4 are missed holds; 2 are feet on the slab's yellow mat (missed ground,
+§9). The detector was trained on another gym's photos: recall varies by wall.
+
 ### 6.16 The route (`engine/route.py`)
 
 The wall layer says *when* each limb is on *which* hold. The route layer turns that into
@@ -1624,7 +1670,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
-| Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge; a hold touched for less than 0.5 s is skipped, so a move can look longer than it was (it goes to the next hold rested on) | Hold detection in `wall.jpg` (later) |
+| Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped either way, so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
+| Hold detection misses | A foot or hand on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer | Check `holds_detected.jpg`; smears still count for balance and forces |
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.4); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
 | Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |

@@ -493,6 +493,14 @@ Next: **1.4 depth layer** on a new branch, starting from the Stray Scanner clip 
 scans: wall angle into the forces (gravity's in-plane and outward parts), hips-to-wall
 distance, true 3D COM.
 
+## 1.6 Hold detection — in progress (2026-11-15)
+Rests on the wall with no detected hold are *smears* (balance and forces, not holds or
+moves). Pretrained YOLOv8 hold detector (freeclimbs, AGPL, not in git) on `wall.jpg` at
+3 sizes (GUIDE §6.20). Six wall clips: 27 smears, ~20 real (slab palms and smears,
+overhang feet on plywood), ~4 missed holds (gardash2 pink rail, slab top hold at the
+image edge), 2 on the yellow mat (missed ground). Ideas if misses bother: hand-added
+holds per clip, fine-tuning on our walls.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

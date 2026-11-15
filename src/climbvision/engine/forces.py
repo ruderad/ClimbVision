@@ -139,14 +139,15 @@ def compute_forces(ws, t: np.ndarray, mass_kg: float | None = None,
     pos_at = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
     for limb in LIMBS:
         for an in ws.anchors[limb]:
-            if an.on_hold:
+            if an.on_wall_contact:  # holds and smears both carry load
                 pos_at[limb][an.start:an.end] = ws.to_m(an.pos)
     force = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
     for i in range(n):
         if not ws.on_wall[i] or not np.isfinite(ws.com_m[i]).all():
             continue
         on = [limb for limb in LIMBS
-              if ws.on_hold[limb][i] and np.isfinite(pos_at[limb][i]).all()]
+              if (ws.on_hold[limb][i] or (ws.on_smear is not None and ws.on_smear[limb][i]))
+              and np.isfinite(pos_at[limb][i]).all()]
         a = acc[i] if np.isfinite(acc[i]).all() else np.zeros(2)
         need = (a + np.array([0.0, G])) / G  # in body weights
         if not on:

@@ -187,3 +187,43 @@ def test_dark_wall_panel_with_holds_at_the_bottom_is_not_floor():
             cv2.circle(img, (x + int(rng.integers(-5, 6)), y), 7, (150, 150, 200), -1)
     m = floor_mask(WallImage(img, np.ones(img.shape[:2], np.int32), np.eye(3)))
     assert m is None or m[360:].mean() < 0.05
+
+
+def test_detected_holds_split_holds_from_smears():
+    """With holds found in the wall image, a rest on a hold is a hold; a rest elsewhere
+    (the left foot pressed on the wall at 7-9 s) is a smear: no hold, no move, but part
+    of the base of support."""
+    from climbvision.engine.holddetect import HoldBoxes
+
+    smear_spot = (380, 700)
+
+    def plan(ti):
+        lh, rh, lf, rf = two_moves(ti)
+        if 7.0 <= ti < 9.0:
+            lf = lerp(H["F"], smear_spot, (ti - 7.0) / 0.3)
+        elif ti >= 9.0:
+            lf = lerp(smear_spot, H["F"], (ti - 9.0) / 0.3)
+        return lh, rh, lf, rf
+
+    pts, t = climb(plan, seconds=11)
+    boxes = np.array([[x - 25, y - 25, x + 25, y + 25] for x, y in H.values()], float)
+    hb = HoldBoxes(boxes, np.ones(len(boxes)), "test")
+    ws = compute_wall_support(pts, t, BODY, PPM, hold_boxes=hb)
+    assert ws.holds_source == "detected"
+    smears = [a for a in ws.anchors["l_foot"] if a.smear]
+    assert len(smears) == 1 and 7.0 < t[smears[0].start] < 7.8
+    assert len(ws.holds) == 6 and all(h.box >= 0 for h in ws.holds)
+    i = int(8.0 * FPS)
+    assert not ws.on_hold["l_foot"][i] and ws.on_smear["l_foot"][i]
+    assert "L foot smear" in ws.labels[i]
+    assert np.isfinite(ws.polygon_margin_cm[i])  # the smear is in the base of support
+    assert [m["limb"] for m in moves(ws, t)] == ["r_hand", "l_foot"]  # F -> smear -> F: none
+    s = wall_summary(ws, t)
+    assert s["smears"]["count"] == 1 and s["holds_detected"] == 6
+
+
+def test_without_a_detector_every_rest_is_a_hold():
+    pts, t = climb(two_moves)
+    ws = compute_wall_support(pts, t, BODY, PPM)
+    assert ws.holds_source == "rests" and not any(
+        a.smear for limb in ws.anchors for a in ws.anchors[limb])

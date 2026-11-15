@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Hold detection and smears
+- Holds are found in `wall.jpg` by a pretrained detector (YOLOv8 ONNX in `models/`,
+  optional; `engine/holddetect.py`), scanned at three sizes; cached in
+  `holds_detected.json` with a picture `holds_detected.jpg`.
+- A rest on the wall with no detected hold under it is a **smear**: it counts for the
+  base of support, balance and forces, but is not a hold, a move or on the route map.
+  Dashed ring on `annotated.mp4`, hatched bar in `report.png`, `smears` in metrics.json.
+- One hold id per detected hold (instead of clustering rests).
+
 ## 1.3.0 — 2026-11-15
 
 Milestones 1.1–1.3. Heights and forces are not yet checked against measurements (tape
