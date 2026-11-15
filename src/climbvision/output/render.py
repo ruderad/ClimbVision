@@ -22,6 +22,7 @@ from climbvision.output.draw import (
     INSIDE_COLOR,
     OUTSIDE_COLOR,
     draw_base,
+    draw_bent_arms,
     draw_com,
     draw_contacts,
     draw_floor,
@@ -53,7 +54,19 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
     if wall_scene:  # on the wall: holds instead of floor, support and grips
         ws = clip.wall_support
         labels = ws.labels
+        _ = clip.technique  # fills the move labels with pause / pushes and adds events
         route_labels = clip.route.labels
+        # arms holding a hold: bent (elbow < 150 deg) or straight, per frame
+        from climbvision.engine.biomech import angle_at
+        from climbvision.engine.skeleton import J
+
+        im = track.image
+        bent = {}
+        for side, (sh, el, wr), limb in (
+                ("l", (J.L_SHOULDER, J.L_ELBOW, J.L_WRIST), "l_hand"),
+                ("r", (J.R_SHOULDER, J.R_ELBOW, J.R_WRIST), "r_hand")):
+            ang = angle_at(im[:, sh], im[:, el], im[:, wr])
+            bent[side] = ws.on_hold[limb] & np.nan_to_num(ang < 150.0, nan=False)
     else:
         labels = st.labels
     fl = st.floor
@@ -88,11 +101,15 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                 lines = [f"t={t:5.2f}s  {labels[i]}"]
                 colors = [(255, 255, 255)]
                 if wall_scene and route_labels[i]:
-                    lines.append(route_labels[i])
-                    colors.append((120, 230, 255))
+                    for line in _wrap(route_labels[i], max(24, size[0] // 24)):
+                        lines.append(line)
+                        colors.append((120, 230, 255))
                 if track.detected[i]:
                     sk = Skeleton(track.image[i], track.world[i], track.visibility[i])
                     draw_skeleton(img, sk)
+                    if wall_scene:
+                        draw_bent_arms(img, track.image[i],
+                                       {s: bool(v[i]) for s, v in bent.items()})
                     if wall_scene:
                         held = [ws.points[limb][i] for limb in ws.on_hold
                                 if ws.on_hold[limb][i]]
@@ -145,6 +162,17 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                 draw_label(img, lines, colors)
                 writer.write(img)
     return out_path
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    """Split a ' · '-separated label into lines of about `width` characters."""
+    out: list[str] = []
+    for part in text.split(" · "):
+        if out and len(out[-1]) + 3 + len(part) <= width:
+            out[-1] += " · " + part
+        else:
+            out.append(part)
+    return out
 
 
 def _to_image(clip, i: int, wall_pts: list) -> list:

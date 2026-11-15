@@ -85,6 +85,14 @@ files (section 4). Analyse several at once:
 climbvision analyze data/videos/*.MOV data/videos/*.mov
 ```
 
+**Tell it who is climbing** (once): copy `climbers.example.yaml` to
+`data/climbers.yaml` and fill in your height (and mass, arm span). Every distance,
+height and speed is then in your real units instead of an average adult's. The file is
+git-ignored: it never leaves your computer. Name the climber per clip with
+`--climber NAME` (`analyze` or `metrics`); without it the file's `default` is used.
+Clips of someone else: `--climber unknown` (an average adult), so your default doesn't
+apply to them.
+
 ### 1.3 Look at the results
 
 1. Open `outputs/<clip>/annotated.mp4` — does the skeleton follow the body? If not,
@@ -303,6 +311,7 @@ Every clip gets a folder `outputs/<clip>/`:
 | `moves.csv` | `metrics` (wall scene) | One row per move: limb, from/to hold, times, distance, direction, what the other limbs did, balance before/after, tags (5.6) |
 | `holds.csv` | `metrics` (wall scene) | One row per hold: position, used as hand/foot hold, first use, time per limb, matched (5.6) |
 | `route.png` | `metrics` (wall scene) | The route map: holds numbered in order of use and every move as an arrow, on the wall image (5.6) |
+| `forces.csv` | `metrics` (wall scene) | Per frame: force on each hand and foot (body weights, x right, y up; % body weight; newtons when the mass is known), hands' share (§6.19) |
 
 ### 4.1 `landmarks.csv`
 
@@ -398,7 +407,8 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 | Yellow outline, lightly filled (wall) | Base of support on the wall: the hull of the limbs on holds (a line for two) |
 | Dashed line from the COM (wall) | Its plumb line down the wall; **green** = COM over the feet on holds, **red** = not (on the wall only) |
 | Red joint dots | Repaired or doubtful points from the clean-up layer (§6.15) |
-| Yellow line under the label (wall) | The latest move, e.g. `move 12: R hand 9 -> 13 (match)`, for 1.2 s after it lands; `rest 2.1 s` while resting; `feet cut` |
+| Yellow line under the label (wall) | The latest move for 1.2 s after it lands, e.g. `move 12: R hand 9 -> 13 (deadpoint)`; `rest 2.1 s` while resting; `feet cut` |
+| Orange arm (wall) | A hand on a hold with its arm bent (elbow < 150° in the picture); straight holding arms stay white |
 | Top-left box | Time, stance, margin (or swing on a bar), warnings |
 
 **Always watch the video before trusting numbers.** If the skeleton jumps, swaps legs
@@ -537,7 +547,36 @@ margins.
 `to_hold`, `release_s`, `catch_s`, `time_s`, `distance_cm`, `direction_deg` (0 = right,
 90 = up, 180 = left, −90 = down), `others` (the other limbs on holds at the weakest
 moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
-`_after_cm`, `com_speed_peak_ms`, `tags`.
+`_after_cm`, `com_speed_peak_ms`, `com_speed_catch_ms`, `limb_speed_peak_ms`,
+`pause_before_s`, `cycle_s`, `com_path_efficiency`, `com_pushes` (technique, below),
+`tags`.
+
+**`technique`** in metrics.json (§6.18), also on the last line of `route.png`:
+
+| Key | Meaning |
+|---|---|
+| `quiet_feet_pct` | Foot placements that needed no re-placement (the foot lifted ≥ 9 cm and put back on the same hold) |
+| `foot_placements`, `foot_replacements`, `hand_regrips` | The counts behind it; re-grips are the same for hands |
+| `straight_arms_pct` | While a hand is on a hold, % of time that arm is straight (elbow ≥ 150° in the picture) |
+| `pause_before_hand_move_s_median` | Time from the last limb landing to the next hand move: reading, setting up, hesitating |
+| `time_per_hand_move_s` | Median time from one hand move landing to the next |
+| `com_path_efficiency_median` | COM straight-line distance / path length over each hand move's cycle (1 = straight) |
+| `com_pushes_median` | Separate COM speed peaks per cycle: 1 = one smooth movement, 3+ = stop-and-go |
+| `feet_stayed_on_pct` | Hand moves with both feet on holds all the way |
+
+**`forces`** in metrics.json (§6.19), and the "load on hands and feet" panel of
+`report.png`:
+
+| Key | Meaning |
+|---|---|
+| `hands_share_pct_median` | Typical share of the load carried by the hands (rest by the feet) |
+| `hands_load_pct_bw_median`, `_peak` | Both hands together, % body weight (peak: catches, dynamic moves) |
+| `one_hand_load_pct_bw_peak` | Highest load on each hand |
+| `time_hands_over_50pct_bw_s` | Time with the hands carrying more than half the body weight |
+| `hands_load_n_peak`, `mass_kg` | The peak in newtons, when the climber's mass is in the profile |
+
+`moves.csv` adds `catch_load_pct_bw`: the peak load on the hand in the 0.3 s after it
+caught the hold.
 
 | Tag | When |
 |---|---|
@@ -548,6 +587,7 @@ moment of the move, e.g. `L hand + 2 feet`), `com_over_feet_before_cm` /
 | `feet cut` | during a hand move both feet are off holds for ≥ 0.3 s |
 | `high step` | a foot lands at or above the COM |
 | `foot on handhold` | a foot lands on a hold a hand used before |
+| `deadpoint` | the body rose (COM ≥ 0.3 m/s up) during a hand move and the hand caught the hold with the COM (nearly) still vertically (≤ 0.15 m/s): the moment the hold takes least load |
 
 `route.png`: the wall image (dimmed), cropped to the climb. Holds are numbered in the
 order they were first used (white ring = hand hold, green = foot hold, both = double
@@ -1020,6 +1060,117 @@ it can't: a limb wrong for a long stretch in a consistent way (the median then f
 the wrong position), or a body part out of the frame. The rules are deliberately
 conservative: nothing is invented without good frames of the same limb on both sides.
 
+### 6.17 Metres on the wall (`engine/metric.py`, `engine/profile.py`, `engine/kinematics.py`)
+
+**The scale.** Distances in pixels become metres through the climber's body: trunk + leg
+length in the picture (90th percentile over the clip — a picture can shorten a body
+part, never lengthen it) against the same length in metres, 0.531 × height (Drillis &
+Contini). Without a profile the height is an average adult's (1.75 m), so all metres
+are off by your height's ratio to that.
+
+**Perspective.** Wall coordinates are the first registered frame's view of the wall, in
+perspective: the camera looks up at the wall, or the wall leans towards it. On the
+handheld test clips the climber's trunk looked up to 1.6× bigger high on the wall than
+low, so one pixels-per-metre for the whole wall is wrong. The correction uses the body
+as a ruler that travels across the wall: a projective correction (2 parameters) is
+chosen so each body segment's upper length is the same in every region the climber
+visited. It is kept only if the sizes become clearly more uniform (spread down by a
+quarter) and the trunk — the stiffest ruler — agrees; it is limited to the strength of
+perspective seen on real clips. `scale` in metrics.json shows the spread of body sizes
+before and after.
+
+| Clip | Body-size spread before → after | Height gained (old → corrected) |
+|---|---|---|
+| gardash2 (handheld) | 0.147 → 0.055 | 1.43 → 1.52 m |
+| esimo3 | 0.146 → 0.100 | 1.40 → 1.49 m |
+| slab (fixed, off to the side) | 0.115 → 0.064 | 1.75 → 1.66 m |
+| overhang | 0.078 → 0.054 | 1.84 → 1.83 m |
+| traverse, moonboard2, overhang2 … | below 0.07 or no clear gain: left as is | — |
+
+What the body can't calibrate: the **aspect ratio** (vertical vs horizontal). Climbing
+postures stretch arms and legs up and down far more than sideways, which biases it, so
+it stays 1 until a known length on the wall or depth (LiDAR) sets it. On steep
+overhangs the body leaves the wall plane (hanging hips, legs towards the camera), so the
+body ruler is weaker there.
+
+**Height above the floor.** When the climber stands on the floor in the clip (ground
+anchors), heights are measured from it: `com_height_m` and `com_top_above_floor_m`.
+Otherwise from the lowest point of the climb. *The old "COM height ≈ 1.5 m" was the
+height gained from the lowest point on the wall, not the height above the floor:* on
+gardash2 the COM tops out 2.7 m above the floor.
+
+**Velocity and acceleration** (`com_speed_ms`, `com_vy_ms`, `com_vx_ms`,
+`com_acc_ms2`): a quadratic fitted to 0.2 s around every frame (Savitzky-Golay), in
+corrected metres. Differentiating raw positions would amplify the pose jitter
+(acceleration twice over); a gap in the data gives NaN, not a guess. 60 fps clips give
+cleaner accelerations. Per move (`moves.csv`): COM peak speed, COM speed at the catch,
+peak speed of the moving hand or foot, and the `deadpoint` tag.
+
+### 6.18 Technique (`engine/technique.py`)
+
+What coaches look at, from what the video shows reliably. None of it needs the scale
+except the COM path (a ratio, so a uniform scale cancels out).
+
+- **Quiet feet.** A *re-placement* is a foot landing again on the same hold (or closer
+  than a move) after really leaving it: at least 0.1 body lengths (~9 cm) away in
+  between. The first version also counted an anchor that restarted a frame later a few
+  cm on — on the traverse and overhang these were most of the "re-placements" (a foot
+  sliding or the pose wobbling, 1 frame apart, never leaving), so they're excluded.
+- **Straight arms.** Elbow angle in the picture (cleaned pose) while that hand is on a
+  hold. An arm pointing at the camera looks bent; with the camera behind the climber
+  arms are mostly in the picture plane.
+- **Hesitation.** Per move, the time since the last limb landed. Long pauses mean
+  reading, resting or hesitating; the video tells which.
+- **COM path.** Over each hand move's cycle (previous hand move landed → this one
+  landed): COM displacement / path length, with the path from the smoothed velocity
+  (jitter doesn't add length), and the number of separate speed peaks (two peaks are
+  separate when the speed between them drops below half the smaller one).
+
+First numbers on the test clips:
+
+| Clip | Quiet feet | Straight arms | Pause before hand moves | COM path straight | Pushes per move | Feet stayed on |
+|---|---|---|---|---|---|---|
+| slab | 100 % | 40 % | 0.6 s | 77 % | 1 | 67 % |
+| traverse | 76 % | 74 % | 0.6 s | 84 % | 1 | 62 % |
+| overhang | 93 % | 59 % | 1.1 s | 53 % | 3 | 60 % |
+| coordination | 100 % | 74 % | 0.6 s | 45 % | 3 | 36 % |
+| coordination_failed | 88 % | 78 % | 3.9 s | 39 % | 4 | 40 % |
+
+Not measured: how activated the core is (that needs EMG), and hips-to-wall distance
+(needs depth, 1.4).
+
+### 6.19 Forces at the hands and feet (`engine/forces.py`)
+
+**Physics.** The holds together carry the body's weight and give it its acceleration:
+the contact forces add up to m (a + g), with a the COM's acceleration (§6.17). They
+also mustn't spin the body: their moments about the COM add up to (about) zero. That's
+3 equations in the plane of the wall.
+
+**The split.** With 2+ limbs on holds there are more unknowns (2 per limb) than
+equations, so the model picks the split that costs least — the smallest sum of squared
+forces, hand forces counting 3× foot forces (legs are stronger; climbers stand on their
+feet) — within what contacts can do: a foot only pushes, and sideways at most 0.8× its
+upward force (friction); a hand pulls any way (jug, undercling, sidepull). The exact
+constrained optimum is found by trying each foot free, off or on either edge of its
+friction cone.
+
+The moment balance is soft: two hands on one hold (or side by side) can only stop the
+body turning with huge opposing forces; real bodies swing a little instead. The first,
+hard version gave 780 % body weight on coordination's matched start hold; now an
+unbalanced moment costs like a force of moment / 5 cm, so levers of a hand span or more
+balance it and matched hands let the body swing. Peaks came down to 110–210 % (a dyno
+catch on coordination ~2× body weight).
+
+**What it is and isn't.** Forces *in the wall plane* (up/down, sideways). On steep walls
+the hands also pull *outwards* to keep the hips in; that needs the wall angle and the
+hips-to-wall distance (depth, 1.4), so on overhangs the hand loads here are too low. In
+% body weight without a mass; in newtons with it. A model, not a measurement: expect
+±20–30 % until checked against a scale (the dead-hang test).
+
+First numbers (median share of the load on the hands): slab 27 %, traverse 27 %,
+gardash2 33 %, moonboard2 34 % (40° board: too low, see above), overhang 49 %,
+coordination_failed 50 %.
+
 ### 6.16 The route (`engine/route.py`)
 
 The wall layer says *when* each limb is on *which* hold. The route layer turns that into
@@ -1421,6 +1572,11 @@ clips that once failed: they keep the fix from silently breaking again.
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
 | Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
 | Route: rest, dyno, cross, feet cut, label | 4 on + COM < 0.12 body/s for ≥ 1 s; COM ≥ 0.8 m/s within ≤ 1.5 s; 0.03 body; ≥ 0.3 s; 1.2 s on the video | `route.RouteParams` |
+| Wall perspective correction | used when body-size spread ≥ 0.07, drops by ≥ 25 %, trunk agrees; at most 0.3 per body length | `metric.fit_wall_metric(min_spread, max_ab)` |
+| Velocity / acceleration | quadratic over 0.2 s | `kinematics.derivatives(window_s)` |
+| Deadpoint | COM up ≥ 0.3 m/s during the move, ≤ 0.15 m/s at the catch | `route.RouteParams` |
+| Technique: lift, straight arm, pushes | 0.1 body; elbow ≥ 150°; peaks ≥ 0.1 m/s, dip < 50 % | `technique.TechniqueParams` |
+| Forces: hand cost, friction, swing | 3× foot; 0.8; 5 cm | `forces.ForceParams` |
 | Floor vs wall panel | ≥ 30 objects inside = wall | `wall.floor_mask(max_objects)` |
 | Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
@@ -1469,6 +1625,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds not detected in the image | A hold is "where a limb rested"; two holds closer than ~11 cm merge; a hold touched for less than 0.5 s is skipped, so a move can look longer than it was (it goes to the next hold rested on) | Hold detection in `wall.jpg` (later) |
+| Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.4); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
 | Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
 | COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |

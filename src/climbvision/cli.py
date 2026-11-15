@@ -44,6 +44,12 @@ def _camera(video: Path, out: Path, video_out: bool) -> None:
         print(f"[climbvision] wrote {render_wall_view(video, out)}")
 
 
+def _add_climber_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--climber", default=None,
+                   help="who is climbing: a name in data/climbers.yaml (height, mass...); "
+                   "stored with the results (default: the file's `default`)")
+
+
 def _add_recipe_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--recipe", "--exercise", dest="recipe", default="auto", help=RECIPE_HELP)
     p.add_argument("--recipes", type=Path, action="append", default=[],
@@ -110,10 +116,12 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--no-camera", action="store_true",
                    help="skip the camera layer (assume a fixed camera)")
     a.add_argument("--max-frames", type=int, default=None)
+    _add_climber_arg(a)
 
     m = sub.add_parser("metrics", help="re-run the analysis from existing results")
     m.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     _add_recipe_args(m)
+    _add_climber_arg(m)
 
     r = sub.add_parser("render", help="redraw annotated.mp4 from existing results")
     r.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
@@ -206,7 +214,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{name:28s} {doc}")
         return 0
 
-    from climbvision.analysis import run_analysis
+    from climbvision.analysis import run_analysis, set_climber
+
+    if getattr(args, "climber", None):
+        from climbvision.engine.profile import find_climber
+
+        try:
+            find_climber(args.climber)
+        except ValueError as e:
+            print(f"[climbvision] {e}", file=sys.stderr)
+            return 2
 
     if args.cmd == "analyze":
         from climbvision.analysis import resolve_recipe
@@ -227,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
                 summary = run_pose(video, out, est, sex=args.sex, max_frames=args.max_frames)
             finally:
                 est.close()
+            if args.climber:
+                set_climber(out, args.climber)
             print(json.dumps(summary, indent=2))
             if not args.no_camera:
                 _camera(video, out, not args.no_video)
@@ -242,6 +261,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[climbvision] skipping {d} (no landmarks.csv)")
                 continue
             print(f"[climbvision] {d}")
+            if args.climber:
+                set_climber(d, args.climber)
             _print_metrics(run_analysis(d, args.recipe, recipe_dirs=args.recipes))
 
     elif args.cmd == "camera":

@@ -20,6 +20,7 @@ OUTSIDE_COLOR = (50, 50, 240)  # red
 CONTACT_COLOR = (255, 220, 0)  # cyan
 GRIP_COLOR = (255, 90, 160)  # purple
 BASE_COLOR = (0, 230, 255)  # yellow: base of support on the wall
+BENT_COLOR = (0, 140, 255)  # orange: a holding arm that is bent
 
 
 def _pt(p: np.ndarray) -> tuple[int, int]:
@@ -44,6 +45,22 @@ def draw_skeleton(frame: np.ndarray, sk: Skeleton, min_visibility: float = 0.5) 
     for p, v in zip(sk.image[known], sk.visibility[known], strict=True):
         cv2.circle(frame, _pt(p), r, JOINT_COLOR if v >= min_visibility else LOW_VIS_COLOR,
                    -1, cv2.LINE_AA)
+
+
+def draw_bent_arms(frame: np.ndarray, pts: np.ndarray, bent: dict[str, bool]) -> None:
+    """Arms holding a hold: orange when bent (elbow < 150 deg), drawn over the skeleton;
+    straight arms stay white."""
+    from climbvision.engine.skeleton import J
+
+    s = _scale(frame)
+    lw = max(2, int(3 * s))
+    for side, chain in (("l", (J.L_SHOULDER, J.L_ELBOW, J.L_WRIST, J.L_HAND)),
+                        ("r", (J.R_SHOULDER, J.R_ELBOW, J.R_WRIST, J.R_HAND))):
+        if not bent.get(side):
+            continue
+        for a, b in zip(chain, chain[1:], strict=False):
+            if np.isfinite(pts[[a, b]]).all():
+                cv2.line(frame, _pt(pts[a]), _pt(pts[b]), BENT_COLOR, lw, cv2.LINE_AA)
 
 
 def draw_com(frame: np.ndarray, com_xy: np.ndarray, trail: Sequence[np.ndarray] = (),

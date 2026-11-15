@@ -18,8 +18,13 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
 
     t = clip.t
     ang = clip.angles
-    fig, axes = plt.subplots(4, 1, figsize=(9, 9.5), sharex=True,
-                             gridspec_kw={"height_ratios": [3, 3, 2.4, 1.6]})
+    wall = recipe.scene == "wall"
+    if wall:  # + a panel for the load on hands and feet
+        fig, axes = plt.subplots(5, 1, figsize=(9, 11.5), sharex=True,
+                                 gridspec_kw={"height_ratios": [3, 3, 2.4, 2.2, 1.6]})
+    else:
+        fig, axes = plt.subplots(4, 1, figsize=(9, 9.5), sharex=True,
+                                 gridspec_kw={"height_ratios": [3, 3, 2.4, 1.6]})
     ax = axes[0]
     for j, c in (("knee", "C0"), ("hip", "C1"), ("trunk_lean", "C2"), ("body_line", "C3")):
         ax.plot(t, ang.primary(j), lw=1, color=c, label=j.replace("_", " "))
@@ -58,11 +63,12 @@ def plot_report(path: Path, clip: Clip, recipe: Recipe, result: Result) -> None:
         ax.set_ylabel("degrees")
     ax.legend(loc="lower left", fontsize=8)
 
-    if recipe.scene == "wall":
-        _wall_panels(axes[2], axes[3], clip)
+    if wall:
+        _wall_panels(axes[2], axes[4], clip)
+        _load_panel(axes[3], clip)
     else:
         _floor_panels(axes[2], axes[3], clip)
-    axes[3].set_xlabel("time (s)")
+    axes[-1].set_xlabel("time (s)")
     fig.tight_layout()
     fig.savefig(path, dpi=110)
     plt.close(fig)
@@ -151,3 +157,20 @@ def _wall_panels(ax_m, ax_c, clip: Clip) -> None:
     ax_c.set_ylim(-0.6, len(LIMBS) + 0.1)
     ax_c.set_title("on holds (hold id; grey = ground) · move numbers "
                    "(red = dyno) · green = rest, red = feet cut", fontsize=10)
+
+
+def _load_panel(ax, clip: Clip) -> None:
+    """Wall scene: load on the hands and feet (% body weight, wall plane)."""
+    t = clip.t
+    fz = clip.forces
+    ax.plot(t, fz.hands_bw, color="C1", lw=1.1, label="both hands")
+    ax.plot(t, fz.feet_bw, color="C0", lw=1.1, label="both feet")
+    ax.plot(t, fz.load["l_hand"], color="C1", lw=0.6, alpha=0.6, ls="--", label="L hand")
+    ax.plot(t, fz.load["r_hand"], color="C3", lw=0.6, alpha=0.6, ls="--", label="R hand")
+    ax.axhline(100, color="0.4", lw=0.7, ls=":")
+    ax.fill_between(t, 0, 1, where=~clip.wall_support.on_wall,
+                    transform=ax.get_xaxis_transform(), color="0.5", alpha=0.12, lw=0)
+    ax.set_ylabel("% body weight")
+    title = "load on hands and feet (in the wall plane; outward pull on steep walls not included)"
+    ax.set_title(title, fontsize=9)
+    ax.legend(loc="upper left", fontsize=7, ncol=4)

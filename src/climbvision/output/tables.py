@@ -64,7 +64,9 @@ def write_moves_csv(path: Path, route) -> None:
     """One row per move (route layer)."""
     cols = ["n", "limb", "kind", "from_hold", "to_hold", "release_s", "catch_s", "time_s",
             "distance_cm", "direction_deg", "others", "com_over_feet_before_cm",
-            "com_over_feet_after_cm", "com_speed_peak_ms", "tags"]
+            "com_over_feet_after_cm", "com_speed_peak_ms", "com_speed_catch_ms",
+            "limb_speed_peak_ms", "pause_before_s", "cycle_s", "com_path_efficiency",
+            "com_pushes", "catch_load_pct_bw", "tags"]
     with path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(cols)
@@ -86,3 +88,26 @@ def write_holds_csv(path: Path, route) -> None:
         for h in route.holds:
             w.writerow([h["id"], h["x_m"], h["y_m"], h["used_as"], h["first_s"], h["time_s"],
                         *(h["time_by_limb_s"].get(x, 0.0) for x in limbs), int(h["matched"])])
+
+
+def write_forces_csv(path: Path, fz, t: np.ndarray) -> None:
+    """Per frame: force on each hand and foot (body weights, x right, y up, and its size
+    in % body weight, in newtons when the mass is known), hands' share of the load."""
+    from climbvision.engine.wall import LIMBS
+
+    newtons = fz.mass_kg is not None
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        cols = ("fx_bw", "fy_bw", "pct_bw") + (("n",) if newtons else ())
+        w.writerow(["time_s", *(f"{limb}_{k}" for limb in LIMBS for k in cols),
+                    "hands_pct_bw", "feet_pct_bw", "hands_share_pct"])
+        for i, ti in enumerate(t):
+            row = [f"{ti:.4f}"]
+            for limb in LIMBS:
+                fx, fy = fz.force[limb][i]
+                p = fz.load[limb][i]
+                row += [f"{fx:.3f}", f"{fy:.3f}", f"{p:.1f}"]
+                if newtons:
+                    row.append(f"{p / 100 * fz.mass_kg * 9.81:.0f}")
+            row += [f"{fz.hands_bw[i]:.1f}", f"{fz.feet_bw[i]:.1f}", f"{fz.hands_pct[i]:.1f}"]
+            w.writerow(row)

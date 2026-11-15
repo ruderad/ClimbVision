@@ -172,6 +172,18 @@ def _legend(width, clip, s):
     if tags:
         rows.append([(", ".join(f"{k} {v}" for k, v in sorted(tags.items())),
                       (200, 200, 200))])
+    tech = clip.technique
+    bits = []
+    if tech.get("quiet_feet_pct") is not None:
+        bits.append(f"quiet feet {tech['quiet_feet_pct']:.0f}%")
+    if tech.get("straight_arms_pct") is not None:
+        bits.append(f"straight arms {tech['straight_arms_pct']:.0f}%")
+    if tech.get("pause_before_hand_move_s_median") is not None:
+        bits.append(f"pause before hand moves {tech['pause_before_hand_move_s_median']:.1f} s")
+    if tech.get("com_path_efficiency_median") is not None:
+        bits.append(f"COM path {100 * tech['com_path_efficiency_median']:.0f}% straight")
+    if bits:
+        rows.append([(", ".join(bits), (255, 220, 150))])
     strip = np.full((lh * len(rows) + 12, width, 3), 25, np.uint8)
     for k, row in enumerate(rows):
         x = 12

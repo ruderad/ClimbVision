@@ -51,6 +51,7 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
         clip = load_clip(result_dir)  # the cleaned pose
         track = clip.track
         ws = clip.wall_support
+        _ = clip.technique  # move labels with pause / pushes, re-placement events
         route = clip.route
     except Exception:  # noqa: BLE001 - the view still works without the wall layer
         track = Track.from_csv(result_dir / "landmarks.csv")

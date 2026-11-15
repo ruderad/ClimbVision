@@ -54,10 +54,10 @@ class Stability:
 
 def compute_stability(track: Track, view: View, sex: Sex = "male",
                       frame_size: tuple[int, int] | None = None,
-                      bar: bool = False) -> Stability:
+                      bar: bool = False, body_m: float | None = None) -> Stability:
     """`bar=True` for bar scenes: detect grips and learn the floor without them."""
     n = track.n
-    scale = estimate_scale(track)
+    scale = estimate_scale(track) if body_m is None else estimate_scale(track, body_m)
     grips, hand_px = detect_grips(track, scale) if bar else ({}, {})
     on_bar = np.zeros(n, bool)
     for g in grips.values():

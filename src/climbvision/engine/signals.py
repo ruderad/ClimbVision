@@ -19,6 +19,7 @@ import numpy as np
 
 from climbvision.engine.biomech import JOINT_ANGLES, Angles, Sex, compute_angles
 from climbvision.engine.camera import CameraTrack, WallImage
+from climbvision.engine.profile import Climber
 from climbvision.engine.skeleton import J, side_joint
 from climbvision.engine.support import Stability, compute_stability
 from climbvision.engine.track import Track
@@ -36,16 +37,20 @@ class Clip:
     camera: CameraTrack | None = None  # None = fixed camera assumed
     wall_image: WallImage | None = None  # the wall without the climber (camera layer)
     sex: str = "male"
+    climber: Climber = field(default_factory=Climber)
     cleanup: dict | None = None  # clean-up layer report (None = not run)
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod
     def build(cls, track: Track, sex: Sex = "male",
               frame_size: tuple[int, int] | None = None, bar: bool = False,
-              camera: CameraTrack | None = None, wall_image: WallImage | None = None) -> Clip:
+              camera: CameraTrack | None = None, wall_image: WallImage | None = None,
+              climber: Climber | None = None) -> Clip:
+        climber = climber or Climber()
+        sex = climber.sex or sex  # type: ignore[assignment]
         ang = compute_angles(track)
-        st = compute_stability(track, ang.view, sex, frame_size, bar=bar)
-        return cls(track, ang, st, bar, camera, wall_image, sex)
+        st = compute_stability(track, ang.view, sex, frame_size, bar=bar, body_m=climber.body_m)
+        return cls(track, ang, st, bar, camera, wall_image, sex, climber)
 
     @property
     def wall_support(self) -> WallSupport:
@@ -54,7 +59,7 @@ class Clip:
         if "_wall_support" not in self._cache:
             sc = self.stability.scale
             self._cache["_wall_support"] = compute_wall_support(
-                self.wall, self.t, sc.body_px, sc.px_per_m, self.sex,
+                self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
                 camera_ok=self.camera.ok if self.camera is not None else None,
                 wall_image=self.wall_image)
         return self._cache["_wall_support"]  # type: ignore[return-value]
@@ -67,6 +72,26 @@ class Clip:
 
             self._cache["_route"] = compute_route(self.wall_support, self.t)
         return self._cache["_route"]
+
+    @property
+    def technique(self) -> dict:
+        """Technique summary (quiet feet, straight arms, hesitation, COM path); also
+        fills the per-move technique fields of the route."""
+        if "_technique" not in self._cache:
+            from climbvision.engine.technique import compute_technique
+
+            self._cache["_technique"] = compute_technique(self)
+        return self._cache["_technique"]  # type: ignore[return-value]
+
+    @property
+    def forces(self):
+        """Forces at the hands and feet in the wall plane (engine/forces.py)."""
+        if "_forces" not in self._cache:
+            from climbvision.engine.forces import compute_forces
+
+            self._cache["_forces"] = compute_forces(self.wall_support, self.t,
+                                                    self.climber.mass_kg)
+        return self._cache["_forces"]
 
     @property
     def wall(self) -> np.ndarray:
@@ -293,13 +318,35 @@ register("feet_cut", "on the wall with a hand on a hold and both feet off holds 
     lambda c: c.route.feet_off)
 register("limbs_moving", "number of limbs travelling between holds (0-4)")(
     lambda c: c.route.in_move.astype(float))
+for _limb in LIMBS:
+    register(f"load_{_limb}_pct_bw", f"force on the {_limb.replace('_', ' ')} from its hold, "
+             "% body weight (wall plane)")(lambda c, limb=_limb: c.forces.load[limb])
+register("hands_load_pct_bw", "both hands together, % body weight (wall plane)")(
+    lambda c: c.forces.hands_bw)
+register("feet_load_pct_bw", "both feet together, % body weight (wall plane)")(
+    lambda c: c.forces.feet_bw)
+register("hands_share_pct", "hands' share of the load from holds (%)")(
+    lambda c: c.forces.hands_pct)
 register("wall_contacts", "label of the limbs on holds, e.g. '2 hands + R foot'")(
     lambda c: np.array(c.wall_support.labels, dtype=object))
 
 
-@register("com_height_m", "COM height on the wall (m) above its lowest point while climbing")
+@register("com_height_m", "COM height (m) above the floor when the climber stood on it in "
+          "the clip, else above its lowest point while climbing")
 def _com_height(c: Clip) -> np.ndarray:
     ws = c.wall_support
-    y = ws.com[:, 1]
-    base = np.nanmax(np.where(ws.on_wall, y, np.nan)) if ws.on_wall.any() else np.nanmax(y)
-    return (base - y) / ws.px_per_m
+    if ws.heights_above_floor:
+        return ws.height_m(ws.com)
+    y = ws.to_m(ws.com)[:, 1]
+    base = np.nanmin(np.where(ws.on_wall, y, np.nan)) if ws.on_wall.any() else np.nanmin(y)
+    return y - base
+
+
+register("com_speed_ms", "COM speed on the wall (m/s), local fit over 0.2 s")(
+    lambda c: np.linalg.norm(c.wall_support.com_v, axis=1))
+register("com_vy_ms", "COM vertical velocity on the wall (m/s, + up)")(
+    lambda c: c.wall_support.com_v[:, 1])
+register("com_vx_ms", "COM horizontal velocity on the wall (m/s, + right)")(
+    lambda c: c.wall_support.com_v[:, 0])
+register("com_acc_ms2", "COM acceleration on the wall (m/s^2, size), local fit over 0.2 s")(
+    lambda c: np.linalg.norm(c.wall_support.com_a, axis=1))
