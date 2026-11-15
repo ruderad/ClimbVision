@@ -105,6 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     _add_recipe_args(a)
     a.add_argument("--sex", choices=["male", "female"], default="male",
                    help="which De Leva segment table to use")
+    a.add_argument("--fast", action="store_true",
+                   help="RTMPose/RTMW: skip flip averaging (about 2x faster, a bit less "
+                   "steady)")
     a.add_argument("--backend", default="auto",
                    help="pose backend: auto (default: rtmw_wholebody133 for climbing "
                    "recipes if its models are installed, else mediapipe_pose33), "
@@ -131,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     po = sub.add_parser("pose", help="pose pass only, resumable (long videos, time limits)")
     po.add_argument("video", type=Path)
     po.add_argument("--out", type=Path, required=True, help="results folder")
+    po.add_argument("--fast", action="store_true",
+                    help="RTMPose/RTMW: skip flip averaging (about 2x faster)")
     po.add_argument("--backend", default=None, help="mediapipe_pose33 (default), "
                     "rtmpose_halpe26, rtmw_wholebody133")
     po.add_argument("--model", default=None, help="model size (mediapipe: lite/full/heavy, "
@@ -187,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
             kw["model_size"] = args.model
         if args.model_path:
             kw["model_path"] = args.model_path
+        if args.fast and backend.startswith("rtm"):
+            kw["flip"] = False
         est = make_estimator(backend, **kw)
         try:
             res = run_pose_resumable(args.video, args.out, est, step=args.step,
@@ -239,6 +246,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[climbvision] {video} -> {out}/ (pose: {backend})")
             # fresh estimator per video: VIDEO mode needs increasing timestamps
             kw = {"model_size": args.model} if args.model else {}
+            if args.fast and backend.startswith("rtm"):
+                kw["flip"] = False
             est = make_estimator(backend, **kw)
             try:
                 summary = run_pose(video, out, est, sex=args.sex, max_frames=args.max_frames)

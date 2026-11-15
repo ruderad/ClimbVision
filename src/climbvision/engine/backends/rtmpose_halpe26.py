@@ -42,4 +42,4 @@ class Estimator(TopDownEstimator):
 
     def __init__(self, model_size: Literal["m", "x"] = "m", **kwargs) -> None:
         key, size = MODELS[model_size]
-        super().__init__(key, size, len(POINTS), **kwargs)
+        super().__init__(key, size, len(POINTS), points=POINTS, **kwargs)

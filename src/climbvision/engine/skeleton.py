@@ -55,10 +55,11 @@ def both(name: str) -> tuple[J, J]:
     return side_joint("left", name), side_joint("right", name)
 
 
-# drawn skeleton: (a, b) pairs; a pair with a missing joint is simply not drawn
+# drawn skeleton: (a, b) pairs; a pair with a missing joint is simply not drawn. The
+# trunk is the shoulder and hip bars (girdles) plus the spine (`spine_curve`), not a box:
+# the bars turning against each other show the twist, the curve the side bend.
 BONES: list[tuple[J, J]] = [
     (J.L_SHOULDER, J.R_SHOULDER), (J.L_HIP, J.R_HIP),
-    (J.L_SHOULDER, J.L_HIP), (J.R_SHOULDER, J.R_HIP),
     (J.L_SHOULDER, J.L_ELBOW), (J.L_ELBOW, J.L_WRIST), (J.L_WRIST, J.L_HAND),
     (J.R_SHOULDER, J.R_ELBOW), (J.R_ELBOW, J.R_WRIST), (J.R_WRIST, J.R_HAND),
     (J.L_HIP, J.L_KNEE), (J.L_KNEE, J.L_ANKLE), (J.L_ANKLE, J.L_HEEL),
@@ -67,6 +68,46 @@ BONES: list[tuple[J, J]] = [
     (J.R_HEEL, J.R_TOE), (J.R_ANKLE, J.R_TOE), (J.R_HEEL, J.R_SMALL_TOE),
     (J.HEAD_TOP, J.NECK),
 ]
+
+
+def spine_curve(pts: np.ndarray, n: int = 12) -> np.ndarray | None:
+    """The spine drawn from the hip centre to the shoulder centre, (n, 2), or None.
+
+    A cubic Bezier that leaves the pelvis at right angles to the hip line and arrives at
+    right angles to the shoulder line, so the trunk's side bend shows as a curve. When a
+    girdle is seen edge-on (short in the picture: the body turned sideways) its direction
+    says little, and the curve straightens at that end. 2D: a guide to the eye, not a
+    measured spine (the pose models have no points along the back)."""
+    pts = np.asarray(pts, float)
+    lh, rh, ls, rs = (pts[J.L_HIP], pts[J.R_HIP], pts[J.L_SHOULDER], pts[J.R_SHOULDER])
+    if not np.isfinite(np.stack([lh, rh, ls, rs])).all():
+        return None
+    h, sh = (lh + rh) / 2, (ls + rs) / 2
+    axis = sh - h
+    length = float(np.linalg.norm(axis))
+    if length < 1e-6:
+        return None
+    u = axis / length
+
+    def normal(a, b):
+        d = b - a
+        w = float(np.linalg.norm(d))
+        if w < 1e-6:
+            return u, 0.0
+        nv = np.array([-d[1], d[0]]) / w
+        if nv @ u < 0:
+            nv = -nv
+        trust = float(np.clip((w / length - 0.25) / 0.35, 0, 1))  # edge-on -> straight
+        m = trust * nv + (1 - trust) * u
+        return m / np.linalg.norm(m), trust
+
+    nh, _ = normal(lh, rh)
+    ns, _ = normal(ls, rs)
+    p0, p3 = h, sh
+    p1, p2 = h + nh * length / 3, sh - ns * length / 3
+    tt = np.linspace(0, 1, n)[:, None]
+    return ((1 - tt) ** 3 * p0 + 3 * (1 - tt) ** 2 * tt * p1 + 3 * (1 - tt) * tt ** 2 * p2
+            + tt ** 3 * p3)
 
 
 @dataclass

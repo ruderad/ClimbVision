@@ -1115,7 +1115,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 3.94,
+        "approx": 1.07,
         "tol": 0.4
       },
       {
@@ -1220,7 +1220,7 @@
           "technique",
           "quiet_feet_pct"
         ],
-        "approx": 100.0,
+        "approx": 88.9,
         "tol": 10
       },
       {

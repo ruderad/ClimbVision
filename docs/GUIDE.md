@@ -196,6 +196,7 @@ climbvision analyze VIDEO [VIDEO ...] [--out DIR] [--recipe NAME|FILE] [--recipe
 | `--recipes` | – | An extra folder of your own recipes (repeatable); same name overrides a shipped one |
 | `--backend` | `auto` | Pose backend (6.1): `auto` = `rtmw_wholebody133` for climbing recipes when its models are installed, otherwise `mediapipe_pose33`; or name one: `mediapipe_pose33`, `rtmpose_halpe26`, `rtmw_wholebody133` |
 | `--sex` | `male` | Which body-segment table to use for the centre of mass (section 6.3) |
+| `--fast` | off | RTMPose / RTMW: skip flip averaging (§6.21) — about 2x faster pose, a bit less steady |
 | `--model` | per backend | Model size. MediaPipe: `lite`, `full` (default), `heavy`; RTMPose: `m` (default), `x`; RTMW: `x` |
 | `--no-camera` | off | Skip the camera layer (6.13); the camera is then assumed fixed |
 | `--no-video` | off | Skip `annotated.mp4` and `wall_view.mp4` (faster) |
@@ -402,7 +403,7 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 
 | Drawing | Meaning |
 |---|---|
-| White lines, yellow dots | Skeleton. Grey = low visibility (the model is guessing) |
+| White lines, yellow dots | Skeleton. The trunk is the shoulder bar, the hip bar and the spine between them (§6.21): the bars turning against each other show the twist, the spine's curve the side bend. Grey = low visibility: the model is guessing, or (climbing models) the joint was hidden and filled in from the frames around it |
 | Dot + trail | Centre of mass and its path over the last 2 s. **Green** = inside the base of support, **red** = outside, pink = no base to judge (on the wall: the hull of the limbs on holds, needs 3+ limbs; on the floor: the support span). The trail is coloured the same way, frame by frame, so it shows how balance changed along the way (older parts fade); on the wall it is kept in wall coordinates, so it stays put when the camera pans |
 | Thin grey line | The floor as the system estimated it |
 | Cyan rings | Points touching the floor |
@@ -1217,6 +1218,77 @@ feet on the wall at the start of the slab, feet on the overhang's plywood, the s
 mantle) and ~4 are missed holds; 2 are feet on the slab's yellow mat (missed ground,
 §9). The detector was trained on another gym's photos: recall varies by wall.
 
+### 6.21 Steadier, more honest joints (`engine/backends/_topdown.py`, `engine/smoothing.py`)
+
+Two complaints about the climbing models (RTMW, RTMPose): the skeleton shakes even when
+the climber is still, and a limb behind the body comes out wrong. Four changes, three
+in how the pose is taken and one after:
+
+**1. Real confidence.** RTMPose scores aren't probabilities: a clearly visible joint
+scores 4–7. They used to be clipped to 1, so every joint looked certain (mean
+visibility 0.996). Measured on coordination_failed (8 500 limb joints), the score does
+say how far a joint is from where its neighbouring frames put it:
+
+| score | joints off by > 30 px |
+|---|---|
+| ≥ 4 | 0.2 % |
+| 3–4 | 1.6 % |
+| 2–3 | 11 % |
+| < 2 | 26 % |
+
+Visibility is now (score − 1) / 3, clipped to 0–1: hidden or guessed joints are drawn
+grey and trusted less by everything after.
+
+**2. Steady crop.** The pose model sees the climber through a box; a box that jumps
+makes the joints jump with it. The box is smoothed: the centre follows quickly, the
+size grows at once (a reach must stay inside) and shrinks slowly. ~8 % less shake.
+
+**3. Flip averaging.** The model also looks at the mirrored frame; the two answers
+(left and right swapped back) are averaged, weighted by their scores. ~15 % less
+shake and slightly fewer wrong joints, for ~1.8x the pose time (`--fast` skips it).
+
+**4. Smoothing layer** (after the clean-up, in wall coordinates so camera shake isn't
+taken for motion). For every frame, each joint's position is a parabola fitted through
+the frames within ±0.12 s, weighted by closeness in time and by visibility²:
+
+- a parabola, centred, follows accelerations without lag; while a joint moves fast
+  (> 1 body length/s) the window shrinks to ±0.07 s. Checked on synthetic moves of one
+  body length: a 0.25 s move keeps 99 % of its peak speed and stays within 1.5 % of a
+  body length; a 0.15 s move 93 %;
+- a **spike** (far from the median of its 5 frames — a median follows a fast smooth move
+  but ignores a 1–2 frame jump) and a **guess** (visibility < 0.4) are ignored, and the
+  stretch is filled from the good frames on both sides: a smooth curve up to 0.3 s, a
+  straight line up to 1 s. Longer: the model's guess is kept. Filled joints keep their
+  low visibility, so they are drawn grey;
+- for MediaPipe (floor recipes) it is off, like the clean-up: MediaPipe smooths its own
+  output.
+
+Result on coordination_failed (RTMW-x; shake = median frame-to-frame acceleration of a
+joint relative to the hips, % body length; jumps = frames where it exceeds 10 %):
+
+| | shake (knee / wrist) | jumps (knee / ankle / toe) |
+|---|---|---|
+| before (crop from joints, clipped scores, clean-up) | 1.03 / 1.29 | 4.0 / 4.3 / 6.4 % |
+| after (steady crop, flip, clean-up, smoothing) | 0.22 / 0.28 | 0.0 / 0.24 / 0.12 % |
+
+These measure steadiness and consistency, not truth: there is no ground truth for
+these clips (a smoother can be steady and wrong). The hidden-leg frames below are the
+proof that it isn't magic.
+
+**What it can't do.** A limb that stays hidden — legs tucked under the body filmed from
+below (coordination_failed 18.5–20.5 s) — is not in the picture: no 2D model finds it,
+and after 1 s the filling stops. Those joints are grey: don't read them. Filming from
+the side helps more than any model. A temporal 3D model that guesses hidden limbs from
+how bodies move is the next step if needed.
+
+**The spine.** The trunk was drawn as a box (shoulders, hips, two sides). It is now the
+shoulder bar, the hip bar and a spine: a curve from the hip centre to the shoulder
+centre that leaves the pelvis at right angles to the hip line and arrives at right
+angles to the shoulder line, so a side bend shows as a C, and the bars turning against
+each other show the twist. When a girdle is seen edge-on (body sideways) its direction
+says little and the curve straightens at that end. The models have no points along the
+back: the curve is a guide for the eye built from the girdles, not a measured spine.
+
 ### 6.16 The route (`engine/route.py`)
 
 The wall layer says *when* each limb is on *which* hold. The route layer turns that into
@@ -1661,7 +1733,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Limitation | Effect | Workaround / future |
 |---|---|---|
 | Single camera | Stability only along one axis; depth from a learned estimate | Two cameras or a depth camera |
-| Hidden limbs (far side, behind hips) | Mis-placed landmarks, lost contacts (e.g. pistol squat bottom, drop knees on the wall) | On the wall the clean-up layer repairs short glitches (§6.15); a limb hidden for long stays doubtful. Off the wall: choose the view that shows the working limb |
+| Hidden limbs (far side, behind hips) | Mis-placed landmarks, lost contacts (e.g. pistol squat bottom, drop knees on the wall) | On the wall the clean-up layer repairs short glitches (§6.15) and the smoothing layer fills a hidden stretch up to 1 s from both sides (§6.21), drawn grey. A limb hidden for longer (e.g. legs tucked under the body seen from below) is unknown: the model's guess is kept, grey. Film from the side rather than from below. Off the wall: choose the view that shows the working limb |
 | Limbs pointing at the camera | Wrong 2D angles, mis-placed raised knee in front view | Use the side view; 3D angles are a rough fallback |
 | Front-view 3D bias | Straight knee ≈ 163°, trunk lean under-read | Judge sagittal form from the side |
 | Camera tilt | "Vertical" tilts; trunk lean and margins shift | Level camera at hip height |

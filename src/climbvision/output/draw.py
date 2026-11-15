@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from climbvision.engine.skeleton import BONES, Skeleton
+from climbvision.engine.skeleton import BONES, J, Skeleton, spine_curve
 
 BONE_COLOR = (230, 230, 230)
 JOINT_COLOR = (0, 200, 255)
@@ -41,10 +41,32 @@ def draw_skeleton(frame: np.ndarray, sk: Skeleton, min_visibility: float = 0.5) 
         ok = min(sk.visibility[a], sk.visibility[b]) >= min_visibility
         cv2.line(frame, _pt(sk.image[a]), _pt(sk.image[b]),
                  BONE_COLOR if ok else LOW_VIS_COLOR, lw, cv2.LINE_AA)
+    trunk = [J.L_HIP, J.R_HIP, J.L_SHOULDER, J.R_SHOULDER]
+    draw_spine(frame, sk.image, lw + 1,
+               BONE_COLOR if sk.visibility[trunk].min() >= min_visibility else LOW_VIS_COLOR)
     r = max(2, int(3 * s))
     for p, v in zip(sk.image[known], sk.visibility[known], strict=True):
         cv2.circle(frame, _pt(p), r, JOINT_COLOR if v >= min_visibility else LOW_VIS_COLOR,
                    -1, cv2.LINE_AA)
+
+
+def draw_spine(frame: np.ndarray, pts: np.ndarray, lw: int,
+               color: tuple[int, int, int] = BONE_COLOR) -> None:
+    """The spine curve (hip centre to shoulder centre) and on to the head."""
+    c = spine_curve(pts)
+    if c is None:
+        return
+    cv2.polylines(frame, [np.round(c).astype(np.int32)], False, color, lw, cv2.LINE_AA)
+    top = pts[J.NECK] if np.isfinite(pts[J.NECK]).all() else None
+    head = pts[J.HEAD]
+    if np.isfinite(head).all():
+        if top is not None:
+            cv2.line(frame, _pt(c[-1]), _pt(top), color, max(1, lw - 1), cv2.LINE_AA)
+        else:
+            top = c[-1]
+        # the neck: from the shoulder centre a third of the way to the head centre
+        cv2.line(frame, _pt(top), _pt(top + (head - top) * 0.45), color, max(1, lw - 1),
+                 cv2.LINE_AA)
 
 
 def draw_bent_arms(frame: np.ndarray, pts: np.ndarray, bent: dict[str, bool]) -> None:

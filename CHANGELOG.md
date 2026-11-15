@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Steadier, more honest pose (climbing models)
+- Real per-joint confidence from RTMPose/RTMW (scores were clipped to 1): hidden or
+  guessed joints are drawn grey and trusted less.
+- Steadier person crop and flip averaging (`--fast` turns flipping off).
+- Smoothing layer (`engine/smoothing.py`): robust, confidence-weighted local parabola
+  per joint — ~4x less shake, no lag on fast moves; spikes and hidden stretches up to
+  1 s filled from both sides. `pose_smoothing` in metrics.json.
+- The trunk is drawn as shoulder bar + hip bar + a curved spine instead of a box.
+
 ### Hold detection and smears
 - Holds are found in `wall.jpg` by a pretrained detector (YOLOv8 ONNX in `models/`,
   optional; `engine/holddetect.py`), scanned at three sizes; cached in

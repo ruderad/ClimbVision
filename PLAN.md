@@ -501,6 +501,14 @@ overhang feet on plywood), ~4 missed holds (gardash2 pink rail, slab top hold at
 image edge), 2 on the yellow mat (missed ground). Ideas if misses bother: hand-added
 holds per clip, fine-tuning on our walls.
 
+## 1.7 Pose accuracy — in progress (2026-11-15)
+Calibrated RTMW confidence (score predicts error: < 2 → 26 % of joints > 30 px off),
+steady crop, flip averaging (~1.8x pose time), smoothing layer (robust local parabola;
+shake ÷4.5, jumps ÷20+ on coordination_failed), spine drawn as a curve between the
+girdles (GUIDE §6.21). Regression fixtures still hold the old landmarks: rebuild them
+from the new pose after checking a few clips. Legs hidden for > 1 s stay unknown;
+next step if needed: a temporal 3D model.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

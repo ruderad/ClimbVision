@@ -39,6 +39,7 @@ class Clip:
     sex: str = "male"
     climber: Climber = field(default_factory=Climber)
     cleanup: dict | None = None  # clean-up layer report (None = not run)
+    smoothing: dict | None = None  # smoothing layer report (engine/smoothing.py)
     hold_boxes: object = None  # holds detected in the wall image (holddetect.py), or None
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 

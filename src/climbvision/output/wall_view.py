@@ -26,7 +26,7 @@ from climbvision.engine.camera import LOST, CameraTrack, WallImage, apply_h
 from climbvision.engine.skeleton import BONES, J
 from climbvision.engine.track import Track
 from climbvision.engine.video import VideoReader, VideoWriter
-from climbvision.output.draw import draw_label
+from climbvision.output.draw import draw_label, draw_spine
 
 TRAIL = {"L hand": ((J.L_WRIST, J.L_HAND), (255, 90, 160)),
          "R hand": ((J.R_WRIST, J.R_HAND), (255, 170, 0)),
@@ -91,6 +91,7 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
                                 cv2.line(frame, tuple(int(v) for v in p[a]),
                                          tuple(int(v) for v in p[b]), (230, 230, 230),
                                          max(1, int(2 * s)), cv2.LINE_AA)
+                        draw_spine(frame, p, max(1, int(2 * s)) + 1)
                         for k, (joints, _) in TRAIL.items():
                             with warnings.catch_warnings():
                                 warnings.simplefilter("ignore", RuntimeWarning)

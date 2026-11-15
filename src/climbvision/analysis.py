@@ -48,7 +48,7 @@ def set_climber(result_dir: str | Path, name: str) -> None:
 
 
 def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = None,
-              detect_holds: bool = True) -> Clip:
+              detect_holds: bool = True, smooth: bool | None = None) -> Clip:
     """All engine layers for a results folder. The camera layer (camera.csv) is used
     when present; otherwise the camera is assumed fixed. `clean`: run the clean-up layer
     on the pose (None = for 2D-only backends, i.e. the climbing models)."""
@@ -69,10 +69,18 @@ def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = No
         from climbvision.engine.cleanup import clean_track
 
         track, report = clean_track(track, cam)
+    smooth_report = None
+    if smooth is None:  # like the clean-up: for the 2D-only (climbing) backends; MediaPipe
+        smooth = clean  # smooths its own output and its visibility means something else
+    if smooth:
+        from climbvision.engine.smoothing import smooth_track
+
+        track, smooth_report = smooth_track(track, cam)
     clip = Clip.build(track, info.get("sex_model", "male"),
                       tuple(info["frame_size"]) if "frame_size" in info else None, bar=bar,
                       camera=cam, wall_image=wall, climber=climber_of(result_dir))
     clip.cleanup = report
+    clip.smoothing = smooth_report
     if wall is not None and detect_holds:
         try:
             from climbvision.engine.holddetect import load_or_detect
@@ -169,6 +177,8 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
             "repaired_frames": sum(c.get("repaired_frames", {}).values()),
             "not_repaired_frames": sum(c.get("not_repaired_frames", {}).values()),
             "reverted_frames": sum(c.get("reverted_frames", {}).values())}
+    if clip.smoothing:
+        out["pose_smoothing"] = clip.smoothing
     if plot:
         from climbvision.output.report import plot_report
 
