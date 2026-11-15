@@ -2,9 +2,10 @@
 
 Movement analysis from video: a generic engine (pose → canonical skeleton → centre of
 mass, angles, contacts, support) plus **recipes** — small YAML files that say what to
-measure for one movement. Version 1.0 analyses floor exercises and climbing: handheld
-wall video, holds, moves, the route, rests and balance on the wall. See
-[CHANGELOG.md](CHANGELOG.md).
+measure for one movement. It analyses floor exercises and climbing: handheld wall
+video, holds, moves, the route, rests and balance on the wall, technique (quiet feet,
+straight arms, hesitation, smoothness) and the load on each hand and foot, in your real
+units once it knows who is climbing. See [CHANGELOG.md](CHANGELOG.md).
 See [PLAN.md](PLAN.md) for the milestones and **[docs/GUIDE.md](docs/GUIDE.md) for the
 complete guide**: recording tips, every output explained, the science behind each
 measurement, the architecture, and how to extend the package.
@@ -39,6 +40,17 @@ climbvision --version                      # version + where the code is loaded 
 If a video file is replaced after it was analysed, every command warns: re-run
 `analyze` on it (old results don't line up with the new video).
 
+**Who is climbing.** Copy `climbers.example.yaml` to `data/climbers.yaml` (git-ignored:
+it stays on your computer) and fill in height, mass and arm span. Then
+
+```bash
+climbvision analyze data/videos/boulder.mov --climber alex   # or: metrics ... --climber
+climbvision metrics outputs/someone_elses_clip --climber unknown   # an average adult
+```
+
+The name is stored with the clip. Height sets every distance, height and speed; mass
+gives forces in newtons.
+
 The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 `.yaml` file; `climbvision recipes` lists them, `--recipes DIR` adds your own):
 
@@ -53,7 +65,7 @@ The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 | `pullup` | `pullup`, `chinup` | reps, COM rise (cm), chin over bar, tempo, swing, kipping |
 | `leg_raise` | `leg_raise`, `toes_to_bar`, `knee_raise` | reps, hip/knee angle, toes to bar |
 | `dead_hang` | `dead_hang`, `hang…` (not `overhang`) | hang time, arm straightness, swing |
-| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route`, `slab`, `crimp`, `dyno` — and **any name that matches nothing else** | hands/feet on holds (still ~0.5 s on the wall), holds used, the route move by move (`moves.csv`, `route.png`), rests, feet cuts, limbs on holds over time, COM over the feet and inside the base of support |
+| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route`, `slab`, `crimp`, `dyno` — and **any name that matches nothing else** | hands/feet on holds (still ~0.5 s on the wall), holds used, the route move by move (`moves.csv`, `route.png`), rests, feet cuts, COM over the feet and inside the base of support, heights above the floor and COM speed, technique (quiet feet, straight arms, pause before moves, COM path), load on each hand and foot (`forces.csv`) |
 | `none` | `lunge`, `standing_still`, `walk`, `stretch` | angles, stability and jumps only |
 
 Every clip also gets jumps (flight time, jump height from flight time), stances and
@@ -76,8 +88,9 @@ Each video gets a folder `outputs/<video name>/` with:
 | `metrics.json` | view (side/front, body yaw), near side, angle ranges, recipe results (table above) and `stability` |
 | `stability.csv` | per frame: what's touching the floor, support span, COM-to-edge margin (cm) |
 | `camera.csv`, `wall.jpg`, `wall_view.mp4` | the camera layer: each frame lined up with the wall (handheld video), the wall without the climber, and the video in wall coordinates |
-| `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline (on the wall: holds, moves, rests, feet cuts) |
-| `route.png`, `moves.csv`, `holds.csv`, `wall.csv` | wall clips: the route map, every move, every hold, per-frame contacts on the wall |
+| `report.png` | angle plots, the recipe's signal with reps/holds, stability margin, contact timeline (on the wall: also the load on hands and feet, and holds, moves, rests, feet cuts) |
+| `route.png`, `moves.csv`, `holds.csv`, `wall.csv` | wall clips: the route map (with a technique summary), every move, every hold, per-frame contacts on the wall |
+| `forces.csv` | wall clips: per frame, the force on each hand and foot (% body weight; newtons with the mass) |
 
 `metrics.json` → `stability` holds: contact time per body part, time in each stance
 (both feet, L foot, feet + forearms, ...), the stability margin (median / min / % of
@@ -98,7 +111,7 @@ climbvision summary outputs/*     # one line per clip + outputs/summary.csv
 ## Tests
 
 ```bash
-pytest                      # synthetic tests + 26 real-clip regression tests (~30 s)
+pytest                      # synthetic tests + 26 real-clip regression tests (~45 s)
 pytest -m "not regression"  # synthetic only
 ```
 

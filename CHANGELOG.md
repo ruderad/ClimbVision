@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.3.0 — 2026-11-15
+
+Milestones 1.1–1.3. Heights and forces are not yet checked against measurements (tape
+heights, a bathroom-scale test): expect a 1.3.1 with adjusted constants after that.
+
+### Forces (1.3)
+- Load on each hand and foot in the wall plane (`engine/forces.py`): least-effort split
+  under balance (soft moment balance: matched hands let the body swing), feet push only
+  within friction. `forces` in metrics.json, `forces.csv`, a load panel in
+  `report.png`, `catch_load_pct_bw` per hand move, signals `load_*_pct_bw`,
+  `hands_load_pct_bw`, `feet_load_pct_bw`, `hands_share_pct`. Newtons with the mass.
+- `--climber unknown`: an average adult, whatever the profile file's default.
+
+### Technique (1.2)
+- `technique` in metrics.json and on `route.png`: quiet feet (re-placements), hand
+  re-grips, straight arms, pause before hand moves, time per hand move, COM path
+  efficiency and pushes (stop-and-go), feet stayed on during hand moves. Per move in
+  `moves.csv`: `pause_before_s`, `cycle_s`, `com_path_efficiency`, `com_pushes`.
+- On `annotated.mp4`: holding arms turn orange when bent.
+
+### Accurate scale (1.1)
+- **Climber profiles** (`data/climbers.yaml`, git-ignored; template
+  `climbers.example.yaml`): height (sets every metre), mass, arm span (ape index), sex.
+  `--climber NAME` on `analyze` / `metrics`; `scale` in metrics.json says which height
+  was used and whether it was assumed.
+- **Perspective-corrected wall** (`engine/metric.py`): the body as a ruler across the
+  wall; body sizes up to 1.6x apart on handheld clips are made uniform.
+- **Heights above the floor** when the climber stood on it (`com_height_m`,
+  `com_top_above_floor_m`, `com_top_m`); `height_gain_m` is now the gain on the wall.
+- **Velocity and acceleration** of the COM (signals `com_speed_ms`, `com_vy_ms`,
+  `com_vx_ms`, `com_acc_ms2`), per move: COM speed at the catch, peak speed of the moving
+  limb, `deadpoint` tag.
+
 ## 1.0.0 — 2026-11-11
 
 First release: movement analysis from video, on the floor and on the climbing wall.

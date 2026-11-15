@@ -463,6 +463,36 @@ CHANGELOG.md.
 Next (1.x), in order of value: `--height` (real centimetres), comparing attempts at the
 same problem, hold detection in `wall.jpg`, wall angle.
 
+## 1.1 Accurate scale — in progress (2026-11-11)
+Climber profiles, perspective correction with the body as the ruler, heights above the
+floor, COM velocity / acceleration, deadpoint tag (GUIDE §6.17). Waiting for the
+tape-measured hold heights and the LiDAR test climbs to check the heights and set the
+vertical/horizontal aspect.
+
+## 1.2 Technique ✅ (2026-11-11)
+Quiet feet, re-grips, straight arms, hesitation, time per hand move, COM path
+efficiency and pushes, feet stayed on (GUIDE §6.18); per move in `moves.csv`, summary on
+`route.png`. On the video: holding arms turn orange when bent. (Move labels with the
+pause / pushes and re-placement flashes were tried and dropped: too quick to read.)
+Checked against the climber's own judgement of the clips.
+
+## 1.3 Forces ✅ (2026-11-15)
+Load on each hand and foot in the wall plane: least-effort split under balance (soft
+moment balance, feet push within friction), % body weight and newtons (GUIDE §6.19).
+Peaks 110–210 % body weight on the test clips after making the moment balance soft
+(the hard version gave 780 % on a matched hold).
+
+## v1.3.0 (2026-11-15)
+1.1–1.3 merged and tagged. Not yet validated: heights (tape) and forces (scale test).
+LiDAR test session 1 audited: Stray Scanner is the app to use (full-HD video + depth +
+phone position per frame); Scaniverse scans gave the wall angles (vertical ≈ 4° slab,
+island ≈ 30° overhang, overhang wall 14° lower / 40–59° upper). Missing: dead hang,
+scale test, tape heights (list in the conversation, next session).
+
+Next: **1.4 depth layer** on a new branch, starting from the Stray Scanner clip and the
+scans: wall angle into the forces (gravity's in-plane and outward parts), hips-to-wall
+distance, true 3D COM.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:
