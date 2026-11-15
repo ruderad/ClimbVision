@@ -489,11 +489,11 @@ phone position per frame); Scaniverse scans gave the wall angles (vertical ≈ 4
 island ≈ 30° overhang, overhang wall 14° lower / 40–59° upper). Missing: dead hang,
 scale test, tape heights (list in the conversation, next session).
 
-Next: **1.4 depth layer** on a new branch, starting from the Stray Scanner clip and the
+Next: **1.6 depth layer** on a new branch, starting from the Stray Scanner clip and the
 scans: wall angle into the forces (gravity's in-plane and outward parts), hips-to-wall
 distance, true 3D COM.
 
-## 1.6 Hold detection — in progress (2026-11-15)
+## 1.4 Hold detection ✅ (2026-11-15)
 Rests on the wall with no detected hold are *smears* (balance and forces, not holds or
 moves). Pretrained YOLOv8 hold detector (freeclimbs, AGPL, not in git) on `wall.jpg` at
 3 sizes (GUIDE §6.20). Six wall clips: 27 smears, ~20 real (slab palms and smears,
@@ -501,13 +501,22 @@ overhang feet on plywood), ~4 missed holds (gardash2 pink rail, slab top hold at
 image edge), 2 on the yellow mat (missed ground). Ideas if misses bother: hand-added
 holds per clip, fine-tuning on our walls.
 
-## 1.7 Pose accuracy — in progress (2026-11-15)
+## 1.5 Pose accuracy ✅ (2026-11-15)
 Calibrated RTMW confidence (score predicts error: < 2 → 26 % of joints > 30 px off),
 steady crop, flip averaging (~1.8x pose time), smoothing layer (robust local parabola;
 shake ÷4.5, jumps ÷20+ on coordination_failed), spine drawn as a curve between the
 girdles (GUIDE §6.21). Regression fixtures still hold the old landmarks: rebuild them
 from the new pose after checking a few clips. Legs hidden for > 1 s stay unknown;
 next step if needed: a temporal 3D model.
+
+## v1.4.0 (2026-11-15)
+1.4 hold detection and 1.5 pose accuracy merged and tagged (they were planned as 1.6 / 1.7;
+renumbered so the depth layer is 1.6, attempts comparison 1.7, HTML report 1.8).
+Climbers: traverse, slab, moonboard(2), overhang(2), coordination = the default profile;
+coordination_failed = Rouzbeh (`--climber rouzbeh`). Waiting on the gym session: tape
+heights, scale + dead-hang tests, Stray Scanner climbs.
+
+Next: rebuild the regression fixtures from the new pose; then **1.6 depth layer**.
 
 ## Test clips to record (for M1–M5)
 

@@ -30,7 +30,7 @@ force sum is used. With none (a dyno in flight), all forces are zero.
 
 **What it is and isn't.** Forces *in the wall plane*: up/down and sideways. On a steep
 wall the hands also pull *outwards* (away from the wall) to keep the hips in; that needs
-the wall angle and how far the hips are from the wall (depth, 1.4), so on overhangs the
+the wall angle and how far the hips are from the wall (depth, 1.6), so on overhangs the
 hand loads here are lower than the real ones. Forces are in % of body weight (no mass
 needed); in newtons when the climber's mass is known. Expect ballpark values (±20-30 %)
 until checked against a scale.

@@ -5,7 +5,7 @@ Top-down = find the person (box), then estimate the joints inside the box. To fo
 detector (YOLOX) runs on the first frame, every `redetect_every` frames, and whenever the
 pose looks lost, and the detected box overlapping the tracked person most is kept.
 
-Accuracy (1.7):
+Accuracy (1.5):
 
 - **Steady crop.** The pose model sees the person through the box, so a box that jumps
   from frame to frame makes the joints jump with it. The box is smoothed: its centre

@@ -74,13 +74,16 @@ the stability margin. Judge squat, plank and pike form from **side-view** clips.
 The MediaPipe pose model downloads automatically on the first run (~10–30 MB). For
 climbing videos install `pip install -e ".[dev,rtm]"` and put the RTMW-x and YOLOX-m
 model zips in `models/` (links in docs/GUIDE.md §1.1): climbing recipes then use the
-whole-body model, which finds hands and feet much better on the wall.
+whole-body model, which finds hands and feet much better on the wall. Optional: a
+climbing-hold detector (`yolov8n-freeclimbs-detect-2-fp32.onnx`, §1.1) in `models/` tells
+holds from smears (a foot or palm pressed on the bare wall). `--fast` skips the
+flip averaging of the climbing models (about 2x faster pose, a bit less steady).
 
 Each video gets a folder `outputs/<video name>/` with:
 
 | File | What's in it |
 |---|---|
-| `annotated.mp4` | skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, the base of support (yellow), the latest move |
+| `annotated.mp4` | skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, smears (dashed white rings), the base of support (yellow), the latest move. The trunk is the shoulder bar, hip bar and a curved spine; grey joints are hidden or guessed |
 | `landmarks.csv` | the pose backend's raw points per frame (MediaPipe: 33): pixel coords, 3D world coords (m), visibility |
 | `com.csv` | whole-body COM per frame and a confidence score. `com_*_px` = position in the image; `com_*_m` = 3D position in metres **relative to the hip centre** (shows body shape, not where the body is in the room) |
 | `summary.json` | detection rate, COM mean / spread / range |

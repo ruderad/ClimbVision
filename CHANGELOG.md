@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 — 2026-11-15
+
+Hold detection (1.4) and pose accuracy (1.5).
 
 ### Steadier, more honest pose (climbing models)
 - Real per-joint confidence from RTMPose/RTMW (scores were clipped to 1): hidden or

@@ -1143,7 +1143,7 @@ First numbers on the test clips:
 | coordination_failed | 88 % | 78 % | 3.9 s | 39 % | 4 | 40 % |
 
 Not measured: how activated the core is (that needs EMG), and hips-to-wall distance
-(needs depth, 1.4).
+(needs depth, 1.6).
 
 ### 6.19 Forces at the hands and feet (`engine/forces.py`)
 
@@ -1169,7 +1169,7 @@ catch on coordination ~2× body weight).
 
 **What it is and isn't.** Forces *in the wall plane* (up/down, sideways). On steep walls
 the hands also pull *outwards* to keep the hips in; that needs the wall angle and the
-hips-to-wall distance (depth, 1.4), so on overhangs the hand loads here are too low. In
+hips-to-wall distance (depth, 1.6), so on overhangs the hand loads here are too low. In
 % body weight without a mass; in newtons with it. A model, not a measurement: expect
 ±20–30 % until checked against a scale (the dead-hang test).
 
@@ -1744,7 +1744,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped either way, so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
 | Hold detection misses | A foot or hand on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer | Check `holds_detected.jpg`; smears still count for balance and forces |
-| Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.4); check with the dead-hang test on a scale |
+| Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
 | Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
 | COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |
