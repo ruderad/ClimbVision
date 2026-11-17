@@ -94,6 +94,37 @@ def test_render_wall_scene(tmp_path):
     assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 20
 
 
+def test_layers_presets_and_viewer(tmp_path):
+    """Scene layers: every preset renders; the viewer writes a self-contained page with
+    the scene inside and a video next to it."""
+    import pytest
+
+    from climbvision.output.scene import PRESETS, build_scene, resolve_layers
+    from climbvision.output.viewer import write_viewer
+
+    video = tmp_path / "clip.mp4"
+    make_video(video)
+    out = tmp_path / "boulder"
+    run_pose(video, out, FakeEstimator())
+    run_analysis(out, "climb")
+    scene = build_scene(out)
+    assert len(scene.t) == 16 or len(scene.t) == 20
+    assert set(scene.frames) == {n for n in PRESETS["all"] if n != "timeline"}
+    assert sum(len(f) for f in scene.frames["skeleton"]) > 0
+    assert len(scene.timeline["rows"]) == 4  # one per limb
+    with pytest.raises(ValueError):
+        resolve_layers("skeleton,nonsense")
+    assert resolve_layers(None, None) == list(PRESETS["balance"])
+    for preset in PRESETS:
+        path = render(video, out, tmp_path / f"{preset}.mp4", preset=preset, scene=scene)
+        cap = cv2.VideoCapture(str(path))
+        assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 20, preset
+    html = write_viewer(video, out, scene=scene)
+    text = html.read_text()
+    assert (out / "viewer.mp4").exists() and '"layers"' in text and "</script>" in text
+    assert text.count("<script") == 2  # the scene data can't close its own script tag
+
+
 def test_summary_headlines(tmp_path):
     from climbvision.output.summary import headline, markdown_table, summarize_results
 

@@ -83,7 +83,8 @@ Each video gets a folder `outputs/<video name>/` with:
 
 | File | What's in it |
 |---|---|
-| `annotated.mp4` | skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, smears (dashed white rings), the base of support (yellow), the latest move. The trunk is the shoulder bar, hip bar and a curved spine; grey joints are hidden or guessed |
+| `viewer.html` + `viewer.mp4` | the interactive viewer: the clip with overlays you switch on and off (presets clean / balance / load / dynamics / all: forces on each hand and foot, COM velocity, a timeline of contacts, moves and load), slow motion, frame stepping. Open in any browser; `climbvision view` redoes it |
+| `annotated.mp4` | the `balance` preset burnt in (`climbvision render --preset dynamics` etc. for others): skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, smears (dashed white rings), the base of support (yellow), the latest move. The trunk is the shoulder bar, hip bar and a curved spine; grey joints are hidden or guessed |
 | `landmarks.csv` | the pose backend's raw points per frame (MediaPipe: 33): pixel coords, 3D world coords (m), visibility |
 | `com.csv` | whole-body COM per frame and a confidence score. `com_*_px` = position in the image; `com_*_m` = 3D position in metres **relative to the hip centre** (shows body shape, not where the body is in the room) |
 | `summary.json` | detection rate, COM mean / spread / range |

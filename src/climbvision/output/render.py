@@ -1,197 +1,215 @@
-"""Draw the annotated video from saved results (no pose estimation needed).
+"""The annotated video (MP4), drawn from the scene layers (`scene.py`).
 
-Shows the skeleton, COM with a trail, the floor line, ground contacts, the support
-span on the floor and the COM's plumb line (green = COM over the support, red = not).
-On the wall: limbs on holds, the base of support (hull of the limbs on holds) and the
-COM's plumb line down the wall (green = COM over the feet, red = not).
+`render(video, results, layers=..., preset=...)` draws the chosen layers on every frame;
+the default is the `balance` preset (skeleton, bent arms, holds, base of support, COM
+and its trail, info text). With the `timeline` layer a strip is added under the video:
+one row per limb (on a hold / smear / ground), moves, rests, feet cuts, and a cursor.
+
+The interactive viewer (`viewer.py`) draws the very same shapes in the browser.
 """
 
 from __future__ import annotations
 
-import json
-from collections import deque
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from climbvision.analysis import clip_info, load_clip, resolve_recipe
-from climbvision.engine.skeleton import Skeleton
-from climbvision.engine.video import VideoReader, VideoWriter
-from climbvision.output.draw import (
-    INSIDE_COLOR,
-    OUTSIDE_COLOR,
-    draw_base,
-    draw_bent_arms,
-    draw_com,
-    draw_contacts,
-    draw_floor,
-    draw_grips,
-    draw_label,
-    draw_skeleton,
-    draw_smears,
-    draw_support,
-)
+from climbvision.output.scene import Scene, build_scene, resolve_layers
+
+# drawing order: things on the wall first, the body, then what sits on top
+DRAW_ORDER = ("support", "trail", "contacts", "forces", "skeleton", "arms", "com", "velocity",
+              "info")
+
+
+def _bgr(col: str) -> tuple[int, int, int]:
+    return int(col[5:7], 16), int(col[3:5], 16), int(col[1:3], 16)
+
+
+def _pt(x, y) -> tuple[int, int]:
+    return int(round(x)), int(round(y))
+
+
+def draw_shapes(img: np.ndarray, shapes: list, unit: float, info: list | None = None) -> None:
+    """Draw scene shapes (see scene.py) on a BGR frame; `unit` = px per size unit."""
+    for s in shapes:
+        k = s[0]
+        if k == "l":
+            _, x0, y0, x1, y1, col, w, dashed = s
+            if dashed:
+                _dashed(img, (x0, y0), (x1, y1), _bgr(col), max(1, int(w * unit)), unit)
+            else:
+                cv2.line(img, _pt(x0, y0), _pt(x1, y1), _bgr(col), max(1, int(w * unit)),
+                         cv2.LINE_AA)
+        elif k == "p":
+            _, xy, col, w = s
+            pts = np.round(np.array(xy, float).reshape(-1, 2)).astype(np.int32)
+            cv2.polylines(img, [pts], False, _bgr(col), max(1, int(w * unit)), cv2.LINE_AA)
+        elif k == "q":
+            _, xy, cols, w = s
+            pts = np.array(xy, float).reshape(-1, 2)
+            for j, col in enumerate(cols):
+                cv2.line(img, _pt(*pts[j]), _pt(*pts[j + 1]), _bgr(col),
+                         max(1, int(w * unit)), cv2.LINE_AA)
+        elif k == "g":
+            _, xy, col, w, alpha = s
+            pts = np.round(np.array(xy, float).reshape(-1, 2)).astype(np.int32)
+            if alpha > 0:
+                over = img.copy()
+                cv2.fillPoly(over, [pts], _bgr(col), cv2.LINE_AA)
+                cv2.addWeighted(over, alpha, img, 1 - alpha, 0, img)
+            cv2.polylines(img, [pts], True, _bgr(col), max(1, int(w * unit)), cv2.LINE_AA)
+        elif k == "c":
+            _, x, y, r, col, w, fill = s
+            rr = max(2, int(r * unit))
+            if fill:
+                if fill >= 1:
+                    cv2.circle(img, _pt(x, y), rr, _bgr(col), -1, cv2.LINE_AA)
+                else:
+                    over = img.copy()
+                    cv2.circle(over, _pt(x, y), rr, _bgr(col), -1, cv2.LINE_AA)
+                    cv2.addWeighted(over, fill, img, 1 - fill, 0, img)
+            if w:
+                cv2.circle(img, _pt(x, y), rr, _bgr(col), max(1, int(w * unit)), cv2.LINE_AA)
+        elif k == "d":
+            _, x, y, r, col, w = s
+            rr = max(2, int(r * unit))
+            for a in range(0, 360, 45):
+                cv2.ellipse(img, _pt(x, y), (rr, rr), 0, a, a + 25, _bgr(col),
+                            max(1, int(w * unit)), cv2.LINE_AA)
+        elif k == "a":
+            _, x0, y0, x1, y1, col, w = s
+            ln = float(np.hypot(x1 - x0, y1 - y0))
+            if ln >= 2:
+                cv2.arrowedLine(img, _pt(x0, y0), _pt(x1, y1), _bgr(col),
+                                max(1, int(w * unit)), cv2.LINE_AA,
+                                tipLength=min(0.4, 18 * unit / ln))
+        elif k == "t":
+            _, x, y, text, col, size = s
+            _text(img, text, _pt(x, y), _bgr(col), 0.8 * size * unit)
+        elif k == "T" and info is not None:
+            info.append(s)
+
+
+def _dashed(img, a, b, col, w, unit) -> None:
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    n = max(2, int(np.linalg.norm(b - a) / max(6, 12 * unit)))
+    for k in range(0, n, 2):
+        p0, p1 = a + (b - a) * k / n, a + (b - a) * (k + 1) / n
+        cv2.line(img, _pt(*p0), _pt(*p1), col, w, cv2.LINE_AA)
+
+
+def _text(img, text, org, col, scale) -> None:
+    font, thick = cv2.FONT_HERSHEY_SIMPLEX, max(1, int(scale * 2.2))
+    (w, h), b = cv2.getTextSize(text, font, scale, thick)
+    x, y = org
+    pad = max(2, int(h * 0.25))
+    over = img.copy()
+    cv2.rectangle(over, (x - pad, y - h - pad), (x + w + pad, y + b + pad), (0, 0, 0), -1)
+    cv2.addWeighted(over, 0.55, img, 0.45, 0, img)
+    cv2.putText(img, text, (x, y), font, scale, col, thick, cv2.LINE_AA)
+
+
+def draw_info(img: np.ndarray, lines: list, unit: float) -> None:
+    """The info box: text lines in the top-left corner on a dark box."""
+    if not lines:
+        return
+    lines = sorted(lines, key=lambda s: s[1])
+    font, size, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.8 * unit, max(1, int(2 * unit))
+    sizes = [cv2.getTextSize(s[2], font, size, thick) for s in lines]
+    lh = int(max(h + b for (_, h), b in sizes) * 1.35)
+    x, y0, pad = int(15 * unit) + 5, int(40 * unit) + 10, int(8 * unit)
+    tw = max(w for (w, _), _ in sizes)
+    th = sizes[0][0][1]
+    cv2.rectangle(img, (x - pad, y0 - th - pad),
+                  (x + tw + pad, y0 + lh * (len(lines) - 1) + pad + sizes[-1][1]), (0, 0, 0), -1)
+    for k, s in enumerate(lines):
+        cv2.putText(img, s[2], (x, y0 + k * lh), font, size, _bgr(s[3]), thick, cv2.LINE_AA)
+
+
+SPAN_ALPHA = {"hold": 1.0, "smear": 0.45, "ground": 0.0}
+
+
+def draw_timeline(width: int, timeline: dict, t: float, unit: float) -> np.ndarray:
+    """The strip under the video: limb rows, moves, rests / feet cuts and a cursor."""
+    rows = timeline["rows"]
+    dur = max(timeline["duration"], 1e-6)
+    row_h = max(10, int(20 * unit))
+    label_w = max(40, int(110 * unit))
+    top = max(8, int(14 * unit))
+    h = top + row_h * len(rows) + max(6, int(12 * unit))
+    band = np.full((h, width, 3), 18, np.uint8)
+    x0, x1 = label_w, width - max(6, int(10 * unit))
+
+    def X(s):
+        return int(x0 + (x1 - x0) * float(s) / dur)
+
+    for a, b, kind in timeline.get("bands", []):
+        col = (60, 140, 60) if kind == "rest" else (50, 50, 150)
+        cv2.rectangle(band, (X(a), top), (X(b), top + row_h * len(rows)), col, -1)
+    font, fs, th = cv2.FONT_HERSHEY_SIMPLEX, 0.45 * unit * 1.6, max(1, int(1.2 * unit))
+    for r, row in enumerate(rows):
+        y = top + r * row_h
+        col = _bgr(row["colour"])
+        cv2.putText(band, row["name"], (int(6 * unit), y + int(row_h * 0.72)), font, fs,
+                    (200, 200, 200), th, cv2.LINE_AA)
+        for a, b, kind, _hold in row["spans"]:
+            ya, yb = y + int(row_h * 0.18), y + int(row_h * 0.82)
+            if kind == "ground":
+                cv2.rectangle(band, (X(a), ya), (max(X(a) + 1, X(b)), yb), (90, 90, 90), -1)
+                continue
+            alpha = SPAN_ALPHA[kind]
+            over = band.copy()
+            cv2.rectangle(over, (X(a), ya), (max(X(a) + 1, X(b)), yb), col, -1)
+            cv2.addWeighted(over, alpha, band, 1 - alpha, 0, band)
+    idx = {row["limb"]: k for k, row in enumerate(rows)}
+    for m in timeline.get("moves", []):
+        k = idx.get(m["limb"])
+        if k is None:
+            continue
+        y = top + k * row_h + int(row_h * 0.5)
+        hot = {"dyno", "jump"} & set(m["tags"])
+        col = (80, 80, 255) if hot else (235, 235, 235)
+        cv2.line(band, (X(m["a"]), y), (max(X(m["a"]) + 1, X(m["b"])), y), col,
+                 max(1, int(2 * unit)), cv2.LINE_AA)
+    cx = X(t)
+    cv2.line(band, (cx, 2), (cx, h - 2), (255, 255, 255), max(1, int(2 * unit)), cv2.LINE_AA)
+    return band
 
 
 def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path | None = None,
-           trail_seconds: float = 2.0) -> Path:
+           layers: str | list[str] | None = None, preset: str | None = None,
+           scene: Scene | None = None) -> Path:
+    """Draw the chosen layers on the video (default: the `balance` preset)."""
+    from climbvision.engine.video import VideoReader, VideoWriter, warn_if_changed
+
     result_dir = Path(result_dir)
     out_path = Path(out_path) if out_path else result_dir / "annotated.mp4"
-    info = clip_info(result_dir)
-    # same recipe (hence bar / no bar scene) as the analysis step used
-    mpath = result_dir / "metrics.json"
-    recipe = json.loads(mpath.read_text()).get("exercise", "auto") if mpath.exists() else "auto"
-    try:
-        rec = resolve_recipe(result_dir, recipe)
-    except ValueError:  # a recipe from a folder that isn't loaded now
-        rec = resolve_recipe(result_dir, "auto")
-    from climbvision.engine.video import warn_if_changed
-
     warn_if_changed(result_dir, video_path)
-    clip = load_clip(result_dir, bar=rec.bar)
-    track, st = clip.track, clip.stability
-    wall_scene = rec.scene == "wall"
-    if wall_scene:  # on the wall: holds instead of floor, support and grips
-        ws = clip.wall_support
-        labels = ws.labels
-        _ = clip.technique  # fills the move labels with pause / pushes and adds events
-        route_labels = clip.route.labels
-        # arms holding a hold: bent (elbow < 150 deg) or straight, per frame
-        from climbvision.engine.biomech import angle_at
-        from climbvision.engine.skeleton import J
-
-        im = track.image
-        bent = {}
-        for side, (sh, el, wr), limb in (
-                ("l", (J.L_SHOULDER, J.L_ELBOW, J.L_WRIST), "l_hand"),
-                ("r", (J.R_SHOULDER, J.R_ELBOW, J.R_WRIST), "r_hand")):
-            ang = angle_at(im[:, sh], im[:, el], im[:, wr])
-            bent[side] = ws.on_hold[limb] & np.nan_to_num(ang < 150.0, nan=False)
-    else:
-        labels = st.labels
-    fl = st.floor
-
+    chosen = resolve_layers(layers, preset)
+    scene = scene or build_scene(result_dir)
+    n = len(scene.t)
     with VideoReader(video_path) as reader:
-        size = (reader.info.width, reader.info.height)
-        # results may come from a resized copy of the video: draw at that size
-        target = tuple(info["frame_size"]) if "frame_size" in info else size
-        resize = target != size
-        size = target
-        step = int(info.get("frame_step", 1))
-        trail: deque = deque(maxlen=max(1, int(trail_seconds * reader.info.fps / step)))
-        # balance per frame: True = COM inside the base of support, False = outside,
-        # None = no base to judge (the COM dot and its trail use the same colours)
-        if wall_scene:
-            pm = ws.polygon_margin_cm
-        else:
-            pm = st.margin_cm
-        balance = [bool(v > 0) if np.isfinite(v) else None for v in pm]
-        with VideoWriter(out_path, reader.info.fps / step, size) as writer:
-            for i, (_, t, img) in enumerate(reader.frames(step=step)):
-                if i >= track.n:
+        size = tuple(scene.size) if scene.size and scene.size[0] else (
+            reader.info.width, reader.info.height)
+        resize = size != (reader.info.width, reader.info.height)
+        unit = max(size) / 1000.0
+        band_h = 0
+        if "timeline" in chosen and scene.timeline["rows"]:
+            band_h = draw_timeline(size[0], scene.timeline, 0.0, unit).shape[0]
+        with VideoWriter(out_path, scene.fps, (size[0], size[1] + band_h)) as writer:
+            for i, (_, _t, img) in enumerate(reader.frames(step=scene.step)):
+                if i >= n:
                     break
                 if resize:
                     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
-                com = st.com_px[i]
-                # on the wall the trail is kept in wall coordinates, so it stays on the
-                # wall when the camera pans
-                trail.append((ws.com[i] if wall_scene else com, balance[i]))
-                if np.isfinite(fl.y0[i]) and not wall_scene:
-                    draw_floor(img, fl.slope, fl.y0[i])
-                lines = [f"t={t:5.2f}s  {labels[i]}"]
-                colors = [(255, 255, 255)]
-                if wall_scene and route_labels[i]:
-                    for line in _wrap(route_labels[i], max(24, size[0] // 24)):
-                        lines.append(line)
-                        colors.append((120, 230, 255))
-                if track.detected[i]:
-                    sk = Skeleton(track.image[i], track.world[i], track.visibility[i])
-                    draw_skeleton(img, sk)
-                    if wall_scene:
-                        draw_bent_arms(img, track.image[i],
-                                       {s: bool(v[i]) for s, v in bent.items()})
-                    if wall_scene:
-                        held = [ws.points[limb][i] for limb in ws.on_hold
-                                if ws.on_hold[limb][i]]
-                        smears = [ws.points[limb][i] for limb in ws.on_hold
-                                  if ws.on_smear is not None and ws.on_smear[limb][i]]
-                        img_pts = [p for p in _to_image(clip, i, held) if np.isfinite(p).all()]
-                        smear_pts = [p for p in _to_image(clip, i, smears)
-                                     if np.isfinite(p).all()]
-                        plumb, over_feet = None, None
-                        c = ws.com[i]
-                        support = held + smears
-                        if support and ws.on_wall[i] and np.isfinite(c).all():  # straight down
-                            # down to the lowest hold, at least a quarter body
-                            low = max(max(float(p[1]) for p in support),
-                                      c[1] + 0.25 * ws.body_px)
-                            ends = _to_image(clip, i, [c, np.array([c[0], low])])
-                            plumb = tuple(ends) if len(ends) == 2 else None
-                            m = ws.com_over_feet_cm[i]
-                            if np.isfinite(m):
-                                over_feet = bool(m > 0)
-                                lines.append(f"COM over feet {m:+.0f} cm")
-                                colors.append(INSIDE_COLOR if over_feet else OUTSIDE_COLOR)
-                        draw_base(img, np.array(img_pts + smear_pts).reshape(-1, 2), plumb,
-                                  over_feet)
-                        draw_contacts(img, np.array(img_pts).reshape(-1, 2))
-                        draw_smears(img, np.array(smear_pts).reshape(-1, 2))
-                        past = [p for p, _ in trail]
-                        img_trail = _to_image(clip, i, past) if past else []
-                        if len(img_trail) != len(past):
-                            img_trail = [np.full(2, np.nan)] * len(past)
-                        draw_com(img, com, img_trail, balance[i],
-                                 trail_inside=[b for _, b in trail])
-                        draw_label(img, lines, colors)
-                        writer.write(img)
-                        continue
-                    m = st.margin_cm[i]
-                    if np.isfinite(m):
-                        draw_support(img, fl.slope, fl.y0[i], st.support_lo_px[i],
-                                     st.support_hi_px[i], com[0], com[1], m > 0)
-                        lines.append(f"margin {m:+.1f} cm")
-                        colors.append(INSIDE_COLOR if m > 0 else OUTSIDE_COLOR)
-                    draw_contacts(img, track.image[i, st.contacts.point[i]])
-                    grips = [st.contacts.hand_px[sd][i] for sd, g in st.contacts.grip.items()
-                             if g[i]]
-                    if grips:
-                        draw_grips(img, grips)
-                        sw = st.swing_cm[i]
-                        if np.isfinite(sw):
-                            lines.append(f"swing {sw:+.1f} cm")
-                            colors.append((255, 160, 210))
-                    draw_com(img, com, [p for p, _ in trail], balance[i],
-                             trail_inside=[b for _, b in trail])
-                else:
-                    lines[0] = f"t={t:5.2f}s  no pose"
-                if st.feet_out_of_frame[i]:
-                    lines.append("feet out of frame")
-                    colors.append((0, 200, 255))
-                draw_label(img, lines, colors)
+                info: list = []
+                for name in DRAW_ORDER:
+                    if name in chosen:
+                        draw_shapes(img, scene.frames[name][i], unit, info)
+                draw_info(img, info, unit)
+                if band_h:
+                    img = np.vstack([img, draw_timeline(size[0], scene.timeline,
+                                                        scene.t[i], unit)])
                 writer.write(img)
     return out_path
-
-
-def _wrap(text: str, width: int) -> list[str]:
-    """Split a ' · '-separated label into lines of about `width` characters."""
-    out: list[str] = []
-    for part in text.split(" · "):
-        if out and len(out[-1]) + 3 + len(part) <= width:
-            out[-1] += " · " + part
-        else:
-            out.append(part)
-    return out
-
-
-def _to_image(clip, i: int, wall_pts: list) -> list:
-    """Wall coordinates -> image of frame i (inverse of the camera layer's H)."""
-    if not wall_pts:
-        return []
-    if clip.camera is None:
-        return list(wall_pts)
-    from climbvision.engine.camera import LOST, apply_h
-
-    if clip.camera.status[i] == LOST:
-        return []
-    return list(apply_h(np.linalg.inv(clip.camera.H[i]), np.array(wall_pts)))

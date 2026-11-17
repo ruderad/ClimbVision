@@ -13,6 +13,7 @@ dependencies = [
     "mediapipe>=0.10.14",
     "matplotlib>=3.7",
     "pyyaml>=6",
+    "imageio-ffmpeg>=0.4",  # H.264 videos that play in any browser (viewer, annotated.mp4)
 ]
 
 [project.optional-dependencies]
@@ -37,3 +38,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/climbvision/output/viewer.py" = ["E501"]  # the HTML/JS template

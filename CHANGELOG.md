@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Overlays and the interactive viewer
+- Everything drawn on the video is a **layer** (skeleton, bent arms, holds, base of
+  support, COM, trail, forces, velocity, info text, timeline), built once from the
+  results (`output/scene.py`) and drawn by two renderers: the MP4 and the browser.
+- **Viewer**: `climbvision view` (and `analyze`) writes `viewer.html` + `viewer.mp4`:
+  layers on/off, presets (clean, balance, load, dynamics, all), slow motion, frame
+  stepping, a clickable timeline with contacts, moves, rests, feet cuts and the load
+  on hands and feet.
+- **New layers**: forces (load on each hand and foot, % body weight, colour-coded, with
+  the force direction), COM velocity, timeline.
+- `climbvision render --preset NAME --layers a,b --out FILE`; default unchanged (balance).
+- Videos are H.264 when ffmpeg is available (new dependency `imageio-ffmpeg`): they play
+  in browsers and on phones.
+
 ## 1.4.1 — 2026-11-17
 
 ### Fixed

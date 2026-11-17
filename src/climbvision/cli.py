@@ -130,6 +130,22 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     r.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
+    r.add_argument("--preset", default=None,
+                   help="clean, balance (default), load, dynamics, all")
+    r.add_argument("--layers", default=None,
+                   help="comma-separated layers, added to the preset: skeleton, arms, "
+                   "contacts, support, com, trail, forces, velocity, info, timeline")
+    r.add_argument("--out", default=None,
+                   help="file name in the results folder (default annotated.mp4, or "
+                   "annotated_<preset>.mp4 with --preset)")
+
+    vw = sub.add_parser("view", help="interactive viewer: viewer.html (+ viewer.mp4)")
+    vw.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
+    vw.add_argument("--video", type=Path, default=None,
+                    help="source video (default: the path stored in summary.json)")
+    vw.add_argument("--open", action="store_true", help="open it in the browser")
+    vw.add_argument("--keep-video", action="store_true",
+                    help="reuse viewer.mp4 if it's there (only the layers are redone)")
 
     po = sub.add_parser("pose", help="pose pass only, resumable (long videos, time limits)")
     po.add_argument("video", type=Path)
@@ -261,8 +277,12 @@ def main(argv: list[str] | None = None) -> int:
             _print_metrics(run_analysis(out, args.recipe, recipe_dirs=args.recipes))
             if not args.no_video:
                 from climbvision.output.render import render
+                from climbvision.output.scene import build_scene
+                from climbvision.output.viewer import write_viewer
 
-                print(f"[climbvision] wrote {render(video, out)}")
+                scene = build_scene(out)
+                print(f"[climbvision] wrote {render(video, out, scene=scene)}")
+                print(f"[climbvision] wrote {write_viewer(video, out, scene=scene)}")
 
     elif args.cmd == "metrics":
         for d in args.results:
@@ -284,14 +304,33 @@ def main(argv: list[str] | None = None) -> int:
 
     elif args.cmd == "render":
         from climbvision.output.render import render
+        from climbvision.output.scene import resolve_layers
 
+        resolve_layers(args.layers, args.preset)  # unknown names stop here, before any work
+        name = args.out or (f"annotated_{args.preset}.mp4" if args.preset else "annotated.mp4")
         for d in args.results:
             summary = json.loads((d / "summary.json").read_text())
             video = args.video or Path(summary["video"])
             if not video.exists():
                 print(f"[climbvision] {d}: source video {video} not found, use --video")
                 continue
-            print(f"[climbvision] wrote {render(video, d)}")
+            print(f"[climbvision] wrote {render(video, d, d / name, args.layers, args.preset)}")
+
+    elif args.cmd == "view":
+        from climbvision.output.viewer import write_viewer
+
+        for d in args.results:
+            summary = json.loads((d / "summary.json").read_text())
+            video = args.video or Path(summary["video"])
+            if not video.exists() and not (args.keep_video and (d / "viewer.mp4").exists()):
+                print(f"[climbvision] {d}: source video {video} not found, use --video")
+                continue
+            out = write_viewer(video, d, video=not args.keep_video)
+            print(f"[climbvision] wrote {out}")
+            if args.open:
+                import webbrowser
+
+                webbrowser.open(out.resolve().as_uri())
     return 0
 
 

@@ -70,19 +70,69 @@ class VideoReader:
         self.close()
 
 
+def ffmpeg_exe() -> str | None:
+    """An ffmpeg binary: the one bundled with imageio-ffmpeg, else ffmpeg on the PATH."""
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:  # not installed, or no binary for this platform
+        import shutil
+
+        return shutil.which("ffmpeg")
+
+
 class VideoWriter:
-    def __init__(self, path: str | Path, fps: float, size: tuple[int, int]) -> None:
+    """MP4 writer. H.264 (plays in every browser and phone) through ffmpeg when there is
+    one (`imageio-ffmpeg`, a dependency, brings its own); otherwise OpenCV's MPEG-4,
+    which desktop players open but browsers don't."""
+
+    def __init__(self, path: str | Path, fps: float, size: tuple[int, int],
+                 crf: int = 20) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._w = cv2.VideoWriter(str(self.path), cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
-        if not self._w.isOpened():
-            raise OSError(f"Could not open video writer: {self.path}")
+        self.size = (int(size[0]), int(size[1]))
+        self._p = self._w = None
+        exe = ffmpeg_exe()
+        if exe:
+            import subprocess
+
+            w, h = self.size
+            # H.264 needs even sizes: pad by a pixel if needed
+            vf = f"pad={w + w % 2}:{h + h % 2}"
+            self._p = subprocess.Popen(
+                [exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+                 "-s", f"{w}x{h}", "-r", f"{fps:.6f}", "-i", "-", "-vf", vf,
+                 "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
+                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(self.path)],
+                stdin=subprocess.PIPE)
+        else:
+            self._w = cv2.VideoWriter(str(self.path), cv2.VideoWriter_fourcc(*"mp4v"), fps,
+                                      self.size)
+            if not self._w.isOpened():
+                raise OSError(f"Could not open video writer: {self.path}")
+
+    @property
+    def browser_ready(self) -> bool:
+        return self._p is not None
 
     def write(self, frame: np.ndarray) -> None:
-        self._w.write(frame)
+        if frame.shape[1] != self.size[0] or frame.shape[0] != self.size[1]:
+            frame = cv2.resize(frame, self.size)
+        if self._p is not None:
+            self._p.stdin.write(np.ascontiguousarray(frame, np.uint8).tobytes())
+        else:
+            self._w.write(frame)
 
     def close(self) -> None:
-        self._w.release()
+        if self._p is not None:
+            self._p.stdin.close()
+            if self._p.wait() != 0:
+                raise OSError(f"ffmpeg failed writing {self.path}")
+            self._p = None
+        elif self._w is not None:
+            self._w.release()
+            self._w = None
 
     def __enter__(self) -> VideoWriter:
         return self

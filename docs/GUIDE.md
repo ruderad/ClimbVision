@@ -100,8 +100,9 @@ apply to them.
 
 ### 1.3 Look at the results
 
-1. Open `outputs/<clip>/annotated.mp4` — does the skeleton follow the body? If not,
-   no number from this clip can be trusted (see section 2).
+1. Open `outputs/<clip>/viewer.html` (or `annotated.mp4`) — does the skeleton follow
+   the body? If not, no number from this clip can be trusted (see section 2). The viewer
+   switches overlays on and off, plays in slow motion and steps frame by frame (§5.1).
 2. Open `outputs/<clip>/report.png` — angles, the exercise result, stability and
    contacts over time.
 3. Open `outputs/<clip>/metrics.json` — the numbers.
@@ -112,7 +113,8 @@ apply to them.
 |---|---|---|
 | `climbvision analyze VIDEO` | Runs pose estimation (slow), then the analysis and the annotated video | a few × the clip length |
 | `climbvision metrics outputs/CLIP` | Re-runs the analysis (everything except pose) from the saved CSVs | seconds |
-| `climbvision render outputs/CLIP` | Redraws `annotated.mp4` from saved results | about the clip length |
+| `climbvision view outputs/CLIP` | Writes the interactive viewer, `viewer.html` + `viewer.mp4` | about the clip length |
+| `climbvision render outputs/CLIP` | Redraws `annotated.mp4` from saved results (`--preset`, `--layers`) | about the clip length |
 | `climbvision camera outputs/CLIP` | Camera layer: lines every frame up with the wall (handheld video); `wall.jpg`, `wall_view.mp4` | about 1–2 × the clip length |
 | `climbvision summary outputs/*` | One line per clip (table + `outputs/summary.csv`) | instant |
 | `climbvision recipes` / `signals` | List the recipes, or the signals recipes can use | instant |
@@ -216,12 +218,28 @@ are skipped.
 ### 3.3 `climbvision render`
 
 ```
-climbvision render outputs/CLIP [--video PATH]
+climbvision render outputs/CLIP [--video PATH] [--preset NAME] [--layers a,b,...] [--out FILE]
 ```
 
-Redraws `annotated.mp4`. The source video path is read from `summary.json`; pass
-`--video` if it moved. If the results were computed on a resized copy of the video,
-the original is resized to match before drawing.
+Redraws `annotated.mp4` with the chosen overlays (§5.1): `--preset` clean, balance
+(default), load, dynamics or all; `--layers` adds single layers (skeleton, arms,
+contacts, support, com, trail, forces, velocity, info, timeline). With `--preset` the
+file is `annotated_<preset>.mp4` unless `--out` names it. The source video path is read
+from `summary.json`; pass `--video` if it moved. If the results were computed on a
+resized copy of the video, the original is resized to match before drawing. Videos are
+H.264 (they play in browsers and on phones) when ffmpeg is available — `imageio-ffmpeg`,
+a dependency, brings its own.
+
+### 3.3a `climbvision view`
+
+```
+climbvision view outputs/CLIP [--video PATH] [--open] [--keep-video]
+```
+
+Writes `viewer.html` and `viewer.mp4` (the clip without drawings) in the results
+folder; `analyze` writes them too. Open the HTML file in any browser — it works
+offline, keep it next to `viewer.mp4`. `--open` opens it; `--keep-video` reuses
+`viewer.mp4` and only redoes the overlays (after `metrics`).
 
 ### 3.3b `climbvision pose`
 
@@ -399,7 +417,34 @@ position = (u/w, v/w). In Python: `CameraTrack.load(path).to_wall(points)`.
 
 ## 5. Reading the results
 
-### 5.1 The annotated video
+### 5.1 The annotated video and the viewer
+
+Everything drawn on the video is organised in **layers**, and the viewer (`viewer.html`)
+switches each on and off while the clip plays. **Presets** pick layers for a purpose:
+
+| Preset | Layers | For |
+|---|---|---|
+| clean | skeleton | watching the climb |
+| balance | skeleton, bent arms, holds, base of support, COM, trail, info text | static climbing, slabs, vertical walls — the classic annotated video |
+| load | skeleton, holds, forces, timeline | where the weight goes: % body weight on each hand and foot |
+| dynamics | skeleton, COM, trail, velocity, timeline | dynos, deadpoints, cut feet: momentum instead of balance |
+| all | everything | |
+
+The viewer: play / pause (space or click the video), one frame back / on (← →), one
+second (shift + ← →), speed 0.1–1× ([ ]), presets 1–5. The **timeline** under the video
+has one row per limb (on a hold: solid; smear: faint; ground: grey), the moves (white
+ticks, red = dyno or jump, numbered; hover for duration, tags and catch load), rests
+(green), feet cut (red), and the load on the hands and the feet (% body weight, 100 %
+dotted). Click or drag to jump. Your layer choice is remembered in that browser.
+`annotated.mp4` is the same drawing, burnt in: `climbvision render --preset dynamics`.
+
+| Layer | Drawing | Meaning |
+|---|---|---|
+| forces | Disc + arrow + % on a hand or foot | Load on that limb, % body weight (disc size and colour: green light → yellow half → red all of it); the arrow is the force the hold gives the body (up for a jug, sideways for a sidepull). Wall plane only (§6.19) |
+| velocity | Blue arrow + m/s from the COM | Where the COM is heading: the arrow tip is where it would be 0.25 s later at this speed |
+| timeline | Strip under the video | See above |
+
+The other drawings (skeleton, bent arms, holds, base of support, COM, trail, info text):
 
 | Drawing | Meaning |
 |---|---|
