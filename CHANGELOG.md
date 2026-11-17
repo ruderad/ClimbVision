@@ -10,6 +10,27 @@
 - When the hold detector ran, 5 or more detected holds inside a region make it a wall
   panel (the surer test); the traverse's lower panel stays wall either way.
 
+### Measuring the climb, not the clip (GUIDE §6.14a)
+- The climb runs from both feet leaving the ground to the touchdown; when the camera
+  doesn't see the touchdown, it ends at the first lasting sign that the climb is over
+  (camera lost, pose lost, the person's size jumps, no contact for 2 s). The scale is
+  learnt from the climb only, and frames outside it count for nothing. Fixes heights
+  and distances squashed by people walking up to the camera after the climb (arya2:
+  highest COM 1.08 -> 3.19 m above the floor; arya1, radmehr4) and rises inflated by a
+  lost pose (gardash3: 4.28 -> 2.37 m).
+- Several attempts in one clip: each is found, the one that got highest is measured,
+  the others are listed (`climb.attempts`) with a warning.
+- A foot off any hold with no hand on one counts as the floor only near the bottom
+  (radmehr1's top section read as 8 s on the ground).
+
+### Plausibility checks (GUIDE §6.14b)
+- Every climbing clip checks what physics and anatomy tie together: the floor against
+  the rise, the standing COM against stature, the top COM against the top hand hold,
+  body sizes across the wall, pose visibility, attempts. In `metrics.json` (`checks`).
+- Documented one camera's blind spot: the floor height comes from feet standing in
+  front of the wall, so heights *above the floor* read high (0-0.8 m on the test
+  clips); rises and distances don't depend on it.
+
 ### Regression fixtures
 - The six climbing fixtures are rebuilt from the current pose (RTMW with flip
   averaging and calibrated visibility) and their snapshots updated. Fixtures are

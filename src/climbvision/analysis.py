@@ -130,6 +130,8 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
         warn_if_changed(result_dir, info["video"])
     rec = resolve_recipe(result_dir, recipe, recipe_dirs)
     clip = load_clip(result_dir, bar=rec.bar)
+    if rec.scene == "wall":
+        _ = clip.wall_support  # finds the climb first: the scale is learnt from it only
     write_angles_csv(result_dir / "angles.csv", clip.angles)
     write_stability_csv(result_dir / "stability.csv", clip.stability, clip.t)
     res = run_recipe(rec, clip)
@@ -142,6 +144,8 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
         from climbvision.output.tables import write_holds_csv, write_moves_csv, write_wall_csv
 
         out["wall"] = wall_summary(clip.wall_support, clip.t)
+        if clip.climb is not None:
+            out["climb"] = clip.climb.summary(clip.t)
         write_wall_csv(result_dir / "wall.csv", clip.wall_support, clip.t)
         route = clip.route
         out["technique"] = clip.technique  # before moves_detail: fills per-move fields
@@ -166,6 +170,10 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
     out["scale"] = clip.climber.summary()
     if rec.scene == "wall" and clip.wall_support.metric is not None:
         out["scale"].update(clip.wall_support.metric.summary())
+    if rec.scene == "wall":
+        from climbvision.engine.checks import wall_checks
+
+        out["checks"] = wall_checks(clip, out["wall"])
     if clip.camera is not None:
         from climbvision.engine.camera import camera_summary
 

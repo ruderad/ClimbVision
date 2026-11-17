@@ -41,6 +41,9 @@ class Clip:
     cleanup: dict | None = None  # clean-up layer report (None = not run)
     smoothing: dict | None = None  # smoothing layer report (engine/smoothing.py)
     hold_boxes: object = None  # holds detected in the wall image (holddetect.py), or None
+    frame_size: tuple[int, int] | None = None
+    find_climb: bool = True  # wall scenes: measure only the climb (engine/climb.py)
+    climb: object = None  # ClimbWindow, after wall_support (None = whole clip)
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -52,18 +55,43 @@ class Clip:
         sex = climber.sex or sex  # type: ignore[assignment]
         ang = compute_angles(track)
         st = compute_stability(track, ang.view, sex, frame_size, bar=bar, body_m=climber.body_m)
-        return cls(track, ang, st, bar, camera, wall_image, sex, climber)
+        return cls(track, ang, st, bar, camera, wall_image, sex, climber,
+                   frame_size=frame_size)
+
+    def _wall_pass(self, window: np.ndarray | None = None) -> WallSupport:
+        sc = self.stability.scale
+        return compute_wall_support(
+            self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
+            camera_ok=self.camera.ok if self.camera is not None else None,
+            wall_image=self.wall_image, hold_boxes=self.hold_boxes, window=window)
 
     @property
     def wall_support(self) -> WallSupport:
         """Wall layer: anchors on holds, holds used, support on the wall (computed on
-        first use)."""
+        first use). Two passes: the first finds the climb (engine/climb.py); the scale is
+        then learnt from the climb only, and the second pass measures only the climb."""
         if "_wall_support" not in self._cache:
-            sc = self.stability.scale
-            self._cache["_wall_support"] = compute_wall_support(
-                self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
-                camera_ok=self.camera.ok if self.camera is not None else None,
-                wall_image=self.wall_image, hold_boxes=self.hold_boxes)
+            ws = self._wall_pass()
+            if self.find_climb:
+                from climbvision.engine.climb import find_climb
+                from climbvision.engine.scale import chain_len
+
+                contact = ws.n_contacts + sum(ws.on_smear[limb].astype(int)
+                                              for limb in LIMBS) if ws.on_smear else ws.n_contacts
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    vis = np.nanmean(self.track.visibility, axis=1)
+                cw = find_climb(ws.on_wall, ws.on_ground, contact, self.t,
+                                chain_len(self.track.image), vis,
+                                self.camera.ok if self.camera is not None else None,
+                                ws.com[:, 1])
+                if cw is not None:
+                    self.climb = cw
+                    self.stability = compute_stability(
+                        self.track, self.angles.view, self.sex, self.frame_size, bar=self.bar,
+                        body_m=self.climber.body_m, frames=cw.mask)
+                    ws = self._wall_pass(cw.mask)
+            self._cache["_wall_support"] = ws
         return self._cache["_wall_support"]  # type: ignore[return-value]
 
     @property

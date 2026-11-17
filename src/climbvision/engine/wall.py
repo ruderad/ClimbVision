@@ -116,6 +116,9 @@ class WallParams:
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
     stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
     level_tol: float = 0.06  # body lengths: both feet this level = standing
+    ground_near_s: float = 3.0  # with a climb window: ground anchors this close count
+    ground_band: float = 0.3  # body lengths: a foot off any hold, no hands on holds, is on
+    #                           the floor only this close to the lowest foot position
 
 
 def median_filter(p: np.ndarray, k: int) -> np.ndarray:
@@ -442,6 +445,7 @@ class WallSupport:
     com_m: np.ndarray | None = None  # (n, 2) COM in metres, x right, y up
     com_v: np.ndarray | None = None  # (n, 2) COM velocity, m/s (x right, y up)
     com_a: np.ndarray | None = None  # (n, 2) COM acceleration, m/s^2
+    window: np.ndarray | None = None  # (n,) the climb (engine/climb.py), or None
 
     @property
     def body_m(self) -> float:
@@ -498,13 +502,27 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                          px_per_m: float, sex: str = "male", camera_ok: np.ndarray | None = None,
                          wall_image=None, prm: WallParams | None = None,
                          body_m: float = ASSUMED_BODY_M,
-                         correct_perspective: bool = True, hold_boxes=None) -> WallSupport:
-    """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall)."""
+                         correct_perspective: bool = True, hold_boxes=None,
+                         window: np.ndarray | None = None) -> WallSupport:
+    """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall).
+    `window`: (n,) bool, the climb (engine/climb.py): frames outside it are not on the
+    wall, and their anchors count for nothing (but standing on the ground just before or
+    after the climb still sets the floor)."""
     prm = prm or WallParams()
     n = len(t)
     pts = limb_points(wall_points)
     anchors = {limb: detect_anchors(pts[limb], t, body_px, limb, prm) for limb in LIMBS}
     floor_seen = mark_ground(anchors, wall_image, body_px, prm, t, hold_boxes)
+    if window is not None:
+        window = np.asarray(window, bool)
+        idx = np.flatnonzero(window)
+        near = np.zeros(n, bool)  # the floor counts just before and after the climb
+        if len(idx):
+            near[(t >= t[idx[0]] - prm.ground_near_s) & (t <= t[idx[-1]] + prm.ground_near_s)] \
+                = True
+        for limb in LIMBS:
+            anchors[limb] = [a for a in anchors[limb]
+                             if (near if a.ground else window)[a.start:a.end].any()]
     detected = np.isfinite(wall_points[:, J.L_SHOULDER, 0])
     ok = detected if camera_ok is None else detected & camera_ok
     foot_hold = np.zeros(n, bool)
@@ -524,11 +542,15 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
             if above:
                 hand_hang[seg] = True
     climbing = (foot_hold | hand_hang) & ~foot_ground
+    if window is not None:
+        climbing &= window
     on_wall = np.zeros(n, bool)
     if climbing.any():
         a, b = np.flatnonzero(climbing)[[0, -1]]
         on_wall[a:b + 1] = True
     on_wall &= ok & ~foot_ground
+    if window is not None:
+        on_wall &= window
     on_ground = ~on_wall & detected if floor_seen else foot_ground
     # hands resting while on the ground are not on holds
     for h in ("l_hand", "r_hand"):
@@ -561,9 +583,14 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
         # climbs on a single smear with no hands
         hands_on = _on_mask([a for h in ("l_hand", "r_hand") for a in anchors[h]
                              if a.on_hold], n)
+        # ... but only near the bottom: high on the wall it is a smear with the hands on
+        # something the detector missed (a volume, the top), not the floor
+        feet_y = [a.pos[1] for f in ("l_foot", "r_foot") for a in anchors[f]]
+        low_y = (max(feet_y) - prm.ground_band * body_px) if feet_y else -np.inf
         for f in ("l_foot", "r_foot"):
             for an in anchors[f]:
-                if (an.smear or an.flag) and hands_on[an.start:an.end].mean() < 0.4:
+                if (an.smear or an.flag) and hands_on[an.start:an.end].mean() < 0.4 \
+                        and an.pos[1] >= low_y:
                     an.smear = an.flag = False
                     an.ground = True
                     on_wall[an.start:an.end] = False
@@ -602,14 +629,17 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
             if cv2.contourArea(hull) > 100.0:
                 poly_m[i] = _signed_hull_distance(hull, com_m[i] * 1000) / 10
     labels = [_label_with_smears(on_hold, on_smear, i)
-              if on_wall[i] else ("on the ground" if on_ground[i] else "–") for i in range(n)]
+              if on_wall[i] else ("on the ground" if on_ground[i] else
+                                  "outside the climb" if window is not None else "–")
+              for i in range(n)]
     ground = [a.pos[1] for f in ("l_foot", "r_foot") for a in anchors[f] if a.ground]
     ground_y = float(np.median(ground)) if ground else None
     return WallSupport(pts, anchors, holds, on_hold, on_ground, on_wall, ground_y, com,
                        n_contacts, feet_m, poly_m, metric.s * metric.per_m, body_px, labels,
                        floor_seen, prm.min_move * body_px, metric=metric, com_m=com_m,
                        com_v=com_v, com_a=com_a, on_smear=on_smear, hold_boxes=hold_boxes,
-                       holds_source="detected" if detected_holds else "rests")
+                       holds_source="detected" if detected_holds else "rests",
+                       window=window)
 
 
 def _com_moved(com: np.ndarray) -> float:

@@ -601,6 +601,12 @@ id (grey = on the ground).
 | `holds` | Every hold: `id`, `x_m` (right of the first hold), `y_m` (above the ground, or above the lowest hold), which limbs used it, when first, total time on it |
 | `warnings` | e.g. on the wall only a small part of the clip |
 
+Next to it, `climb` (6.14a): `start_s`, `end_s`, `duration_s`, `end` (touchdown, end of
+the clip, or what ended it: the camera lost the wall, the pose was lost, the person's
+size changed, left the wall), `frames_used_pct` (share of the clip measured), and
+`attempts` when there were several. And `checks` (6.14b): `passed`, `failed` (names),
+`items` (each with `ok`, `value`, `expected`, `note`).
+
 `wall.csv` has, per frame: the contacts label, number of limbs on holds, `on_wall`,
 `on_ground`, each limb's hold id (−1 = none) and position on the wall, the COM, and both
 margins.
@@ -1118,6 +1124,72 @@ frame of each: about 7 in 10 sit on the shoe on a hold; the rest come from pose 
 on the wall when a foot was *not* anchored (sampled every second), about half were the
 foot moving and half pose errors. Foot accuracy is therefore now limited by the pose
 model, which is what E5 (a better pose backend) addresses.
+
+### 6.14a The climb window (`engine/climb.py`)
+
+A clip holds more than the climb: walking up, standing below the wall, the drop and,
+often, walking back to the camera or the camera turning to the floor. Those frames
+must not shape the measurements. A person walking towards the camera looks two or three
+times bigger than on the wall, and with the body as the ruler that shrinks every height
+and distance on the wall by as much: arya2's highest COM read 1.08 m above the floor
+before 1.5.1 (3.19 m after), gardash3's rise 4.28 m (2.37 m: the "rise" was a lost pose
+after the top).
+
+**The climb** runs from the moment both feet leave the ground to the touchdown. The
+wall layer runs twice: the first pass finds the climb, the scale is then learnt from
+the climb's frames only, and the second pass measures only the climb.
+
+- *Start*: the first frame on the wall (6.14: a foot on a hold, or a hand on a hold
+  above the shoulders, and no foot on the ground).
+- *End*: the touchdown. When the camera doesn't see it, the first sign that the climb
+  is over, lasting 0.5 s or more: the camera loses the wall; the pose is lost (mean
+  visibility < 0.3); the person's size leaves 0.55-1.6 x their size on the wall (walking
+  towards the camera, or someone else); or no limb on a hold for 2 s (a dyno or a cut
+  lasts well under a second). The end is then the last contact + 0.5 s (the drop).
+- A shorter break (a camera glitch under 1 s) doesn't end the climb, but its frames
+  count for nothing.
+- *Attempts*: each stretch on the wall between touchdowns (2 s or longer) is one. One
+  is measured, the one whose COM rose most (the one that got highest); the others are
+  listed in `metrics.json` (`climb.attempts`) with a warning. Best practice: one
+  attempt per clip.
+
+Frames outside the climb keep their video and pose (drawn, labelled "outside the
+climb" or "on the ground") but count for nothing: not on the wall, no holds, no part
+in the scale. Standing on the floor up to 3 s before or after the climb still sets the
+floor height.
+
+A foot off any hold with no hand on a hold is standing on the floor (6.20) only near
+the bottom: within 0.3 body lengths of the lowest foot position of the clip. High on
+the wall it is a smear with the hands on something the detector missed (radmehr1's top
+section, on a volume, read as 8 s "on the ground" before 1.5.1).
+
+### 6.14b Plausibility checks (`engine/checks.py`)
+
+Ground truth (a tape measure, a scale) is the real benchmark; until then, every
+climbing clip checks things the system measured that physics or anatomy tie together.
+A failed check doesn't say which number is wrong, only that the clip's metres
+shouldn't be trusted as they are. In `metrics.json` (`checks`):
+
+| Check | Expected | Fails when |
+|---|---|---|
+| `floor_vs_rise` | highest COM above the floor ≥ its rise during the climb | the floor reference is wrong |
+| `standing_com` | standing upright on the floor (knees > 150°): COM at 0.45-0.75 x stature (true: ~0.55) | scale or floor off |
+| `com_vs_top_hold` | highest hand hold minus highest COM: -0.3 to 1.0 x stature (hanging straight-armed: ~0.65) | heights off (or a top-out) |
+| `body_size` | body segments agree across the wall (spread ≤ 0.10) | perspective not fully corrected: distances uncertain by ~10 % or more |
+| `pose_quality` | mean joint visibility in the climb ≥ 0.6 | the pose model was guessing much of the time |
+| `attempts` | one attempt in the clip | several: one measured |
+
+**The floor is one camera's depth blind spot.** Everything is measured on the wall
+plane. Someone standing on the mat 1 m in front of the wall is nearer the camera: with
+the camera 5 m away they project onto the wall plane ~1.25x bigger, and their feet
+*below* the real floor. The floor height comes from those feet, so heights above the
+floor read high: by 0.0-0.8 m on the test clips, judged against where the floor meets
+the wall in the wall image (and up to 1.2 m on radmehr2, whose floor comes from the
+landing). `standing_com` sits at 0.50-0.67 x stature on the clips that pass, above the
+true 0.55, for the same reason. The rise during the climb (`com_height_gain_m`), and
+distances between holds, don't depend on the floor. Fixing heights above the floor
+needs depth: a wall scan (LiDAR) or a second camera, or tape-measured holds to
+calibrate.
 
 ### 6.15 Cleaning the pose (`engine/cleanup.py`)
 

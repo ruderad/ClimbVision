@@ -728,7 +728,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 50.3,
+        "approx": 50.4,
         "tol": 6
       },
       {
@@ -768,7 +768,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 123.0,
+        "approx": 123.1,
         "tol": 40
       }
     ]
@@ -819,7 +819,7 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 53.5,
+        "approx": 54.2,
         "tol": 6
       },
       {
@@ -849,7 +849,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 47.1,
+        "approx": 49.4,
         "tol": 6
       },
       {
@@ -865,7 +865,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 39.1,
+        "approx": 39.3,
         "tol": 8
       },
       {
@@ -909,7 +909,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 44.47,
+        "approx": 44.41,
         "tol": 2.0
       },
       {
@@ -925,7 +925,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 14,
+        "approx": 15,
         "tol": 2
       },
       {
@@ -940,7 +940,7 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 59.6,
+        "approx": 59.4,
         "tol": 6
       },
       {
@@ -962,7 +962,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 2.58,
+        "approx": 2.57,
         "tol": 0.15
       },
       {
@@ -970,7 +970,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 55.5,
+        "approx": 54.6,
         "tol": 6
       },
       {
@@ -986,7 +986,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 59.0,
+        "approx": 59.1,
         "tol": 8
       },
       {
@@ -994,7 +994,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 0.3,
+        "approx": 0.23,
         "tol": 0.4
       },
       {
@@ -1002,7 +1002,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 49.9,
+        "approx": 49.8,
         "tol": 8
       },
       {
@@ -1010,7 +1010,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 158.3,
+        "approx": 158.1,
         "tol": 40
       }
     ]
@@ -1038,7 +1038,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 14,
+        "approx": 13,
         "tol": 3
       },
       {
@@ -1054,21 +1054,21 @@
           "route",
           "foot_moves"
         ],
-        "approx": 7,
+        "approx": 8,
         "tol": 4
       },
       {
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 55.3,
+        "approx": 52.2,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 64.4,
+        "approx": 62.5,
         "tol": 6
       },
       {
@@ -1083,7 +1083,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.55,
+        "approx": 1.66,
         "tol": 0.15
       },
       {
@@ -1091,7 +1091,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 62.3,
+        "approx": 66.9,
         "tol": 6
       },
       {
@@ -1115,7 +1115,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 1.34,
+        "approx": 0.57,
         "tol": 0.4
       },
       {
@@ -1123,7 +1123,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 48.8,
+        "approx": 49.0,
         "tol": 8
       },
       {
@@ -1131,7 +1131,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 199.0,
+        "approx": 222.2,
         "tol": 40
       }
     ]
@@ -1151,7 +1151,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 30.64,
+        "approx": 30.3,
         "tol": 2.0
       },
       {
@@ -1159,7 +1159,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 21,
+        "approx": 22,
         "tol": 3
       },
       {
@@ -1189,7 +1189,7 @@
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 72.3,
+        "approx": 72.9,
         "tol": 6
       },
       {
@@ -1204,7 +1204,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 2.29,
+        "approx": 2.33,
         "tol": 0.15
       },
       {
@@ -1212,7 +1212,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 60.8,
+        "approx": 61.9,
         "tol": 6
       },
       {
@@ -1228,7 +1228,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 49.8,
+        "approx": 50.1,
         "tol": 8
       },
       {
@@ -1244,7 +1244,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 34.6,
+        "approx": 34.4,
         "tol": 8
       },
       {
@@ -1252,7 +1252,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 170.8,
+        "approx": 174.7,
         "tol": 40
       }
     ]
@@ -1303,14 +1303,14 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 69.5,
+        "approx": 69.4,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 87.2,
+        "approx": 87.1,
         "tol": 6
       },
       {

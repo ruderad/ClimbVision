@@ -90,18 +90,24 @@ class Scale:
 ASSUMED_BODY_M = 1.36
 
 
-def estimate_scale(track: Track, body_m: float = ASSUMED_BODY_M) -> Scale:
+def estimate_scale(track: Track, body_m: float = ASSUMED_BODY_M,
+                   frames: np.ndarray | None = None) -> Scale:
     """From 2D/3D limb ratios. Backends without 3D (2D-only): body length in pixels
     from the image (90th percentile of trunk + leg: foreshortening only shortens) and
-    an assumed body length in metres (`body_m`)."""
+    an assumed body length in metres (`body_m`). `frames`: (n,) bool, the frames to
+    learn the scale from (the climb: engine/climb.py); default all."""
+    use = np.ones(track.n, bool) if frames is None else np.asarray(frames, bool)
+    if not use.any():
+        use = np.ones(track.n, bool)
     ppm = per_frame_px_per_m(track)
     if not np.isfinite(ppm).any():
-        v = chain_len(track.image)
+        v = chain_len(track.image)[use]
         if not np.isfinite(v).any():
             return Scale(float("nan"), float("nan"), ppm)
         body_px = float(np.nanpercentile(v, 90))
         ref = body_px / body_m
         return Scale(body_px, ref, np.full(track.n, ref))
-    ref = float(np.nanmedian(ppm))
+    ref = float(np.nanmedian(ppm[use])) if np.isfinite(ppm[use]).any() \
+        else float(np.nanmedian(ppm))
     body_m = float(np.nanmedian(chain_len(track.world)))
     return Scale(ref * body_m, ref, ppm)
