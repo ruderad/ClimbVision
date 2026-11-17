@@ -8,6 +8,6 @@ __pycache__/
 
 # data and results stay local
 data/
-outputs/
+outputs*/
 models/
 _archive/
