@@ -124,7 +124,8 @@ def test_layers_presets_and_viewer(tmp_path):
     html = write_viewer(video, out, scene=scene)
     text = html.read_text()
     assert (out / "viewer.mp4").exists() and '"layers"' in text and "</script>" in text
-    assert text.count("<script") == 2  # the scene data can't close its own script tag
+    assert text.count("<script") == 3  # muxer, data, code: the data can't close its own tag
+    assert "Mp4Muxer" in text and "Export MP4" in text
 
 
 def test_summary_headlines(tmp_path):

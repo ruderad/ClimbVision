@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Export from the viewer
+- **Export MP4** button: the clip with the layers you have on, a time range, size,
+  slow motion, and the timeline strip; encoded in the browser (WebCodecs, H.264;
+  `mp4-muxer`, MIT, bundled). `climbvision view --open` serves the viewer on localhost
+  (byte ranges, so Safari plays it and export can read the video).
+
 ### Dynamics (`engine/dynamics.py`, GUIDE §6.23)
 - Move phases (push / reach / catch) per hand move; push time and peak power (W/kg);
   when the hand caught relative to the deadpoint. In `moves.csv` and `dynamics` in

@@ -27,7 +27,7 @@ climbvision = "climbvision.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-climbvision = ["recipes/library/*.yaml"]
+climbvision = ["recipes/library/*.yaml", "output/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

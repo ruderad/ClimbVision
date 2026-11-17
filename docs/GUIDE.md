@@ -238,8 +238,19 @@ climbvision view outputs/CLIP [--video PATH] [--open] [--keep-video]
 
 Writes `viewer.html` and `viewer.mp4` (the clip without drawings) in the results
 folder; `analyze` writes them too. Open the HTML file in any browser — it works
-offline, keep it next to `viewer.mp4`. `--open` opens it; `--keep-video` reuses
-`viewer.mp4` and only redoes the overlays (after `metrics`).
+offline, keep it next to `viewer.mp4`. `--open` serves it on this computer
+(`http://127.0.0.1:…`, nothing leaves the machine) and opens it in the browser, until
+Ctrl+C; `--keep-video` reuses `viewer.mp4` and only redoes the overlays (after `metrics`).
+
+**Export MP4** (button under the video): saves the clip with exactly the layers you have
+on, as an H.264 MP4 in your downloads — a range (from / to, or "now" for the current
+frame), size (original, 1080p, 720p), speed (real time, or 0.5× / 0.25× slow motion:
+the same frames played slower) and the timeline strip underneath. It draws frame by
+frame in the browser (WebCodecs: Chrome, Edge, Safari 16.4+; ~10–30 frames/s), so the
+export is exact, not a screen recording. A page opened straight from disk may not be
+allowed to read its own video: the dialog then asks you to pick `viewer.mp4` once;
+`climbvision view … --open` avoids that. The dialog also shows the equivalent
+`climbvision render` command.
 
 ### 3.3b `climbvision pose`
 

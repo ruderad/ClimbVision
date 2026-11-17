@@ -143,7 +143,10 @@ def main(argv: list[str] | None = None) -> int:
     vw.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
     vw.add_argument("--video", type=Path, default=None,
                     help="source video (default: the path stored in summary.json)")
-    vw.add_argument("--open", action="store_true", help="open it in the browser")
+    vw.add_argument("--open", action="store_true",
+                    help="serve it on this computer (http://localhost) and open it in the "
+                    "browser; Ctrl+C to stop. Served pages can export without asking for "
+                    "viewer.mp4")
     vw.add_argument("--keep-video", action="store_true",
                     help="reuse viewer.mp4 if it's there (only the layers are redone)")
 
@@ -319,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "view":
         from climbvision.output.viewer import write_viewer
 
+        pages = []
         for d in args.results:
             summary = json.loads((d / "summary.json").read_text())
             video = args.video or Path(summary["video"])
@@ -327,10 +331,11 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             out = write_viewer(video, d, video=not args.keep_video)
             print(f"[climbvision] wrote {out}")
-            if args.open:
-                import webbrowser
+            pages.append(out.resolve())
+        if args.open and pages:
+            from climbvision.output.viewer import serve
 
-                webbrowser.open(out.resolve().as_uri())
+            serve(pages)
     return 0
 
 
