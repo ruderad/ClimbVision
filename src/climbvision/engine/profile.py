@@ -26,7 +26,7 @@ from pathlib import Path
 
 from climbvision.engine.scale import ASSUMED_BODY_M
 
-BODY_RATIO = 0.531  # trunk + leg / stature (Drillis & Contini; 0.93 m of 1.75 m)
+BODY_RATIO = 0.779  # trunk + leg / stature (Drillis & Contini; see scale.ASSUMED_BODY_M)
 ASSUMED_HEIGHT_M = round(ASSUMED_BODY_M / BODY_RATIO, 2)
 UNKNOWN = ("unknown", "none")  # --climber unknown: an average adult, whatever the default
 

@@ -518,6 +518,16 @@ heights, scale + dead-hang tests, Stray Scanner climbs.
 
 Next: rebuild the regression fixtures from the new pose; then **1.6 depth layer**.
 
+## v1.4.1 — first check against a tape (2026-11-17)
+Session 2 (steep overhang, `data/sessions/2026-11-16_steep-overhang/`): 6 tape-measured
+holds, Stray Scanner C1 (wall pan), C3 (diagonal), C4 (front), bonus (vertical wall),
+Scaniverse scan. Found: the body-ruler constant was wrong (0.531 → 0.779 of stature):
+every metre was 32 % short. After the fix hold heights are within ~25 cm of the tape
+relative to each other; absolute heights +30 cm in the front view (floor parallax).
+LiDAR: recorded at 4.7–5 m, only 35–43 % of pixels confident (C1 at 3.6 m: 59 %).
+Still needed: horizontal tape distances, C2, recordings at 3–3.5 m, the force test
+(at home, pull-up bar + scale).
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

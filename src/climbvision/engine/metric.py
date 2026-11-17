@@ -17,7 +17,7 @@ look shorter (foreshortening), never longer. So:
    clearly more uniform (spread down by a quarter) *and* the trunk — the most rigid
    ruler — agrees.
 2. Scale: the body length (trunk + leg, 90th percentile) in the corrected plane divided
-   by the climber's body length in metres (0.531 x height; an average 1.75 m climber if
+   by the climber's body length in metres (0.779 x height; an average 1.75 m climber if
    the height isn't known).
 
 The aspect ratio (vertical vs horizontal, `k`) is *not* learned from the body: climbing

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1 — 2026-11-17
+
+### Fixed
+- **Every metre from the climbing models was 32 % short.** The body ruler (trunk +
+  leg) is 0.779 x stature, not 0.531 (Drillis & Contini; 0.778 measured on a standing
+  climber). Heights, reach, move lengths, COM speed and acceleration are now 1.47x what
+  1.4.0 reported. Found by checking against tape-measured holds (GUIDE §6.22).
+- Chin-over-bar estimate (pull-ups): chin 0.067 body lengths above the shoulders (was
+  0.095, from the same wrong ratio).
+
 ## 1.4.0 — 2026-11-15
 
 Hold detection (1.4) and pose accuracy (1.5).

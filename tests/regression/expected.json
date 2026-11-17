@@ -720,7 +720,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 0.93,
+        "approx": 1.37,
         "tol": 0.15
       },
       {
@@ -728,7 +728,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 32.1,
+        "approx": 47.3,
         "tol": 6
       },
       {
@@ -841,7 +841,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.66,
+        "approx": 2.39,
         "tol": 0.15
       },
       {
@@ -849,7 +849,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 33.3,
+        "approx": 48.5,
         "tol": 6
       },
       {
@@ -962,7 +962,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.83,
+        "approx": 2.69,
         "tol": 0.15
       },
       {
@@ -970,7 +970,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 39.5,
+        "approx": 59.6,
         "tol": 6
       },
       {
@@ -1083,7 +1083,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.05,
+        "approx": 1.53,
         "tol": 0.15
       },
       {
@@ -1091,7 +1091,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 42.9,
+        "approx": 62.6,
         "tol": 6
       },
       {
@@ -1204,7 +1204,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.51,
+        "approx": 2.22,
         "tol": 0.15
       },
       {
@@ -1212,7 +1212,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 50.9,
+        "approx": 74.6,
         "tol": 6
       },
       {
@@ -1334,7 +1334,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.52,
+        "approx": 2.23,
         "tol": 0.15
       },
       {
@@ -1342,7 +1342,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 54.8,
+        "approx": 80.8,
         "tol": 6
       },
       {

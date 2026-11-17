@@ -108,7 +108,7 @@ def test_climber_profiles(tmp_path, monkeypatch):
     climbers, default = load_climbers()
     assert default == "alex" and set(climbers) == {"alex", "sam"}
     alex = find_climber()
-    assert abs(alex.body_m - 0.531 * 1.80) < 1e-9 and alex.ape_index_cm == 6.0
+    assert abs(alex.body_m - 0.779 * 1.80) < 1e-9 and alex.ape_index_cm == 6.0
     assert find_climber("sam").mass_kg is None
     assert Climber().summary()["height_assumed"]
     import pytest

@@ -657,7 +657,7 @@ whenever the pose looks lost. These models give 2D points and a confidence per p
 (stored as visibility), no 3D. The engine then:
 
 - takes the body size from the image (90th percentile of trunk + leg length, since
-  foreshortening only shortens) and assumes trunk + leg = 0.93 m (a 1.75 m adult) for
+  foreshortening only shortens) and assumes trunk + leg = 1.36 m (a 1.75 m adult) for
   centimetres — so cm values are ±~10 % unless you are that size;
 - uses 2D angles in every view (front-view angles are less reliable than with 3D);
 - extrapolates `HAND` from the forearm when the backend has no hand point (Halpe-26).
@@ -822,7 +822,7 @@ person's distance from the camera. Joints are grouped into parts (heel or toe �
 wrist or hand → hand, elbow → forearm, knee);
 gaps and blips shorter than 0.15 s are cleaned up.
 
-"Body length" throughout means trunk + leg length in pixels (≈ 0.55 × stature), measured
+"Body length" throughout means trunk + leg length in pixels (≈ 0.78 × stature), measured
 robustly from the clip.
 
 ### 6.8 Base of support and stability margin (`engine/support.py`)
@@ -901,9 +901,9 @@ the reported elbow angle uses the 3D estimate in front views.
 
 **Chin over bar** is estimated from the body, not the face, because the face is often
 hidden at the top (by the bar, the hands, or a door frame) while the pose model still
-"sees" a face with full confidence. Chin height = shoulder height + 0.095 body lengths,
+"sees" a face with full confidence. Chin height = shoulder height + 0.067 body lengths,
 from standard proportions (chin ≈ 0.870 × stature, shoulder ≈ 0.818 × stature,
-trunk + leg ≈ 0.55 × stature; Drillis & Contini). The face isn't used even when visible:
+trunk + leg ≈ 0.78 × stature; Drillis & Contini). The face isn't used even when visible:
 while hanging the shoulders shrug up towards the ears, which biases a face-based
 measurement. Shoulder landmarks and proportions are each good to a few cm, so a chin
 within ±5 cm of the bar is reported as `at bar` rather than guessed.
@@ -1070,9 +1070,14 @@ conservative: nothing is invented without good frames of the same limb on both s
 
 **The scale.** Distances in pixels become metres through the climber's body: trunk + leg
 length in the picture (90th percentile over the clip — a picture can shorten a body
-part, never lengthen it) against the same length in metres, 0.531 × height (Drillis &
-Contini). Without a profile the height is an average adult's (1.75 m), so all metres
-are off by your height's ratio to that.
+part, never lengthen it) against the same length in metres, 0.779 × height (Drillis &
+Contini: shoulder 0.818, hip 0.530, ankle 0.039 of stature; 0.778 measured on a
+standing climber). Without a profile the height is an average adult's (1.75 m), so all
+metres are off by your height's ratio to that.
+
+*Fixed in 1.4.1:* the ratio was 0.531 until then, which made every metre from the
+climbing models 32 % short (heights, reach, move lengths, COM speed and acceleration).
+Found with tape-measured holds (§6.22).
 
 **Perspective.** Wall coordinates are the first registered frame's view of the wall, in
 perspective: the camera looks up at the wall, or the wall leans towards it. On the
@@ -1288,6 +1293,35 @@ angles to the shoulder line, so a side bend shows as a C, and the bars turning a
 each other show the twist. When a girdle is seen edge-on (body sideways) its direction
 says little and the curve straightens at that end. The models have no points along the
 back: the curve is a guide for the eye built from the girdles, not a measured spine.
+
+### 6.22 Checked against a tape measure (2026-11-16)
+
+Six holds on the steep overhang wall were measured with a tape (middle of the hold, cm
+above the top of the mat) and climbed on video from the front (C4, tripod ~5 m away)
+and from a diagonal (C3). ClimbVision's hold heights, after the 1.4.1 fix:
+
+| Hold | Tape | Front view | Side view |
+|---|---|---|---|
+| 1 (foot, bottom) | 55.5 | 88 | reference |
+| 1' | 164 | 192 | −10 vs tape |
+| 2 | 240 | 271 | — |
+| 3 | 290 | 334 | — |
+| 4 | 368 | 424 | −28 vs tape |
+| 5 | 438 | 497 | −24 vs tape |
+
+(side view: heights relative to hold 1, no floor visible to it.)
+
+- **Before the fix** every height was 0.68x the tape: the body-ruler constant was wrong
+  (§6.17). That is the 32 % in the 1.4.1 changelog.
+- **Relative heights** (hold to hold) are now within ~25 cm over 3.8 m (front: 2–27 cm, side: 10–28 cm).
+  The front view over-reads the top holds by ~25 cm: the overhang leans towards the
+  camera, so a single flat-wall picture can't be exact there.
+- **Absolute heights** in the front view read ~30 cm high. The floor reference is the
+  climber's feet standing on the floor *in front of* the wall, which the picture puts
+  lower than the wall's base (parallax, worse the steeper the camera looks up). Treat
+  heights above the floor as ±30 cm; differences are better.
+- Fix for both: depth (1.6). The LiDAR of the same clips reached only ~35 % of the
+  picture at 5 m; recordings at 3–3.5 m are needed for it.
 
 ### 6.16 The route (`engine/route.py`)
 

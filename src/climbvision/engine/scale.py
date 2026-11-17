@@ -64,7 +64,7 @@ def chain_len(pts: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Scale:
-    body_px: float  # trunk + leg length in pixels at the median distance (~0.55 stature)
+    body_px: float  # trunk + leg length in pixels at the median distance (~0.78 stature)
     px_per_m: float  # clip median
     ppm: np.ndarray  # (n,) per-frame pixels per metre
 
@@ -82,7 +82,12 @@ class Scale:
         return Scale(self.body_px, self.px_per_m, np.full(len(self.ppm), self.px_per_m))
 
 
-ASSUMED_BODY_M = 0.93  # trunk + leg of a 1.75 m adult (~0.53 x stature)
+# trunk (shoulder to hip joints) + leg (hip to knee to ankle) of a 1.75 m adult: 0.78 x
+# stature (Drillis & Contini: shoulder 0.818, hip 0.530, ankle 0.039 of stature). Was
+# 0.93 m (0.53 x) until 1.4.1, which made every metre from 2D pose 32 % short; found
+# with tape-measured holds (steep overhang, 2026-11-16) and checked on a standing
+# climber in the same clip (0.778).
+ASSUMED_BODY_M = 1.36
 
 
 def estimate_scale(track: Track, body_m: float = ASSUMED_BODY_M) -> Scale:

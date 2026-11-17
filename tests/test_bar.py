@@ -142,4 +142,4 @@ def test_chin_over_bar_without_seeing_the_face():
     summ, _ = analyse(tr, "pullup")
     assert summ["reps"] == 2 and summ["reps_chin"]["over"] == 2
     assert summ["chin_above_shoulders_cm"] == pytest.approx(
-        0.095 * compute_stability(tr, "front", bar=True).scale.body_px / PPM * 100, rel=0.05)
+        0.067 * compute_stability(tr, "front", bar=True).scale.body_px / PPM * 100, rel=0.05)

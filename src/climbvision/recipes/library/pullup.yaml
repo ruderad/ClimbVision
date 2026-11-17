@@ -2,7 +2,7 @@ name: pullup
 description: >
   Pull-ups / chin-ups, counted on how far the shoulders hang below the bar (body
   lengths): ~0.4 in a dead hang, ~0.05 at the top; works from any view, no face needed.
-  Chin over bar is estimated from body proportions (chin ~0.095 body lengths above the
+  Chin over bar is estimated from body proportions (chin ~0.067 body lengths above the
   shoulder line; Drillis & Contini), because the face is often hidden at the top;
   within ±5 cm of the bar it is "at bar" rather than a guess.
 match: ['pull.?up|chin.?up|muscle.?up']
@@ -17,7 +17,7 @@ signals:
   elbow: "smooth(avg(elbow_l_3d, elbow_r_3d) if view == 'front' else elbow, 1/6)"
   hip: smooth(hip, 1/6)
   com_y: smooth(com_y_px, 1/6)
-  chin_px: 0.095 * body_px
+  chin_px: 0.067 * body_px
 
 reps:
   signal: gap
