@@ -66,7 +66,8 @@ def write_moves_csv(path: Path, route) -> None:
             "distance_cm", "direction_deg", "others", "com_over_feet_before_cm",
             "com_over_feet_after_cm", "com_speed_peak_ms", "com_speed_catch_ms",
             "limb_speed_peak_ms", "pause_before_s", "cycle_s", "com_path_efficiency",
-            "com_pushes", "catch_load_pct_bw", "tags"]
+            "com_pushes", "catch_load_pct_bw", "push_s", "push_power_wkg",
+            "deadpoint_to_catch_s", "tags"]
     with path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(cols)

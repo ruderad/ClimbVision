@@ -96,6 +96,16 @@ class Clip:
         return self._cache["_forces"]
 
     @property
+    def dynamics(self):
+        """Move phases, power, deadpoint, swing, joint effort (engine/dynamics.py); also
+        fills the per-move dynamics fields of the route."""
+        if "_dynamics" not in self._cache:
+            from climbvision.engine.dynamics import compute_dynamics
+
+            self._cache["_dynamics"] = compute_dynamics(self)
+        return self._cache["_dynamics"]
+
+    @property
     def wall(self) -> np.ndarray:
         """(n, N_JOINTS, 2) joints in wall coordinates: camera motion removed. Without a
         camera layer the camera is assumed fixed (wall = image)."""

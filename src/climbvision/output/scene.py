@@ -17,11 +17,19 @@ same instructions — `render.py` into an MP4 (OpenCV) and `viewer.py` in the br
 - forces: load on each hand and foot — a disc (size and colour = % body weight) and an
   arrow (the force the hold gives the body)
 - velocity: the COM's velocity — an arrow (where it will be in 0.25 s) and its speed
+- angles: elbow, hip and knee angles in degrees (180 = straight)
+- speed: the COM coloured by its speed (blue still .. white 1 m/s .. red 2 m/s), with its
+  trail — the dynamics view of the COM, instead of balance
+- effort: joint effort — how hard each shoulder, elbow, hip, knee and the core works
+  (net joint moment, Nm/kg; engine/dynamics.py): a glow, bigger and redder = harder
+- arc: on a dynamic move, the free-flight path of the COM from its peak speed (where
+  momentum alone would carry it), the deadpoint (the COM stops rising) and the catch
+- swing: with the feet off, how fast the body turns about the hands (deg/s)
 - info: text — time, what is on holds, the latest move, COM over the feet
 - timeline: contacts per limb, moves, rests and feet cuts along the clip (below the video)
 
 **Presets** pick layers for a purpose: `clean`, `balance` (the classic annotated
-video), `load`, `dynamics`, `all`.
+video), `load`, `dynamics`, `form`, `all`.
 
 Shapes, in image pixels of the frame as analysed; widths and sizes are in *units* of
 1/1000 of the frame's longer side, so they look the same at any resolution:
@@ -49,13 +57,14 @@ import numpy as np
 
 from climbvision.engine.skeleton import BONES, J, spine_curve
 
-LAYERS = ("skeleton", "arms", "contacts", "support", "com", "trail", "forces", "velocity",
-          "info", "timeline")
+LAYERS = ("skeleton", "arms", "angles", "contacts", "support", "com", "trail", "speed",
+          "forces", "effort", "velocity", "arc", "swing", "info", "timeline")
 PRESETS = {
     "clean": ("skeleton",),
     "balance": ("skeleton", "arms", "contacts", "support", "com", "trail", "info"),
-    "load": ("skeleton", "contacts", "forces", "timeline"),
-    "dynamics": ("skeleton", "com", "trail", "velocity", "timeline"),
+    "load": ("skeleton", "contacts", "forces", "effort", "timeline"),
+    "dynamics": ("skeleton", "speed", "velocity", "arc", "swing", "timeline"),
+    "form": ("skeleton", "arms", "angles"),
     "all": LAYERS,
 }
 DEFAULT_PRESET = "balance"
@@ -66,6 +75,20 @@ COM, TRAIL = "#ff3cc8", "#ff96e6"
 INSIDE, OUTSIDE = "#3cd25a", "#f03232"
 CONTACT, SMEAR, BASE, GRIP, FLOOR = "#00dcff", "#ebebeb", "#ffe600", "#a05aff", "#c8c8c8"
 VEL = "#5ad2ff"
+ARC, APEX = "#9be7ff", "#ffe600"
+SWING = "#ff9be0"
+ANGLE_JOINTS = {"l_elbow": (J.L_SHOULDER, J.L_ELBOW, J.L_WRIST),
+                "r_elbow": (J.R_SHOULDER, J.R_ELBOW, J.R_WRIST),
+                "l_hip": (J.L_SHOULDER, J.L_HIP, J.L_KNEE),
+                "r_hip": (J.R_SHOULDER, J.R_HIP, J.R_KNEE),
+                "l_knee": (J.L_HIP, J.L_KNEE, J.L_ANKLE),
+                "r_knee": (J.R_HIP, J.R_KNEE, J.R_ANKLE)}
+EFFORT_AT = {"l_shoulder": (J.L_SHOULDER, "L shoulder"), "r_shoulder": (J.R_SHOULDER, "R shoulder"),
+             "l_elbow": (J.L_ELBOW, "L elbow"), "r_elbow": (J.R_ELBOW, "R elbow"),
+             "l_hip": (J.L_HIP, "L hip"), "r_hip": (J.R_HIP, "R hip"),
+             "l_knee": (J.L_KNEE, "L knee"), "r_knee": (J.R_KNEE, "R knee"),
+             "core": ((J.L_HIP, J.R_HIP), "core")}
+EFFORT_FULL = 2.0  # Nm/kg drawn as full red (the core: twice that — it carries both legs)
 LIMB_COLOURS = {"l_hand": "#b07aff", "r_hand": "#3c9bff", "l_foot": "#ffb000",
                 "r_foot": "#3cd25a"}
 
@@ -79,6 +102,19 @@ def load_colour(pct: float) -> str:
             f = (x - a) / (b - a)
             c = [round(ca[k] + f * (cb[k] - ca[k])) for k in range(3)]
             return "#{:02x}{:02x}{:02x}".format(*c)
+    return "#f03232"
+
+
+def speed_colour(ms: float) -> str:
+    """COM speed (m/s) -> blue (still) .. cyan .. white (1 m/s) .. yellow .. red (2 m/s)."""
+    stops = [(0.0, (60, 120, 255)), (0.5, (90, 210, 255)), (1.0, (255, 255, 255)),
+             (1.5, (255, 200, 0)), (2.0, (240, 50, 50))]
+    x = float(np.clip(ms, 0, 2.0)) if np.isfinite(ms) else 0.0
+    for (a, ca), (b, cb) in zip(stops, stops[1:], strict=False):
+        if x <= b:
+            f = (x - a) / (b - a)
+            return "#{:02x}{:02x}{:02x}".format(*(round(ca[k] + f * (cb[k] - ca[k]))
+                                                for k in range(3)))
     return "#f03232"
 
 
@@ -226,6 +262,13 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
     _ = clip.technique  # adds technique to the move labels
     route = clip.route
     fz = clip.forces
+    try:
+        dyn = clip.dynamics
+    except Exception:  # dynamics are extras: never stop the drawing
+        dyn = None
+    vis = track.visibility
+    speed = (np.linalg.norm(ws.com_v, axis=1) if ws.com_v is not None
+             else np.full(n, np.nan))
     on_smear = ws.on_smear or {limb: np.zeros(n, bool) for limb in LIMBS}
     balance = [None if not np.isfinite(v) else bool(v > 0) for v in ws.polygon_margin_cm]
     keep = max(2, int(trail_seconds * fps))
@@ -347,6 +390,102 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
                                          _r(tip[0][1]), VEL, 4])
             F["velocity"][i].append(["t", _r(c_i[0][0] + 14), _r(c_i[0][1] + 22),
                                      f"{spd:.1f} m/s", VEL, 0.8])
+        # COM coloured by speed, with its trail
+        if c_i is not None and _ok(c_i[0]):
+            spd_i = speed[i]
+            F["speed"][i].append(["c", _r(c_i[0][0]), _r(c_i[0][1]), 9, speed_colour(spd_i), 0, 1])
+            F["speed"][i].append(["c", _r(c_i[0][0]), _r(c_i[0][1]), 11, "#000000", 1, 0])
+        if tr is not None:
+            _trail(F["speed"][i], tr, [None] * len(tr),
+                   colours=[speed_colour(x) for x in speed[a0:i + 1]])
+        # joint angles: elbows, hips, knees
+        for name, (pa, pb, pc) in ANGLE_JOINTS.items():
+            if _ok(p[pa], p[pb], p[pc]) and min(vis[i, pa], vis[i, pb], vis[i, pc]) >= 0.5:
+                ang = float(angle_at(p[pa][None], p[pb][None], p[pc][None])[0])
+                if np.isfinite(ang):
+                    col = ORANGE if (name.endswith("elbow") and ang < 150) else WHITE
+                    F["angles"][i].append(["c", _r(p[pb][0]), _r(p[pb][1]), 6, col, 2, 0])
+                    F["angles"][i].append(["t", _r(p[pb][0] + 10), _r(p[pb][1] - 8),
+                                           f"{ang:.0f}\u00b0", col, 0.75])
+        # joint effort: a glow per joint, the core at the hip centre
+        if dyn is not None:
+            for name, (jidx, lab) in EFFORT_AT.items():
+                mv = dyn.effort.get(name)
+                if mv is None or not np.isfinite(mv[i]):
+                    continue
+                q = p[jidx] if not isinstance(jidx, tuple) else p[list(jidx)].mean(axis=0)
+                if not _ok(q) or mv[i] < 0.15:
+                    continue
+                full = EFFORT_FULL * (2 if name == "core" else 1)
+                col = load_colour(100 * mv[i] / full)
+                rr = 7 + 16 * min(mv[i], full) / full
+                F["effort"][i].append(["c", _r(q[0]), _r(q[1]), _r(rr), col, 0, 0.5])
+                if name == "core" or mv[i] >= 0.6 * full:
+                    F["effort"][i].append(["t", _r(q[0] + rr * 0.8), _r(q[1] + rr * 1.6),
+                                           f"{lab} {mv[i]:.1f}", col, 0.7])
+        # swing about the hands while the feet are off
+        if dyn is not None and np.isfinite(dyn.swing_deg_s[i]) and abs(dyn.swing_deg_s[i]) > 15:
+            hands_w = [ws.points[h][i] for h in ("l_hand", "r_hand") if ws.on_hold[h][i]]
+            pv = to_img(i, np.mean(hands_w, axis=0)) if hands_w else None
+            if pv is not None and c_i is not None and _ok(pv[0], c_i[0]):
+                w_ = float(dyn.swing_deg_s[i])
+                rvec = c_i[0] - pv[0]
+                # metres have y up, the image y down: a positive (counter-clockwise) swing
+                # turns clockwise on screen
+                th = -np.radians(np.clip(w_, -400, 400)) * 0.35
+                ks = np.linspace(0, 1, 12)
+                rot = [np.array([[np.cos(th * k), -np.sin(th * k)],
+                                 [np.sin(th * k), np.cos(th * k)]]) @ rvec for k in ks]
+                pts_ = [pv[0] + r_ for r_ in rot]
+                F["swing"][i].append(["p", [_r(v_) for q_ in pts_[:-1] for v_ in q_], SWING, 3])
+                F["swing"][i].append(["a", _r(pts_[-3][0]), _r(pts_[-3][1]), _r(pts_[-1][0]),
+                                      _r(pts_[-1][1]), SWING, 3])
+                F["swing"][i].append(["c", _r(pv[0][0]), _r(pv[0][1]), 5, SWING, 2, 0])
+                F["swing"][i].append(["t", _r(pts_[-1][0] + 10), _r(pts_[-1][1]),
+                                      f"swing {abs(w_):.0f}\u00b0/s", SWING, 0.8])
+    # momentum arc, deadpoint and catch of dynamic moves
+    if dyn is not None:
+        fps_ = fps
+        for md in dyn.moves:
+            if not md.dynamic or md.arc_m is None:
+                continue
+            pk = md.peak_frame
+            base_px = ws.com[pk]
+            if not _ok(base_px):
+                continue
+            base_m = ws.to_m(base_px)
+            arc_px = np.array([base_px + m_to_px(base_px, q - base_m) for q in md.arc_m])
+            show_to = min(n, md.catch[1] + int(0.4 * fps_))
+            for i in range(md.push[0], show_to):
+                a_img = to_img(i, arc_px)
+                if a_img is None:
+                    continue
+                pts_ = [q for q in a_img if _ok(q)]
+                if len(pts_) >= 2:
+                    F["arc"][i].append(["p", [_r(v_) for q in pts_ for v_ in q], ARC, 3])
+                    for q in pts_[::3]:
+                        F["arc"][i].append(["c", _r(q[0]), _r(q[1]), 3.5, ARC, 0, 1])
+                    # the top of the free-flight path: where momentum alone would peak
+                    top_k = int(np.argmax(md.arc_m[:, 1]))
+                    if 0 < top_k < len(a_img) and _ok(a_img[top_k]):
+                        q = a_img[top_k]
+                        F["arc"][i].append(["c", _r(q[0]), _r(q[1]), 7, ARC, 2, 0])
+                if md.apex_frame is not None and i >= md.apex_frame and _ok(ws.com[md.apex_frame]):
+                    ap = to_img(i, ws.com[md.apex_frame])
+                    if ap is not None and _ok(ap[0]):
+                        F["arc"][i].append(["c", _r(ap[0][0]), _r(ap[0][1]), 9, APEX, 3, 0])
+                        F["arc"][i].append(["t", _r(ap[0][0] + 12), _r(ap[0][1] - 10),
+                                            "deadpoint", APEX, 0.75])
+                c_fr = md.reach[1] - 1
+                if i >= c_fr and _ok(ws.com[c_fr]) and np.isfinite(md.deadpoint_to_catch_s):
+                    cp = to_img(i, ws.com[c_fr])
+                    if cp is not None and _ok(cp[0]):
+                        dtc = md.deadpoint_to_catch_s
+                        txt = (f"catch {abs(dtc):.2f} s " + ("after" if dtc > 0 else "before")
+                               + " the deadpoint")
+                        F["arc"][i].append(["c", _r(cp[0][0]), _r(cp[0][1]), 6, "#ffffff", 2, 0])
+                        F["arc"][i].append(["t", _r(cp[0][0] + 14), _r(cp[0][1] + 52), txt,
+                                            "#ffffff", 0.75])
 
 
 def _floor_layers(clip, F, trail_seconds, fps, w):
@@ -399,8 +538,9 @@ def _floor_layers(clip, F, trail_seconds, fps, w):
         _trail(F["trail"][i], st.com_px[a0:i + 1], balance[a0:i + 1])
 
 
-def _trail(out: list, pts: np.ndarray, balance: list) -> None:
-    """The COM's recent path as coloured polylines (older = dimmer), split at gaps."""
+def _trail(out: list, pts: np.ndarray, balance: list, colours: list | None = None) -> None:
+    """The COM's recent path as coloured polylines (older = dimmer), split at gaps.
+    `colours`: one per point instead of the balance colours."""
     m_ = len(pts)
     xy: list[float] = []
     cols: list[str] = []
@@ -411,8 +551,11 @@ def _trail(out: list, pts: np.ndarray, balance: list) -> None:
             xy, cols = [], []
             continue
         if xy:
-            b = balance[k]
-            col = TRAIL if b is None else (INSIDE if b else OUTSIDE)
+            if colours is not None:
+                col = colours[k]
+            else:
+                b = balance[k]
+                col = TRAIL if b is None else (INSIDE if b else OUTSIDE)
             cols.append(_fade(col, 0.35 + 0.65 * k / m_))
         xy += [_r(pts[k][0]), _r(pts[k][1])]
     if cols:
@@ -424,13 +567,27 @@ def _fade(col: str, f: float) -> str:
     return "#{:02x}{:02x}{:02x}".format(*(int(v * f) for v in c))
 
 
+def _runs_of(x: np.ndarray) -> list[tuple[int, int]]:
+    """[a, b) runs of equal, non-zero values."""
+    out = []
+    a = None
+    for i in range(len(x) + 1):
+        v = x[i] if i < len(x) else 0
+        if a is not None and (v != x[a]):
+            out.append((a, i))
+            a = None
+        if a is None and v:
+            a = i
+    return out
+
+
 def build_timeline(clip, wall: bool) -> dict:
     """Rows of spans along the clip (seconds): one row per limb (on a hold / smear /
     ground), plus moves (a tick from release to catch, number), rests and feet cuts."""
     t = clip.t
     dt = float(np.median(np.diff(t))) if len(t) > 1 else 1 / 30
     end = float(t[-1]) + dt if len(t) else 0.0
-    out: dict = {"duration": round(end, 3), "rows": [], "moves": [], "bands": []}
+    out: dict = {"duration": round(end, 3), "rows": [], "moves": [], "bands": [], "phases": []}
     if wall:
         from climbvision.engine.wall import LABEL, LIMBS
 
@@ -454,6 +611,16 @@ def build_timeline(clip, wall: bool) -> dict:
         for a, b in route.feet_cut:
             out["bands"].append([round(float(t[a]), 3), round(float(t[b - 1]) + dt, 3),
                                  "feet cut"])
+        try:
+            dyn = clip.dynamics
+            from climbvision.engine.dynamics import PHASES
+
+            for a_, b_ in _runs_of(dyn.phase):
+                k = int(dyn.phase[a_])
+                out["phases"].append([round(float(t[a_]), 3), round(float(t[b_ - 1]) + dt, 3),
+                                      PHASES[k]])
+        except Exception:
+            pass
         fz = clip.forces
         if fz is not None:
             out["load"] = {"hands": [None if not np.isfinite(v) else round(float(v))

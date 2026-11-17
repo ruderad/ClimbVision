@@ -426,12 +426,13 @@ switches each on and off while the clip plays. **Presets** pick layers for a pur
 |---|---|---|
 | clean | skeleton | watching the climb |
 | balance | skeleton, bent arms, holds, base of support, COM, trail, info text | static climbing, slabs, vertical walls — the classic annotated video |
-| load | skeleton, holds, forces, timeline | where the weight goes: % body weight on each hand and foot |
-| dynamics | skeleton, COM, trail, velocity, timeline | dynos, deadpoints, cut feet: momentum instead of balance |
+| load | skeleton, holds, forces, joint effort, timeline | where the weight goes and which joints work: % body weight on each hand and foot, Nm/kg at each joint |
+| dynamics | skeleton, COM coloured by speed, velocity, dyno arc, swing, timeline | dynos, deadpoints, cut feet: momentum instead of balance |
+| form | skeleton, bent arms, joint angles | technique: straight arms, hip and knee angles |
 | all | everything | |
 
 The viewer: play / pause (space or click the video), one frame back / on (← →), one
-second (shift + ← →), speed 0.1–1× ([ ]), presets 1–5. The **timeline** under the video
+second (shift + ← →), speed 0.1–1× ([ ]), presets 1–6. The **timeline** under the video
 has one row per limb (on a hold: solid; smear: faint; ground: grey), the moves (white
 ticks, red = dyno or jump, numbered; hover for duration, tags and catch load), rests
 (green), feet cut (red), and the load on the hands and the feet (% body weight, 100 %
@@ -442,7 +443,12 @@ dotted). Click or drag to jump. Your layer choice is remembered in that browser.
 |---|---|---|
 | forces | Disc + arrow + % on a hand or foot | Load on that limb, % body weight (disc size and colour: green light → yellow half → red all of it); the arrow is the force the hold gives the body (up for a jug, sideways for a sidepull). Wall plane only (§6.19) |
 | velocity | Blue arrow + m/s from the COM | Where the COM is heading: the arrow tip is where it would be 0.25 s later at this speed |
-| timeline | Strip under the video | See above |
+| timeline | Strip under the video | See above; the *phase* row colours each hand move: push (orange), reach (blue), catch (red) — §6.23 |
+| speed | COM dot + trail coloured by speed | blue still, white 1 m/s, red 2 m/s and faster |
+| angles | Degrees at elbows, hips, knees | 2D angle in the picture, 180 = straight; a bent holding elbow is orange |
+| effort | Glow on shoulders, elbows, hips, knees; "core" at the hips | How hard the joint works: net joint moment, Nm/kg (bigger, redder = harder; full red at 2 Nm/kg, the core at 4). Values written next to the core and to joints above 1.2 Nm/kg (§6.23) |
+| arc | Dotted blue curve, ring at its top, yellow "deadpoint", white "catch" | On a dynamic move (COM ≥ 0.6 m/s): the path the COM would fly from its peak speed with gravity alone; the ring is where that flight would peak; *deadpoint* is where the real COM stopped rising; *catch* says when the hand caught, before or after the deadpoint |
+| swing | Pink curved arrow about the hands, deg/s | Feet off: how fast the body turns about the hand holds, and which way |
 
 The other drawings (skeleton, bent arms, holds, base of support, COM, trail, info text):
 
@@ -1367,6 +1373,57 @@ and from a diagonal (C3). ClimbVision's hold heights, after the 1.4.1 fix:
   heights above the floor as ±30 cm; differences are better.
 - Fix for both: depth (1.6). The LiDAR of the same clips reached only ~35 % of the
   picture at 5 m; recordings at 3–3.5 m are needed for it.
+
+### 6.23 Dynamics: move phases, the deadpoint, swing, joint effort (`engine/dynamics.py`)
+
+Balance (the base of support) describes standing still. Dynamic climbing — dynos,
+deadpoints, cut feet, campusing — is about momentum and effort, so these are computed
+from the COM's velocity and acceleration (§6.17) and the contact forces (§6.19).
+
+**Move phases.** Each hand move is split by the COM's speed: *push* from the slowest
+moment before the hand lets go (within 1 s) to the COM's peak speed — the body is being
+driven; *reach* from the peak to the catch — momentum carries it; *catch* until the
+speed is down to 40 % of the peak (≤ 0.4 s) — the hand absorbs it. Per move
+(`moves.csv`): `push_s`, `push_power_wkg` (peak mechanical power of the push, v·(a + g),
+W/kg) and `deadpoint_to_catch_s` (below).
+
+*Time resolution.* A phase is resolved to one frame: 33 ms at 30 fps, 17 ms at 60, 4 ms
+in 240 fps slow motion. The COM velocity is smoothed over ~0.2 s (§6.17) and the pose
+over ±0.07–0.12 s (§6.21), so pushes shorter than ~0.1 s are blurred into their
+neighbours. Frame by frame in the viewer you see the phase change at that resolution,
+not finer. For fast sequences film at 60 fps (or slow motion for single dynos): the
+phases and the deadpoint sharpen accordingly.
+
+**Deadpoint and catch.** The deadpoint is where the COM stops rising (vertical velocity
++ → −). `deadpoint_to_catch_s` = catch − deadpoint: negative = the hand caught while the
+body was still rising (static-dynamic), around 0 = a deadpoint catch, positive = the
+body was already falling (the hand had to catch the drop: higher catch load).
+
+**Momentum arc.** For moves with a COM peak speed ≥ 0.6 m/s, the free-flight parabola
+from the peak (position and velocity, gravity only). On a dyno it is the flight; with
+the feet still pushing it shows where momentum alone would carry the body. Its top vs
+the real deadpoint shows whether the push was aimed at the hold.
+
+**Swing.** With the feet off the holds and a hand on, the COM's angular velocity about
+the hand hold(s), deg/s. Per feet-cut (`dynamics.swings`): the peak and how long it
+took to settle below 30 °/s (none = it didn't settle before the feet came back).
+
+**Joint effort.** The net moment each joint must produce to hold the contact force at
+the end of its limb plus the weight of the segments beyond it (quasi-static inverse
+dynamics, wall plane, De Leva segment masses), in Nm per kg of body mass — the standard
+proxy in sports biomechanics for how hard the muscles around a joint work. *Core* = the
+moment the trunk passes between the legs and the upper body: both feet's forces and the
+legs' weight about the hip centre; high when the feet push hard far from the hips (toe
+hooks, high feet on steep walls). Summary: `dynamics.effort_nm_kg_median` and `_p95`
+(95th percentile: single-frame spikes from a misplaced joint are common).
+First numbers (iman3, steep, dynamic): medians 0.1–0.5 Nm/kg, p95 1–4 at the joints
+and ~5 for the core; for reference, a static half squat is ~1 Nm/kg at the knee and
+sprinting peaks ~3–4 at the hip. The core and hip values on steep walls look high:
+they depend on the direction of the foot forces, which the force split (§6.19) knows
+least well — the dead-hang and scale test will tell. Limits: segment inertia is
+ignored (small next to the contact forces except in hard swings); out-of-plane forces
+on steep walls are missing as in §6.19; it inherits every error of the pose and the
+force split. Compare moves and attempts; don't read single values as measurements.
 
 ### 6.16 The route (`engine/route.py`)
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Dynamics (`engine/dynamics.py`, GUIDE §6.23)
+- Move phases (push / reach / catch) per hand move; push time and peak power (W/kg);
+  when the hand caught relative to the deadpoint. In `moves.csv` and `dynamics` in
+  metrics.json; a phase row on the timeline.
+- Momentum arc of dynamic moves, swing about the hands with the feet off (peak and
+  settling time per feet cut), joint effort (net joint moments, Nm/kg) at shoulders,
+  elbows, hips, knees and the core.
+- New layers: COM coloured by speed, joint angles, joint effort, dyno arc, swing.
+  Presets: `dynamics` now uses the speed-coloured COM (balance colours mean nothing in
+  a dyno); new `form` preset.
+
 ### Overlays and the interactive viewer
 - Everything drawn on the video is a **layer** (skeleton, bent arms, holds, base of
   support, COM, trail, forces, velocity, info text, timeline), built once from the

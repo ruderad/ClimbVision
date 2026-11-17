@@ -18,8 +18,9 @@ import numpy as np
 from climbvision.output.scene import Scene, build_scene, resolve_layers
 
 # drawing order: things on the wall first, the body, then what sits on top
-DRAW_ORDER = ("support", "trail", "contacts", "forces", "skeleton", "arms", "com", "velocity",
-              "info")
+DRAW_ORDER = ("support", "trail", "contacts", "effort", "forces", "skeleton", "arms", "angles",
+              "arc", "swing", "com", "speed", "velocity", "info")
+PHASE_BGR = {"push": (0, 140, 255), "reach": (255, 210, 90), "catch": (80, 80, 255)}
 
 
 def _bgr(col: str) -> tuple[int, int, int]:
@@ -137,7 +138,9 @@ def draw_timeline(width: int, timeline: dict, t: float, unit: float) -> np.ndarr
     row_h = max(10, int(20 * unit))
     label_w = max(40, int(110 * unit))
     top = max(8, int(14 * unit))
-    h = top + row_h * len(rows) + max(6, int(12 * unit))
+    phases = timeline.get("phases") or []
+    n_rows = len(rows) + (1 if phases else 0)
+    h = top + row_h * n_rows + max(6, int(12 * unit))
     band = np.full((h, width, 3), 18, np.uint8)
     x0, x1 = label_w, width - max(6, int(10 * unit))
 
@@ -162,6 +165,14 @@ def draw_timeline(width: int, timeline: dict, t: float, unit: float) -> np.ndarr
             over = band.copy()
             cv2.rectangle(over, (X(a), ya), (max(X(a) + 1, X(b)), yb), col, -1)
             cv2.addWeighted(over, alpha, band, 1 - alpha, 0, band)
+    if phases:
+        y = top + len(rows) * row_h
+        cv2.putText(band, "phase", (int(6 * unit), y + int(row_h * 0.72)), font, fs,
+                    (200, 200, 200), th, cv2.LINE_AA)
+        for a, b, name in phases:
+            cv2.rectangle(band, (X(a), y + int(row_h * 0.25)),
+                          (max(X(a) + 1, X(b)), y + int(row_h * 0.75)),
+                          PHASE_BGR.get(name, (150, 150, 150)), -1)
     idx = {row["limb"]: k for k, row in enumerate(rows)}
     for m in timeline.get("moves", []):
         k = idx.get(m["limb"])

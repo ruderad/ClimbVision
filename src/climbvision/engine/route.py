@@ -82,6 +82,10 @@ class Move:
     com_path_efficiency: float = float("nan")  # straight / path of the COM over the cycle
     com_pushes: float = float("nan")  # separate COM speed peaks over the cycle
     catch_load_pct_bw: float = float("nan")  # hand moves: peak load on that hand, 0.3 s
+    # dynamics (engine/dynamics.py)
+    push_s: float = float("nan")  # driving the body: slowest moment -> COM peak speed
+    push_power_wkg: float = float("nan")  # peak mechanical power of the push, W/kg
+    deadpoint_to_catch_s: float = float("nan")  # catch - COM stops rising (+ after)
     #                                          after the catch (engine/forces.py)
 
     @property
@@ -110,6 +114,8 @@ class Move:
                 "com_path_efficiency": r(self.com_path_efficiency, 2),
                 "com_pushes": None if not np.isfinite(self.com_pushes) else int(self.com_pushes),
                 "catch_load_pct_bw": r(self.catch_load_pct_bw),
+                "push_s": r(self.push_s, 2), "push_power_wkg": r(self.push_power_wkg),
+                "deadpoint_to_catch_s": r(self.deadpoint_to_catch_s, 2),
                 "tags": list(self.tags)}
 
 

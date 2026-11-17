@@ -106,7 +106,9 @@ def test_layers_presets_and_viewer(tmp_path):
     make_video(video)
     out = tmp_path / "boulder"
     run_pose(video, out, FakeEstimator())
-    run_analysis(out, "climb")
+    m = run_analysis(out, "climb")
+    assert "dynamics" in m and "effort_nm_kg_p95" in m["dynamics"]
+    assert "phases" in build_scene(out).timeline
     scene = build_scene(out)
     assert len(scene.t) == 16 or len(scene.t) == 20
     assert set(scene.frames) == {n for n in PRESETS["all"] if n != "timeline"}

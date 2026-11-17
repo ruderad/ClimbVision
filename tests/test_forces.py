@@ -56,3 +56,18 @@ def test_forces_on_a_synthetic_climb():
     assert np.allclose(np.nanmedian(total[:, 1]), 1.0, atol=0.05)  # one body weight
     s = forces_summary(fz, ws, t)
     assert 0 < s["hands_share_pct_median"] < 100 and s["hands_load_n_peak"] > 0
+
+
+def test_free_flight_arc_and_swing_sign():
+    """The momentum arc is a parabola under g; a counter-clockwise swing is positive."""
+    import numpy as np
+
+    from climbvision.engine.dynamics import G
+
+    p0, v0 = np.array([0.0, 1.0]), np.array([0.5, 2.0])
+    ts = np.arange(0, 0.8, 1 / 30)
+    arc = p0 + np.outer(ts, v0) + 0.5 * np.outer(ts ** 2, [0, -G])
+    k = int(np.argmax(arc[:, 1]))
+    assert abs(ts[k] - v0[1] / G) < 1 / 30  # apex when vy = 0
+    r, v = np.array([0.0, -1.0]), np.array([1.0, 0.0])  # below the pivot, moving right
+    assert np.degrees((r[0] * v[1] - r[1] * v[0]) / (r @ r)) > 0  # counter-clockwise

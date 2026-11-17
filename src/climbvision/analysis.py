@@ -150,6 +150,9 @@ def run_analysis(result_dir: str | Path, recipe: str | Recipe = "auto", plot: bo
 
         out["forces"] = forces_summary(clip.forces, clip.wall_support, clip.t, clip.route)
         write_forces_csv(result_dir / "forces.csv", clip.forces, clip.t)
+        from climbvision.engine.dynamics import dynamics_summary
+
+        out["dynamics"] = dynamics_summary(clip.dynamics)  # before moves_detail, like technique
         out["route"] = {**route_summary(route, clip.wall_support, clip.t),
                         "moves_detail": [m.as_dict() for m in route.moves]}
         write_moves_csv(result_dir / "moves.csv", route)

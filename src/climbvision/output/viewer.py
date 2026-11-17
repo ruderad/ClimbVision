@@ -8,7 +8,7 @@ its details). The file works offline: open it in any browser; keep it next to
 `viewer.mp4`.
 
 Shortcuts: space play / pause · ← → one frame · shift + ← → one second ·
-1–5 presets · [ ] slower / faster.
+1–6 presets · [ ] slower / faster.
 """
 
 from __future__ import annotations
@@ -96,22 +96,27 @@ main{display:flex;flex-direction:column;align-items:center;padding:12px 16px;gap
     <span id="time"></span>
   </div>
   <div id="tlwrap"><canvas id="tl"></canvas><div id="tip"></div></div>
-  <div class="help">space play/pause · ← → frame · shift+← → 1 s · [ ] speed · 1–5 presets · click the timeline to jump</div>
+  <div class="help">space play/pause · ← → frame · shift+← → 1 s · [ ] speed · 1–6 presets · click the timeline to jump</div>
 </main>
 <script type="application/json" id="scene">__DATA__</script>
 <script>
 const S = JSON.parse(document.getElementById('scene').textContent);
 const v = document.getElementById('v'), c = document.getElementById('c'), ctx = c.getContext('2d');
 const tl = document.getElementById('tl'), tctx = tl.getContext('2d'), tip = document.getElementById('tip');
-const ORDER = ["support","trail","contacts","forces","skeleton","arms","com","velocity","info"];
-const LABELS = {skeleton:"Skeleton",arms:"Bent arms",contacts:"Holds",support:"Base of support",com:"COM",
-  trail:"COM trail",forces:"Forces",velocity:"Velocity",info:"Info text",timeline:"Timeline"};
+const ORDER = ["support","trail","contacts","effort","forces","skeleton","arms","angles","arc","swing","com","speed","velocity","info"];
+const LABELS = {skeleton:"Skeleton",arms:"Bent arms",angles:"Joint angles",contacts:"Holds",support:"Base of support",com:"COM (balance)",
+  trail:"COM trail",speed:"COM (speed)",forces:"Forces",effort:"Joint effort",velocity:"Velocity",arc:"Dyno arc",swing:"Swing",info:"Info text",timeline:"Timeline"};
 const HELP = {skeleton:"bones, spine, joints; grey = hidden or guessed",arms:"holding arms orange when bent",
   contacts:"rings: limbs on holds; dashed: smears",support:"hull of the limbs on holds; plumb line from the COM",
   com:"green inside the base of support, red outside",trail:"COM path, last 2 s",
   forces:"load on each hand / foot, % body weight; arrow = force the hold gives the body",
   velocity:"where the COM is heading (0.25 s ahead)",info:"time, contacts, latest move",
-  timeline:"contacts per limb, moves (red = dyno), rests (green), feet cut (red)"};
+  timeline:"contacts per limb, moves (red = dyno), rests (green), feet cut (red), move phases, load",
+  angles:"elbow, hip, knee angles (180 = straight); bent holding elbows orange",
+  speed:"COM coloured by speed: blue still, white 1 m/s, red 2 m/s",
+  effort:"how hard each joint works (net joint moment, Nm/kg): bigger and redder = harder; core at the hips",
+  arc:"dynamic moves: free-flight path from the peak speed, the deadpoint, and when the hand caught",
+  swing:"feet off: how fast the body turns about the hands"};
 const STORE = "climbvision.viewer.layers";
 let on = new Set(S.presets[S.default_preset]);
 try { const s = JSON.parse(localStorage.getItem(STORE)); if (Array.isArray(s)) on = new Set(s); } catch (e) {}
@@ -209,8 +214,9 @@ function draw() {
 
 // ---------- timeline
 const TL = S.timeline, rowH = 22, T0 = 8, left = 70, right = 10;
-const LOADH = TL.load ? 46 : 0;
-const tlH = T0 + rowH * Math.max(1, TL.rows.length) + LOADH + 24;
+const LOADH = TL.load ? 46 : 0, PH = (TL.phases && TL.phases.length) ? rowH : 0;
+const PHC = {push: "#ff8c00", reach: "#5ad2ff", catch: "#ff5050"};
+const tlH = T0 + rowH * Math.max(1, TL.rows.length) + PH + LOADH + 24;
 function tlSize() { const w = tl.clientWidth || 800, dpr = window.devicePixelRatio || 1;
   tl.width = w * dpr; tl.height = tlH * dpr; tl.style.height = tlH + "px"; tctx.setTransform(dpr, 0, 0, dpr, 0, 0); return w; }
 let tlW = 800;
@@ -230,8 +236,10 @@ function drawTimeline(t) {
     const hot = m.tags.includes("dyno") || m.tags.includes("jump"); tctx.strokeStyle = hot ? "#ff5050" : "#eee"; tctx.lineWidth = 2;
     tctx.beginPath(); tctx.moveTo(X(m.a), y); tctx.lineTo(Math.max(X(m.a) + 1, X(m.b)), y); tctx.stroke();
     tctx.fillStyle = hot ? "#ff5050" : "#ddd"; tctx.fillText(m.n, X(m.b) + 2, y - 3); }
+  if (PH) { tctx.fillStyle = "#9a9ca3"; tctx.fillText("phase", 6, y1 + 15);
+    for (const [a, b, name] of TL.phases) { tctx.fillStyle = PHC[name] || "#999"; tctx.fillRect(X(a), y1 + 6, Math.max(1, X(b) - X(a)), rowH - 12); } }
   if (TL.load) {  // load on the hands and the feet, % body weight (100 % dotted)
-    const ly0 = y1 + 4, lh = LOADH - 8, top = 150, n = S.t.length;
+    const ly0 = y1 + PH + 4, lh = LOADH - 8, top = 150, n = S.t.length;
     const Y = v => ly0 + lh - lh * Math.min(v, top) / top;
     tctx.strokeStyle = "#666"; tctx.setLineDash([3, 3]); tctx.beginPath(); tctx.moveTo(left, Y(100)); tctx.lineTo(w - right, Y(100)); tctx.stroke(); tctx.setLineDash([]);
     for (const [key, col] of [["hands", "#b07aff"], ["feet", "#3cd25a"]]) { const arr = TL.load[key]; tctx.strokeStyle = col; tctx.lineWidth = 1.5; tctx.beginPath(); let pen = false;
@@ -239,7 +247,7 @@ function drawTimeline(t) {
     tctx.fillStyle = "#9a9ca3"; tctx.fillText("load", 6, ly0 + 14); tctx.fillStyle = "#b07aff"; tctx.fillText("hands", 6, ly0 + 28); tctx.fillStyle = "#3cd25a"; tctx.fillText("feet", 6, ly0 + 40);
   }
   // seconds
-  const y2 = y1 + LOADH;
+  const y2 = y1 + PH + LOADH;
   tctx.fillStyle = "#777"; const stepS = TL.duration > 60 ? 10 : TL.duration > 20 ? 5 : 1;
   for (let s = 0; s <= TL.duration; s += stepS) { tctx.fillRect(X(s), y2 + 2, 1, 5); tctx.fillText(s + "s", X(s) + 2, y2 + 16); }
   tctx.fillStyle = "#fff"; tctx.fillRect(X(t) - 1, 2, 2, tlH - 4);
@@ -255,7 +263,11 @@ function hover(e) {
   const r = tl.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const k = Math.floor((y - T0) / rowH), row = TL.rows[k]; let best = null;
   const yl = T0 + rowH * TL.rows.length;
-  if (TL.load && y > yl && y < yl + LOADH) { const s = (x - left) / (tlW - left - right) * TL.duration;
+  if (PH && y > yl && y < yl + PH) { const s = (x - left) / (tlW - left - right) * TL.duration;
+    const ph = TL.phases.find(([a, b]) => s >= a && s <= b);
+    if (ph) { tip.innerHTML = `<b>${ph[2]}</b> ${(ph[1] - ph[0]).toFixed(2)} s`; tip.style.display = 'block';
+      tip.style.left = Math.min(x + 12, r.width - 200) + 'px'; tip.style.top = (y + 12) + 'px'; return; } }
+  if (TL.load && y > yl + PH && y < yl + PH + LOADH) { const s = (x - left) / (tlW - left - right) * TL.duration;
     let i = 0; while (i < S.t.length - 1 && S.t[i] < s) i++; const h = TL.load.hands[i], f = TL.load.feet[i];
     if (h != null) { tip.innerHTML = `${S.t[i].toFixed(2)} s<br>hands ${h}% · feet ${f}% body weight`; tip.style.display = 'block';
       tip.style.left = Math.min(x + 12, r.width - 200) + 'px'; tip.style.top = (y + 12) + 'px'; return; } }
