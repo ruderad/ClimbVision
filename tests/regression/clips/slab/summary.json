@@ -1,5 +1,5 @@
 {
-  "video": "data/videos/slab.MOV",
+  "video": "data/videos/slab.mov",
   "backend": "rtmw_wholebody133",
   "sex_model": "male",
   "frame_size": [
@@ -11,19 +11,26 @@
   "duration_s": 25.535,
   "frames_with_pose": 767,
   "detection_rate": 1.0,
+  "video_fingerprint": {
+    "size_bytes": 29012075,
+    "frame_count": 785,
+    "fps": 29.326,
+    "width": 1080,
+    "height": 1920
+  },
   "com_px": {
     "mean": [
       417.7,
-      743.1
+      743.2
     ],
     "std": [
-      208.29,
-      172.24
+      208.14,
+      172.21
     ],
     "range": [
-      697.2,
-      789.3
+      695.4,
+      792.2
     ]
   },
-  "mean_confidence": 1.0
+  "mean_confidence": 0.98
 }

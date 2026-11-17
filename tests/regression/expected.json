@@ -667,7 +667,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 30.86,
+        "approx": 30.83,
         "tol": 2.0
       },
       {
@@ -675,7 +675,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 27,
+        "approx": 25,
         "tol": 3
       },
       {
@@ -683,7 +683,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 13,
+        "approx": 11,
         "tol": 2
       },
       {
@@ -691,21 +691,21 @@
           "route",
           "foot_moves"
         ],
-        "approx": 14,
+        "approx": 15,
         "tol": 4
       },
       {
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 52.0,
+        "approx": 49.2,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 84.1,
+        "approx": 85.2,
         "tol": 6
       },
       {
@@ -720,7 +720,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.37,
+        "approx": 1.38,
         "tol": 0.15
       },
       {
@@ -728,7 +728,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 47.3,
+        "approx": 50.3,
         "tol": 6
       },
       {
@@ -736,7 +736,7 @@
           "technique",
           "quiet_feet_pct"
         ],
-        "approx": 76.2,
+        "approx": 89.5,
         "tol": 10
       },
       {
@@ -744,7 +744,128 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 74.0,
+        "approx": 75.2,
+        "tol": 8
+      },
+      {
+        "path": [
+          "technique",
+          "pause_before_hand_move_s_median"
+        ],
+        "approx": 0.63,
+        "tol": 0.4
+      },
+      {
+        "path": [
+          "forces",
+          "hands_share_pct_median"
+        ],
+        "approx": 27.2,
+        "tol": 8
+      },
+      {
+        "path": [
+          "forces",
+          "hands_load_pct_bw_peak"
+        ],
+        "approx": 123.0,
+        "tol": 40
+      }
+    ]
+  },
+  "slab": {
+    "exercise": "climb",
+    "verified": "Fixed camera. Palming the wall for balance at the start and a mantle near the end: hands at the hip are holds, not chalking (4 points was 45 % with the chalking rule).",
+    "checks": [
+      {
+        "path": [
+          "exercise"
+        ],
+        "eq": "climb"
+      },
+      {
+        "path": [
+          "wall",
+          "on_wall_s"
+        ],
+        "approx": 24.47,
+        "tol": 2.0
+      },
+      {
+        "path": [
+          "wall",
+          "holds_used"
+        ],
+        "approx": 24,
+        "tol": 3
+      },
+      {
+        "path": [
+          "route",
+          "hand_moves"
+        ],
+        "approx": 12,
+        "tol": 2
+      },
+      {
+        "path": [
+          "route",
+          "foot_moves"
+        ],
+        "approx": 11,
+        "tol": 4
+      },
+      {
+        "path": [
+          "pct_4_contacts"
+        ],
+        "approx": 53.5,
+        "tol": 6
+      },
+      {
+        "path": [
+          "feet_on_holds_pct"
+        ],
+        "approx": 84.5,
+        "tol": 6
+      },
+      {
+        "path": [
+          "camera",
+          "static"
+        ],
+        "eq": true
+      },
+      {
+        "path": [
+          "wall",
+          "com_height_gain_m"
+        ],
+        "approx": 2.03,
+        "tol": 0.15
+      },
+      {
+        "path": [
+          "route",
+          "hand_move_cm_median"
+        ],
+        "approx": 47.1,
+        "tol": 6
+      },
+      {
+        "path": [
+          "technique",
+          "quiet_feet_pct"
+        ],
+        "approx": 100.0,
+        "tol": 10
+      },
+      {
+        "path": [
+          "technique",
+          "straight_arms_pct"
+        ],
+        "approx": 39.1,
         "tol": 8
       },
       {
@@ -768,128 +889,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 118.5,
-        "tol": 40
-      }
-    ]
-  },
-  "slab": {
-    "exercise": "climb",
-    "verified": "Fixed camera. Palming the wall for balance at the start and a mantle near the end: hands at the hip are holds, not chalking (4 points was 45 % with the chalking rule).",
-    "checks": [
-      {
-        "path": [
-          "exercise"
-        ],
-        "eq": "climb"
-      },
-      {
-        "path": [
-          "wall",
-          "on_wall_s"
-        ],
-        "approx": 25.44,
-        "tol": 2.0
-      },
-      {
-        "path": [
-          "wall",
-          "holds_used"
-        ],
-        "approx": 25,
-        "tol": 3
-      },
-      {
-        "path": [
-          "route",
-          "hand_moves"
-        ],
-        "approx": 12,
-        "tol": 2
-      },
-      {
-        "path": [
-          "route",
-          "foot_moves"
-        ],
-        "approx": 12,
-        "tol": 4
-      },
-      {
-        "path": [
-          "pct_4_contacts"
-        ],
-        "approx": 53.1,
-        "tol": 6
-      },
-      {
-        "path": [
-          "feet_on_holds_pct"
-        ],
-        "approx": 82.3,
-        "tol": 6
-      },
-      {
-        "path": [
-          "camera",
-          "static"
-        ],
-        "eq": true
-      },
-      {
-        "path": [
-          "wall",
-          "com_height_gain_m"
-        ],
-        "approx": 2.39,
-        "tol": 0.15
-      },
-      {
-        "path": [
-          "route",
-          "hand_move_cm_median"
-        ],
-        "approx": 48.5,
-        "tol": 6
-      },
-      {
-        "path": [
-          "technique",
-          "quiet_feet_pct"
-        ],
-        "approx": 100.0,
-        "tol": 10
-      },
-      {
-        "path": [
-          "technique",
-          "straight_arms_pct"
-        ],
-        "approx": 39.5,
-        "tol": 8
-      },
-      {
-        "path": [
-          "technique",
-          "pause_before_hand_move_s_median"
-        ],
-        "approx": 0.62,
-        "tol": 0.4
-      },
-      {
-        "path": [
-          "forces",
-          "hands_share_pct_median"
-        ],
-        "approx": 27.2,
-        "tol": 8
-      },
-      {
-        "path": [
-          "forces",
-          "hands_load_pct_bw_peak"
-        ],
-        "approx": 146.9,
+        "approx": 139.5,
         "tol": 40
       }
     ]
@@ -909,7 +909,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 43.24,
+        "approx": 44.47,
         "tol": 2.0
       },
       {
@@ -917,7 +917,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 31,
+        "approx": 33,
         "tol": 3
       },
       {
@@ -925,7 +925,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 15,
+        "approx": 14,
         "tol": 2
       },
       {
@@ -933,21 +933,21 @@
           "route",
           "foot_moves"
         ],
-        "approx": 23,
+        "approx": 27,
         "tol": 4
       },
       {
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 57.8,
+        "approx": 59.6,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 79.7,
+        "approx": 78.4,
         "tol": 6
       },
       {
@@ -962,7 +962,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 2.69,
+        "approx": 2.58,
         "tol": 0.15
       },
       {
@@ -970,7 +970,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 59.6,
+        "approx": 55.5,
         "tol": 6
       },
       {
@@ -978,7 +978,7 @@
           "technique",
           "quiet_feet_pct"
         ],
-        "approx": 92.6,
+        "approx": 96.7,
         "tol": 10
       },
       {
@@ -986,7 +986,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 58.9,
+        "approx": 59.0,
         "tol": 8
       },
       {
@@ -994,7 +994,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 1.13,
+        "approx": 0.3,
         "tol": 0.4
       },
       {
@@ -1002,7 +1002,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 48.9,
+        "approx": 49.9,
         "tol": 8
       },
       {
@@ -1010,7 +1010,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 137.5,
+        "approx": 158.3,
         "tol": 40
       }
     ]
@@ -1030,7 +1030,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 18.02,
+        "approx": 18.35,
         "tol": 2.0
       },
       {
@@ -1038,7 +1038,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 12,
+        "approx": 14,
         "tol": 3
       },
       {
@@ -1054,21 +1054,21 @@
           "route",
           "foot_moves"
         ],
-        "approx": 5,
+        "approx": 7,
         "tol": 4
       },
       {
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 51.5,
+        "approx": 55.3,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 60.5,
+        "approx": 64.4,
         "tol": 6
       },
       {
@@ -1083,7 +1083,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 1.53,
+        "approx": 1.55,
         "tol": 0.15
       },
       {
@@ -1091,7 +1091,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 62.6,
+        "approx": 62.3,
         "tol": 6
       },
       {
@@ -1099,7 +1099,7 @@
           "technique",
           "quiet_feet_pct"
         ],
-        "approx": 87.5,
+        "approx": 100.0,
         "tol": 10
       },
       {
@@ -1107,7 +1107,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 78.4,
+        "approx": 78.8,
         "tol": 8
       },
       {
@@ -1115,7 +1115,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 1.07,
+        "approx": 1.34,
         "tol": 0.4
       },
       {
@@ -1123,7 +1123,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 49.9,
+        "approx": 48.8,
         "tol": 8
       },
       {
@@ -1131,7 +1131,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 211.0,
+        "approx": 199.0,
         "tol": 40
       }
     ]
@@ -1151,7 +1151,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 30.6,
+        "approx": 30.64,
         "tol": 2.0
       },
       {
@@ -1159,7 +1159,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 22,
+        "approx": 21,
         "tol": 3
       },
       {
@@ -1167,7 +1167,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 8,
+        "approx": 11,
         "tol": 2
       },
       {
@@ -1175,21 +1175,21 @@
           "route",
           "foot_moves"
         ],
-        "approx": 16,
+        "approx": 14,
         "tol": 4
       },
       {
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 47.9,
+        "approx": 44.8,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 71.0,
+        "approx": 72.3,
         "tol": 6
       },
       {
@@ -1204,7 +1204,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 2.22,
+        "approx": 2.29,
         "tol": 0.15
       },
       {
@@ -1212,7 +1212,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 74.6,
+        "approx": 60.8,
         "tol": 6
       },
       {
@@ -1220,7 +1220,7 @@
           "technique",
           "quiet_feet_pct"
         ],
-        "approx": 88.9,
+        "approx": 94.1,
         "tol": 10
       },
       {
@@ -1228,7 +1228,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 48.9,
+        "approx": 49.8,
         "tol": 8
       },
       {
@@ -1236,7 +1236,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 1.45,
+        "approx": 1.37,
         "tol": 0.4
       },
       {
@@ -1244,7 +1244,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 33.5,
+        "approx": 34.6,
         "tol": 8
       },
       {
@@ -1252,7 +1252,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 167.9,
+        "approx": 170.8,
         "tol": 40
       }
     ]
@@ -1272,7 +1272,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 26.41,
+        "approx": 26.54,
         "tol": 2.0
       },
       {
@@ -1280,7 +1280,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 17,
+        "approx": 18,
         "tol": 3
       },
       {
@@ -1288,7 +1288,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 8,
+        "approx": 9,
         "tol": 2
       },
       {
@@ -1303,14 +1303,14 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 67.7,
+        "approx": 69.5,
         "tol": 6
       },
       {
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 86.7,
+        "approx": 87.2,
         "tol": 6
       },
       {
@@ -1326,7 +1326,7 @@
           "on_hold_pct",
           "R hand"
         ],
-        "approx": 95.1,
+        "approx": 94.2,
         "tol": 8
       },
       {
@@ -1334,7 +1334,7 @@
           "wall",
           "com_height_gain_m"
         ],
-        "approx": 2.23,
+        "approx": 2.21,
         "tol": 0.15
       },
       {
@@ -1342,7 +1342,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 80.8,
+        "approx": 74.1,
         "tol": 6
       },
       {
@@ -1358,7 +1358,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 39.1,
+        "approx": 38.9,
         "tol": 8
       },
       {
@@ -1366,7 +1366,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 0.41,
+        "approx": 0.45,
         "tol": 0.4
       },
       {
@@ -1374,7 +1374,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 33.0,
+        "approx": 33.1,
         "tol": 8
       },
       {
@@ -1382,7 +1382,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 119.3,
+        "approx": 176.5,
         "tol": 40
       }
     ]

@@ -40,6 +40,10 @@ def add_clip(result_dir: Path) -> None:
         if name.endswith(GZ):
             with src.open("rb") as fi, gzip.open(dest / f"{name}.gz", "wb", compresslevel=9) as fo:
                 shutil.copyfileobj(fi, fo)
+        elif name == "summary.json":  # fixtures are anonymous: no climber name
+            d = json.loads(src.read_text())
+            d.pop("climber", None)
+            (dest / name).write_text(json.dumps(d, indent=2) + "\n")
         else:
             shutil.copy(src, dest / name)
     print(f"fixture: {dest}")
@@ -70,12 +74,16 @@ def get_path(d, path):
 
 
 def update_snapshots() -> None:
+    import os
     import tempfile
 
     from climbvision.analysis import run_analysis
 
     expected = json.loads(EXPECTED.read_text())
     with tempfile.TemporaryDirectory() as tmp:
+        # as in the tests (conftest.py): no personal climber profiles, no models
+        os.environ["CLIMBVISION_CLIMBERS"] = str(Path(tmp) / "no_climbers.yaml")
+        os.environ["CLIMBVISION_MODELS"] = str(Path(tmp) / "no_models")
         for clip, spec in expected.items():
             m = run_analysis(unpack(clip, Path(tmp)), spec["exercise"], plot=False)
             for check in spec["checks"]:

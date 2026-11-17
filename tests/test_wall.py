@@ -194,6 +194,45 @@ def test_dark_wall_panel_with_holds_at_the_bottom_is_not_floor():
     assert m is None or m[360:].mean() < 0.05
 
 
+def test_speckled_concrete_floor_is_still_floor():
+    """Concrete and mats have small specks that fail the flatness test; they are not
+    holds, so they must not turn the floor into a "wall panel"."""
+    import cv2
+
+    from climbvision.engine.wall import floor_mask
+
+    rng = np.random.default_rng(2)
+    img = np.full((600, 400, 3), (90, 170, 220), np.uint8)  # wood wall ...
+    for _ in range(40):  # ... with holds
+        c = (int(rng.integers(0, 400)), int(rng.integers(0, 330)))
+        cv2.circle(img, c, int(rng.integers(8, 16)), (60, 60, 200), -1)
+    img[400:] = (150, 150, 150)  # grey concrete floor ...
+    for _ in range(150):  # ... full of small specks
+        c = (int(rng.integers(0, 400)), int(rng.integers(405, 600)))
+        cv2.circle(img, c, int(rng.integers(1, 3)), (125, 125, 125), -1)
+    m = floor_mask(WallImage(img, np.ones(img.shape[:2], np.int32), np.eye(3)))
+    assert m is not None and m[420:].mean() > 0.9
+    assert m[:380].mean() < 0.05
+
+
+def test_detected_holds_make_a_bottom_panel_a_wall():
+    import cv2
+
+    from climbvision.engine.holddetect import HoldBoxes
+    from climbvision.engine.wall import floor_mask
+
+    img = np.full((600, 400, 3), (90, 170, 220), np.uint8)
+    img[350:] = (35, 35, 35)  # a dark panel with a few small holds at the bottom
+    pts = [(60, 420), (160, 470), (260, 430), (340, 520), (110, 560), (220, 540)]
+    for x, y in pts:
+        cv2.circle(img, (x, y), 5, (150, 150, 200), -1)
+    wi = WallImage(img, np.ones(img.shape[:2], np.int32), np.eye(3))
+    assert floor_mask(wi) is not None  # too few hold-sized things to tell by itself ...
+    boxes = np.array([[x - 6, y - 6, x + 6, y + 6] for x, y in pts], float)
+    m = floor_mask(wi, hold_boxes=HoldBoxes(boxes, np.ones(len(pts)), "test"))
+    assert m is None or m[360:].mean() < 0.05  # ... the detector tells
+
+
 def _smear_plan(body_moves: bool):
     smear_spot = (380, 700)
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Floor detection (GUIDE §6.14)
+- Textured floors are floors again: the wall-panel test counts only hold-sized objects
+  (≥ 0.1 % of the image, 8 or more) instead of every patch that isn't flat, so concrete
+  (steep-overhang side view: 0.1 % → 18 % of the image) and iman3's orange mat (1 % →
+  17 %) are found; a foot on them is on the ground, not a smear.
+- When the hold detector ran, 5 or more detected holds inside a region make it a wall
+  panel (the surer test); the traverse's lower panel stays wall either way.
+
+### Regression fixtures
+- The six climbing fixtures are rebuilt from the current pose (RTMW with flip
+  averaging and calibrated visibility) and their snapshots updated. Fixtures are
+  anonymous (`build_fixtures.py` drops the climber name), and `--update-snapshots` now
+  runs without your climber profiles and models, exactly like the tests.
+
 ## 1.5.0 — 2026-11-17
 
 Overlays, the interactive viewer and dynamics: what a climber sees, rebuilt around

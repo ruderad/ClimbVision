@@ -1085,9 +1085,16 @@ those foot anchors must not count as footholds. Two cues, either is enough:
    same moment, level (within 0.06 body lengths), and no higher than any other foot
    anchor of the clip. This catches a mat whose colour isn't in the bottom band.
 
-A region with 30 or more separate things inside it is not a floor but a wall panel full
-of holds: when the camera is close to the wall, the bottom band of `wall.jpg` is wall.
-(Floors in the test clips have up to ~14 objects: shoes, bags, mat edges.)
+A region that is really a wall panel full of holds is not a floor: when the camera is
+close to the wall, the bottom band of `wall.jpg` is wall. Two tests, either is enough:
+
+- **detected holds** (when the hold detector ran): 5 or more inside the region;
+- **hold-sized objects**: 8 or more separate things inside the region, each at least
+  0.1 % of the image. Only hold-sized things count: concrete and speckled mats have
+  hundreds of small patches that fail the flatness test (before 1.5.1 every patch
+  counted, so the concrete floor of the steep-overhang session and iman3's orange mat
+  were taken for walls, and a foot on the floor read as a smear). In the test clips real
+  floors have 0–6 such objects (shoes, bags, mat seams); the traverse panel has 12.
 
 Footholds have wall below them. The climb (`on_wall`) runs from the first to the last
 moment with a foot on a hold — or a hand on a hold above the shoulders (hanging with the
@@ -1912,7 +1919,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Deadpoint | COM up ≥ 0.3 m/s during the move, ≤ 0.15 m/s at the catch | `route.RouteParams` |
 | Technique: lift, straight arm, pushes | 0.1 body; elbow ≥ 150°; peaks ≥ 0.1 m/s, dip < 50 % | `technique.TechniqueParams` |
 | Forces: hand cost, friction, swing | 3× foot; 0.8; 5 cm | `forces.ForceParams` |
-| Floor vs wall panel | ≥ 30 objects inside = wall | `wall.floor_mask(max_objects)` |
+| Floor vs wall panel | ≥ 5 detected holds, or ≥ 8 hold-sized objects (≥ 0.1 % of the image) inside = wall | `wall.floor_mask(max_holds, max_objects, object_frac)` |
 | Pose clean-up: flicker, bones, check | 0.12 body from the 0.6 s median; 1.35 × 75th pct (min: segment share of body); interpolation ≤ 0.8 s; check over 1 s | `cleanup.CleanupParams`, `cleanup.MIN_REF` |
 | Camera: working size, points, RANSAC, keyframes | 960 px, 250–600 points, 2.5 px, new keyframe < 75 % overlap, anchor every 5 frames to keyframes ≥ 1 s old | `camera.CameraParams` |
 

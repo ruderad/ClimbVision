@@ -11,19 +11,26 @@
   "duration_s": 31.825,
   "frames_with_pose": 1909,
   "detection_rate": 1.0,
+  "video_fingerprint": {
+    "size_bytes": 82110160,
+    "frame_count": 1909,
+    "fps": 59.953,
+    "width": 752,
+    "height": 1214
+  },
   "com_px": {
     "mean": [
       502.4,
       699.6
     ],
     "std": [
-      73.61,
-      129.54
+      73.63,
+      129.55
     ],
     "range": [
-      362.2,
-      764.5
+      360.8,
+      764.1
     ]
   },
-  "mean_confidence": 1.0
+  "mean_confidence": 0.971
 }

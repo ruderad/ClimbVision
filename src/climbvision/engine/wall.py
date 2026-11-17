@@ -233,16 +233,22 @@ def _on_mask(anchors: list[Anchor], n: int) -> np.ndarray:
 
 
 def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
-               max_objects: int = 30) -> np.ndarray | None:
+               max_objects: int = 8, object_frac: float = 1e-3, max_holds: int = 5,
+               hold_boxes=None) -> np.ndarray | None:
     """Where the floor is in the wall image (bool, wall-image pixels), or None.
 
     The bottom band of the wall image (lowest 8 % of the rows seen) shows the floor
     when the camera sees it — possibly several surfaces (concrete, a mat, a towel). Its
     main colours (k-means, k = 3, clusters with >= 15 % of the band) are the floor
     colours; the floor is every pixel of those colours that is *connected* to the bottom
-    band. Connectivity keeps a light wall panel higher up from counting as floor. A
-    region with `max_objects` or more separate things inside it is a wall panel with
-    holds (the camera didn't see the floor), not a floor."""
+    band. Connectivity keeps a light wall panel higher up from counting as floor.
+
+    A region that is really a wall panel with holds (the camera didn't see the floor)
+    is dropped: it has `max_holds` or more detected holds in it (`hold_boxes`, when the
+    hold detector ran), or `max_objects` or more separate hold-sized things inside it
+    (each at least `object_frac` of the image). Only hold-sized things count: a textured
+    floor (concrete, a speckled mat) has hundreds of small patches that fail the
+    flatness test, and counting those turned real floors into "walls"."""
     img = wall_image.image
     seen = img.max(axis=2) > 0
     rows = np.flatnonzero(seen.any(axis=1))
@@ -292,7 +298,7 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
     # (a camera close to the wall sees no floor: the bottom band is wall)
     comp, holes = holes_of(mask)
     n_m, mcomp = cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)
-    min_area = max(20, int(5e-5 * seen.sum()))
+    min_area = max(20, int(object_frac * seen.sum()))
     count = np.zeros(n_m, int)
     for h in np.unique(comp[holes]):
         hm = comp == h
@@ -302,7 +308,25 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
         around = around[around > 0]
         if len(around):
             count[np.bincount(around).argmax()] += 1
-    wall_like = np.flatnonzero(count >= max_objects)
+    wall_like = count >= max_objects
+    if hold_boxes is not None and len(hold_boxes):  # detected holds: the surer test
+        from climbvision.engine.camera import apply_h
+
+        b = np.asarray(hold_boxes.boxes, float)
+        c = np.round(apply_h(wall_image.T, np.c_[(b[:, 0] + b[:, 2]) / 2,
+                                                   (b[:, 1] + b[:, 3]) / 2])).astype(int)
+        hh, ww = mask.shape
+        ok = (c[:, 0] >= 0) & (c[:, 0] < ww) & (c[:, 1] >= 0) & (c[:, 1] < hh)
+        filled = cv2.connectedComponents((mask | holes).astype(np.uint8), connectivity=8)[1]
+        # a hold sits in a hole of the region (or on its edge): count it for the region
+        # around it
+        at = filled[c[ok, 1], c[ok, 0]]
+        for lab_ in np.unique(at[at > 0]):
+            n_in = int((at == lab_).sum())
+            if n_in >= max_holds:
+                wall_like |= np.isin(np.arange(n_m),
+                                     np.unique(mcomp[(filled == lab_) & mask]))
+    wall_like = np.flatnonzero(wall_like & (np.arange(n_m) > 0))
     if len(wall_like):
         mask &= ~np.isin(mcomp, wall_like)
         if not mask.any():
@@ -335,13 +359,14 @@ def mark_standing(anchors: dict[str, list[Anchor]], t: np.ndarray, body_px: floa
 
 
 def mark_ground(anchors: dict[str, list[Anchor]], wall_image, body_px: float,
-                prm: WallParams, t: np.ndarray | None = None) -> bool:
+                prm: WallParams, t: np.ndarray | None = None, hold_boxes=None) -> bool:
     """Mark foot anchors on the ground (see module doc): the area just below the toe is
     floor (`floor_mask`), or (`mark_standing`) both feet stand level and lowest at the
     start or end. Returns whether a floor was found in the wall image."""
     from climbvision.engine.camera import apply_h
 
-    mask = floor_mask(wall_image, prm.floor_lab_tol) if wall_image is not None else None
+    mask = (floor_mask(wall_image, prm.floor_lab_tol, hold_boxes=hold_boxes)
+            if wall_image is not None else None)
     if mask is None:
         return False
     b = body_px * wall_image.T[0, 0]  # body length in wall-image pixels
@@ -479,7 +504,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     n = len(t)
     pts = limb_points(wall_points)
     anchors = {limb: detect_anchors(pts[limb], t, body_px, limb, prm) for limb in LIMBS}
-    floor_seen = mark_ground(anchors, wall_image, body_px, prm, t)
+    floor_seen = mark_ground(anchors, wall_image, body_px, prm, t, hold_boxes)
     detected = np.isfinite(wall_points[:, J.L_SHOULDER, 0])
     ok = detected if camera_ok is None else detected & camera_ok
     foot_hold = np.zeros(n, bool)
