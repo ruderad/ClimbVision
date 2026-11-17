@@ -34,7 +34,7 @@ def write_viewer(video_path: str | Path, result_dir: str | Path,
             size = tuple(scene.size) if scene.size and scene.size[0] else (
                 reader.info.width, reader.info.height)
             resize = size != (reader.info.width, reader.info.height)
-            with VideoWriter(mp4, scene.fps, size, crf=18) as w:
+            with VideoWriter(mp4, scene.fps, size, crf=18, audio_from=video_path) as w:
                 if not w.browser_ready:
                     print("[climbvision] no ffmpeg found: viewer.mp4 is MPEG-4 and won't play "
                           "in a browser (pip install imageio-ffmpeg)")
@@ -198,6 +198,7 @@ dialog code{display:block;white-space:pre-wrap;word-break:break-all;background:#
   <div class="row"><span>Size</span><select id="xsize"><option value="1">original</option><option value="1080">1080p</option><option value="720">720p</option></select></div>
   <div class="row"><span>Speed</span><select id="xspeed"><option value="1">real time</option><option value="0.5">0.5× (slow motion)</option><option value="0.25">0.25×</option></select></div>
   <div class="row"><span>Timeline</span><label><input type="checkbox" id="xtl"> strip under the video</label></div>
+  <div class="row"><span>Sound</span><label><input type="checkbox" id="xsnd" checked> the clip's sound (real time only)</label></div>
   <div id="xprog" style="display:none"><progress id="xbar" max="1" value="0"></progress><div class="note" id="xmsg"></div></div>
   <div class="note" id="xerr"></div>
   <details class="note"><summary>…or from the terminal</summary><code id="xcmd"></code></details>
@@ -438,6 +439,32 @@ async function pickCodec(w, h, fps, bitrate) {
   }
   return [null, null];
 }
+// the sound of [t0, t1) of the video as planar float PCM, and an encoder config for it
+async function prepareSound(t0, t1) {
+  const buf = await (await fetch(v.currentSrc)).arrayBuffer();
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  let ab;
+  try { ab = await ac.decodeAudioData(buf); } catch (e) { return null; }  // no audio track
+  finally { ac.close(); }
+  if (!ab || !ab.length) return null;
+  const rate = ab.sampleRate, ch = Math.min(2, ab.numberOfChannels);
+  const a = Math.max(0, Math.round(t0 * rate)), b = Math.min(ab.length, Math.round(t1 * rate));
+  if (b <= a) return null;
+  const planes = []; for (let c2 = 0; c2 < ch; c2++) planes.push(ab.getChannelData(c2).slice(a, b));
+  for (const [codec, mux] of [["mp4a.40.2", "aac"], ["opus", "opus"]]) {
+    const r2 = codec === "opus" ? 48000 : rate;
+    const cfg = {codec, sampleRate: r2, numberOfChannels: ch, bitrate: 160000};
+    try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) {
+      if (r2 !== rate) return {cfg, mux, rate: r2, ch, planes: planes.map(p => resample(p, rate, r2))};
+      return {cfg, mux, rate, ch, planes}; } } catch (e) {}
+  }
+  throw new Error("no sound encoder in this browser");
+}
+function resample(x, from, to) {  // linear: good enough for a voice / a gym's sound
+  const n = Math.round(x.length * to / from), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const p = i * from / to, k = Math.floor(p), f = p - k; out[i] = (x[k] || 0) * (1 - f) + (x[k + 1] || 0) * f; }
+  return out;
+}
 $('xgo').onclick = async () => {
   if (exporting || !window.VideoEncoder) return;
   const fps = S.fps, i0 = Math.max(0, Math.floor(+$('xa').value * fps)), i1 = Math.min(N - 1, Math.ceil(+$('xb').value * fps) - 1);
@@ -450,8 +477,36 @@ $('xgo').onclick = async () => {
   const cv = document.createElement('canvas'); cv.width = ow; cv.height = total; const g = cv.getContext('2d');
   const [cfg, mux] = await pickCodec(ow, total, outFps, Math.round(Math.min(40e6, 10e6 * ow * total / (1080 * 1920))));
   if (!cfg) { $('xerr').textContent = "No video encoder for this size in this browser; try a smaller size, or the terminal command."; return; }
+  // the clip's sound for [t0, t1): decoded and encoded in the browser (AAC, else Opus),
+  // before the video, so a problem with the sound only drops the sound
+  let snd = null, sndNote = "", aChunks = [];
+  if ($('xsnd').checked && +$('xspeed').value === 1 && window.AudioEncoder) {
+    $('xprog').style.display = ""; $('xmsg').textContent = "reading the sound…";
+    try {
+      snd = await prepareSound(i0 / fps, (i1 + 1) / fps);
+      if (!snd) sndNote = " (the clip has no sound)";
+      else {
+        let aFail = null;
+        const aenc = new AudioEncoder({output: (chunk, meta) => aChunks.push([chunk, meta]), error: e => aFail = e});
+        aenc.configure(snd.cfg);
+        const step = 1024, n = snd.planes[0].length;
+        for (let o = 0; o < n; o += step) {
+          const len = Math.min(step, n - o), data = new Float32Array(len * snd.ch);
+          for (let c2 = 0; c2 < snd.ch; c2++) data.set(snd.planes[c2].subarray(o, o + len), c2 * len);
+          const ad = new AudioData({format: "f32-planar", sampleRate: snd.rate, numberOfFrames: len, numberOfChannels: snd.ch,
+            timestamp: Math.round(o * 1e6 / snd.rate), data});
+          aenc.encode(ad); ad.close();
+        }
+        await aenc.flush(); aenc.close();
+        if (aFail) throw aFail;
+      }
+    } catch (e) { snd = null; aChunks = []; sndNote = " (without sound: " + (e && e.message ? e.message : e) + ")"; }
+  } else if ($('xsnd').checked && +$('xspeed').value !== 1) sndNote = " (no sound in slow motion)";
+  else if ($('xsnd').checked && !window.AudioEncoder) sndNote = " (this browser can't encode sound)";
   const target = new Mp4Muxer.ArrayBufferTarget();
-  const muxer = new Mp4Muxer.Muxer({target, video: {codec: mux, width: ow, height: total}, fastStart: "in-memory"});
+  const muxer = new Mp4Muxer.Muxer({target, video: {codec: mux, width: ow, height: total},
+    ...(snd ? {audio: {codec: snd.mux, sampleRate: snd.rate, numberOfChannels: snd.ch}} : {}), fastStart: "in-memory"});
+  for (const [chunk, meta] of aChunks) muxer.addAudioChunk(chunk, meta);
   let failed = null;
   const enc = new VideoEncoder({output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => failed = e});
   enc.configure(cfg);
@@ -478,7 +533,7 @@ $('xgo').onclick = async () => {
       const blob = new Blob([target.buffer], {type: "video/mp4"});
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
       a.download = `${S.name}_${lastPreset() || "custom"}${+$('xspeed').value < 1 ? "_slow" : ""}.mp4`; document.body.appendChild(a); a.click(); a.remove();
-      $('xmsg').textContent = `Saved ${a.download} (${(blob.size / 1e6).toFixed(1)} MB) to your downloads.`;
+      $('xmsg').textContent = `Saved ${a.download} (${(blob.size / 1e6).toFixed(1)} MB) to your downloads${sndNote}.`;
     } else $('xmsg').textContent = "Cancelled.";
   } catch (e) {
     if (e && e.name === "SecurityError") {

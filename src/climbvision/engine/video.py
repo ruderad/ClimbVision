@@ -85,10 +85,14 @@ def ffmpeg_exe() -> str | None:
 class VideoWriter:
     """MP4 writer. H.264 (plays in every browser and phone) through ffmpeg when there is
     one (`imageio-ffmpeg`, a dependency, brings its own); otherwise OpenCV's MPEG-4,
-    which desktop players open but browsers don't."""
+    which desktop players open but browsers don't.
+
+    `audio_from`: a video whose sound goes into the new file (AAC), from its start and cut
+    to the length of what is written — the original clip's sound on the annotated video.
+    Silently skipped if that file has no sound (and without ffmpeg)."""
 
     def __init__(self, path: str | Path, fps: float, size: tuple[int, int],
-                 crf: int = 20) -> None:
+                 crf: int = 20, audio_from: str | Path | None = None) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.size = (int(size[0]), int(size[1]))
@@ -100,12 +104,15 @@ class VideoWriter:
             w, h = self.size
             # H.264 needs even sizes: pad by a pixel if needed
             vf = f"pad={w + w % 2}:{h + h % 2}"
-            self._p = subprocess.Popen(
-                [exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                 "-s", f"{w}x{h}", "-r", f"{fps:.6f}", "-i", "-", "-vf", vf,
-                 "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
-                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(self.path)],
-                stdin=subprocess.PIPE)
+            cmd = [exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+                   "-s", f"{w}x{h}", "-r", f"{fps:.6f}", "-i", "-"]
+            if audio_from is not None and Path(audio_from).exists():
+                # sound of the original; "?" = fine if it has none; cut to the video
+                cmd += ["-i", str(audio_from), "-map", "0:v:0", "-map", "1:a:0?",
+                        "-c:a", "aac", "-b:a", "160k", "-shortest"]
+            cmd += ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
+                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(self.path)]
+            self._p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
         else:
             self._w = cv2.VideoWriter(str(self.path), cv2.VideoWriter_fourcc(*"mp4v"), fps,
                                       self.size)

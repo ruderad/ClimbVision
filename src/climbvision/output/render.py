@@ -208,7 +208,8 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
         band_h = 0
         if "timeline" in chosen and scene.timeline["rows"]:
             band_h = draw_timeline(size[0], scene.timeline, 0.0, unit).shape[0]
-        with VideoWriter(out_path, scene.fps, (size[0], size[1] + band_h)) as writer:
+        with VideoWriter(out_path, scene.fps, (size[0], size[1] + band_h),
+                         audio_from=video_path) as writer:
             for i, (_, _t, img) in enumerate(reader.frames(step=scene.step)):
                 if i >= n:
                     break

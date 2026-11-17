@@ -228,7 +228,8 @@ file is `annotated_<preset>.mp4` unless `--out` names it. The source video path 
 from `summary.json`; pass `--video` if it moved. If the results were computed on a
 resized copy of the video, the original is resized to match before drawing. Videos are
 H.264 (they play in browsers and on phones) when ffmpeg is available — `imageio-ffmpeg`,
-a dependency, brings its own.
+a dependency, brings its own — and keep the original clip's **sound** (AAC; a clip
+without sound stays silent).
 
 ### 3.3a `climbvision view`
 

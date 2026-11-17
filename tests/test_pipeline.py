@@ -142,3 +142,35 @@ def test_summary_headlines(tmp_path):
     rows = summarize_results([d, tmp_path / "missing"])
     assert len(rows) == 1 and rows[0]["result"].startswith("2 reps, pull 45 cm")
     assert "| clip |" in markdown_table(rows)
+
+
+def test_annotated_video_keeps_the_sound(tmp_path):
+    """The original clip's sound goes into the annotated video (and the viewer's)."""
+    import subprocess
+
+    import pytest
+
+    from climbvision.engine.video import ffmpeg_exe
+
+    exe = ffmpeg_exe()
+    if not exe:
+        pytest.skip("no ffmpeg")
+    silent = tmp_path / "silent.mp4"
+    make_video(silent)
+    video = tmp_path / "clip.mp4"
+    subprocess.run([exe, "-y", "-loglevel", "error", "-i", str(silent), "-f", "lavfi",
+                    "-i", "sine=frequency=440:duration=5", "-c:v", "copy", "-c:a", "aac",
+                    "-shortest", str(video)], check=True)
+    out = tmp_path / "out"
+    run_pose(video, out, FakeEstimator())
+    run_analysis(out, "none")
+    path = render(video, out)
+    probe = subprocess.run([exe, "-i", str(path)], capture_output=True, text=True).stderr
+    assert "Audio: aac" in probe and "Video: h264" in probe
+    # and a clip without sound still renders (no audio track, no error)
+    out2 = tmp_path / "out2"
+    run_pose(silent, out2, FakeEstimator())
+    run_analysis(out2, "none")
+    probe2 = subprocess.run([exe, "-i", str(render(silent, out2))], capture_output=True,
+                            text=True).stderr
+    assert "Audio:" not in probe2

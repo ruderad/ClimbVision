@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Sound
+- `annotated.mp4`, `annotated_<preset>.mp4` and `viewer.mp4` keep the original clip's
+  sound; the viewer's Export MP4 includes it for the chosen range (real time).
+
 ### Hanging counts as climbing
 - A hand on a hold above the shoulders now starts / keeps the climb (`on_wall`) even
   with no foot on a hold: clips that start in a hang or campus long sections (iman5,
