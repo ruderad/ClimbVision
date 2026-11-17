@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Smears you can trust (GUIDE §6.20, §6.19)
+- A still limb off any hold is a **smear** only if the body moved over it (≥ 10 cm);
+  otherwise a **flag** (no contact: not in the base of support, no force), drawn grey
+  "flag?". A foot "smearing" with no hand on a hold is standing on the floor.
+- Smears are weak contacts in the force model (6x a foothold's cost); their loads are
+  drawn hollow with "~"; `forces.smear_overloaded_s`. No forces in impacts (> 2.5 g)
+  and dismounts.
+
 ### Export from the viewer
 - **Export MP4** button: the clip with the layers you have on, a time range, size,
   slow motion, and the timeline strip; encoded in the browser (WebCodecs, H.264;

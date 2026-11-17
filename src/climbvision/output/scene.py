@@ -8,14 +8,16 @@ same instructions — `render.py` into an MP4 (OpenCV) and `viewer.py` in the br
 
 - skeleton: bones, spine, joints (grey = hidden / guessed)
 - arms: holding arms orange when bent (< 150 deg)
-- contacts: limbs on holds (rings), smears (dashed rings); floor: feet on the floor,
-  hands on a bar
+- contacts: limbs on holds (rings), smears (dashed rings), flags (small grey dashed
+  rings, "flag?": still, but not proven to touch — not counted); floor: feet on the
+  floor, hands on a bar
 - support: base of support — hull of the limbs on holds + the COM's plumb line (wall);
   floor line + support span (floor)
 - com: the centre of mass — green inside the base of support, red outside, pink none
 - trail: the COM's path over the last 2 s, coloured the same way
 - forces: load on each hand and foot — a disc (size and colour = % body weight) and an
-  arrow (the force the hold gives the body)
+  arrow (the force the hold gives the body); on a smear the disc is hollow and the
+  number starts with "~" (friction on bare wall: an estimate)
 - velocity: the COM's velocity — an arrow (where it will be in 0.25 s) and its speed
 - angles: elbow, hip and knee angles in degrees (180 = straight)
 - speed: the COM coloured by its speed (blue still .. white 1 m/s .. red 2 m/s), with its
@@ -270,6 +272,11 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
     speed = (np.linalg.norm(ws.com_v, axis=1) if ws.com_v is not None
              else np.full(n, np.nan))
     on_smear = ws.on_smear or {limb: np.zeros(n, bool) for limb in LIMBS}
+    flags = {limb: np.zeros(n, bool) for limb in LIMBS}
+    for limb in LIMBS:
+        for an in ws.anchors[limb]:
+            if an.flag:
+                flags[limb][an.start:an.end] = True
     balance = [None if not np.isfinite(v) else bool(v > 0) for v in ws.polygon_margin_cm]
     keep = max(2, int(trail_seconds * fps))
 
@@ -321,6 +328,13 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
             if limb in pts_i:
                 q = pts_i[limb]
                 F["contacts"][i].append(["d", _r(q[0]), _r(q[1]), 10, SMEAR, 3])
+        for limb in LIMBS:
+            if flags[limb][i]:
+                fp = to_img(i, ws.points[limb][i])
+                if fp is not None and _ok(fp[0]):
+                    q = fp[0]
+                    F["contacts"][i].append(["d", _r(q[0]), _r(q[1]), 7, GREY, 2])
+                    F["contacts"][i].append(["t", _r(q[0] + 10), _r(q[1] + 4), "flag?", GREY, 0.6])
         sup = [pts_i[limb] for limb in held + smear if limb in pts_i]
         if len(sup) >= 3:
             import cv2
@@ -366,8 +380,12 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
             q = pts_i[limb]
             col = load_colour(ld)
             r = 8 + 22 * np.sqrt(min(ld, 150) / 100)
-            F["forces"][i].append(["c", _r(q[0]), _r(q[1]), _r(r), col, 0, 0.55])
-            F["forces"][i].append(["c", _r(q[0]), _r(q[1]), _r(r), col, 2, 0])
+            weak = fz.on_smear is not None and bool(fz.on_smear[limb][i])
+            if weak:  # a smear: an estimate on a weak contact — hollow, with "~"
+                F["forces"][i].append(["d", _r(q[0]), _r(q[1]), _r(r), col, 2])
+            else:
+                F["forces"][i].append(["c", _r(q[0]), _r(q[1]), _r(r), col, 0, 0.55])
+                F["forces"][i].append(["c", _r(q[0]), _r(q[1]), _r(r), col, 2, 0])
             f = fz.force[limb][i]
             if _ok(f):
                 d_px = m_to_px(ws.points[limb][i],
@@ -378,7 +396,7 @@ def _wall_layers(clip, F, to_img, trail_seconds, fps, force_scale_body, ahead_s)
                     F["forces"][i].append(["a", _r(q[0]), _r(q[1]), _r(tip[0][0]),
                                            _r(tip[0][1]), col, 3])
             F["forces"][i].append(["t", _r(q[0] + r * 0.9), _r(q[1] - r * 0.9),
-                                   f"{ld:.0f}%", col, 0.8])
+                                   f"{'~' if weak else ''}{ld:.0f}%", col, 0.8])
         # velocity of the COM
         if ws.com_v is not None and _ok(ws.com_v[i], c_w) and c_i is not None:
             v = ws.com_v[i]

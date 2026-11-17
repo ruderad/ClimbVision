@@ -17,10 +17,11 @@ BODY = 600.0  # body length, px
 PPM = 600.0  # px per metre
 
 
-def body_at(lh, rh, lf, rf, rng):
-    """A canonical skeleton (wall px, y down) with hands/feet at the given points."""
+def body_at(lh, rh, lf, rf, rng, shift=(0.0, 0.0)):
+    """A canonical skeleton (wall px, y down) with hands/feet at the given points; the
+    trunk and head moved by `shift` (the body moving between still limbs)."""
     p = np.full((N_JOINTS, 2), np.nan)
-    mid = (np.array(lh) + np.array(rh) + np.array(lf) + np.array(rf)) / 4
+    mid = (np.array(lh) + np.array(rh) + np.array(lf) + np.array(rf)) / 4 + np.array(shift)
     p[J.L_SHOULDER], p[J.R_SHOULDER] = mid + [-80, -150], mid + [80, -150]
     p[J.L_HIP], p[J.R_HIP] = mid + [-60, 120], mid + [60, 120]
     p[J.HEAD] = mid + [0, -260]
@@ -38,10 +39,14 @@ def body_at(lh, rh, lf, rf, rng):
 
 
 def climb(plan, seconds=10.0, seed=0):
-    """plan(t) -> (lh, rh, lf, rf). Returns (n, N_JOINTS, 2) and times."""
+    """plan(t) -> (lh, rh, lf, rf[, body shift]). Returns (n, N_JOINTS, 2) and times."""
     rng = np.random.default_rng(seed)
     t = np.arange(int(seconds * FPS)) / FPS
-    return np.stack([body_at(*plan(ti), rng) for ti in t]), t
+    out = []
+    for ti in t:
+        r = plan(ti)
+        out.append(body_at(*r[:4], rng, *r[4:]))
+    return np.stack(out), t
 
 
 def lerp(a, b, u):
@@ -189,12 +194,7 @@ def test_dark_wall_panel_with_holds_at_the_bottom_is_not_floor():
     assert m is None or m[360:].mean() < 0.05
 
 
-def test_detected_holds_split_holds_from_smears():
-    """With holds found in the wall image, a rest on a hold is a hold; a rest elsewhere
-    (the left foot pressed on the wall at 7-9 s) is a smear: no hold, no move, but part
-    of the base of support."""
-    from climbvision.engine.holddetect import HoldBoxes
-
+def _smear_plan(body_moves: bool):
     smear_spot = (380, 700)
 
     def plan(ti):
@@ -203,9 +203,20 @@ def test_detected_holds_split_holds_from_smears():
             lf = lerp(H["F"], smear_spot, (ti - 7.0) / 0.3)
         elif ti >= 9.0:
             lf = lerp(smear_spot, H["F"], (ti - 9.0) / 0.3)
-        return lh, rh, lf, rf
+        # the body rises 15 cm over the foot and back (friction held it) — or stays put
+        rise = np.interp(ti, [7.4, 8.0, 8.6], [0, -90, 0]) if body_moves else 0.0
+        return lh, rh, lf, rf, (0.0, rise)
 
-    pts, t = climb(plan, seconds=11)
+    return plan
+
+
+def test_detected_holds_split_holds_from_smears():
+    """With holds found in the wall image, a rest on a hold is a hold; a rest elsewhere
+    that the body moves over (the left foot pressed on the wall at 7-9 s) is a smear: no
+    hold, no move, but part of the base of support."""
+    from climbvision.engine.holddetect import HoldBoxes
+
+    pts, t = climb(_smear_plan(True), seconds=11)
     boxes = np.array([[x - 25, y - 25, x + 25, y + 25] for x, y in H.values()], float)
     hb = HoldBoxes(boxes, np.ones(len(boxes)), "test")
     ws = compute_wall_support(pts, t, BODY, PPM, hold_boxes=hb)
@@ -220,6 +231,21 @@ def test_detected_holds_split_holds_from_smears():
     assert [m["limb"] for m in moves(ws, t)] == ["r_hand", "l_foot"]  # F -> smear -> F: none
     s = wall_summary(ws, t)
     assert s["smears"]["count"] == 1 and s["holds_detected"] == 6
+
+
+def test_still_foot_off_any_hold_is_a_flag():
+    """The same foot off the holds while the body doesn't move: not proven to touch (a
+    flag held still looks the same) — no contact, not in the base of support."""
+    from climbvision.engine.holddetect import HoldBoxes
+
+    pts, t = climb(_smear_plan(False), seconds=11)
+    boxes = np.array([[x - 25, y - 25, x + 25, y + 25] for x, y in H.values()], float)
+    ws = compute_wall_support(pts, t, BODY, PPM, hold_boxes=HoldBoxes(boxes, np.ones(6), "t"))
+    flags = [a for a in ws.anchors["l_foot"] if a.flag]
+    assert len(flags) == 1 and not any(a.smear for a in ws.anchors["l_foot"])
+    i = int(8.0 * FPS)
+    assert not ws.on_hold["l_foot"][i] and not ws.on_smear["l_foot"][i]
+    assert wall_summary(ws, t)["flags"]["count"] == 1
 
 
 def test_without_a_detector_every_rest_is_a_hold():

@@ -71,3 +71,21 @@ def test_free_flight_arc_and_swing_sign():
     assert abs(ts[k] - v0[1] / G) < 1 / 30  # apex when vy = 0
     r, v = np.array([0.0, -1.0]), np.array([1.0, 0.0])  # below the pivot, moving right
     assert np.degrees((r[0] * v[1] - r[1] * v[0]) / (r @ r)) > 0  # counter-clockwise
+
+
+def test_a_smear_carries_less_than_a_foothold():
+    """Same place, same need: as a smear (weak contact) the foot takes less of the load
+    than as a foothold, and the hand more."""
+    import numpy as np
+
+    from climbvision.engine.forces import ForceParams, _solve
+
+    prm = ForceParams()
+    pts = [np.array([0.0, 0.9]), np.array([0.15, -0.8])]  # hand above, foot below
+    feet = [False, True]
+    need, com = np.array([0.0, 1.0]), np.array([0.05, 0.0])
+    hold = _solve(pts, feet, need, com, prm, moments=True, costs=[prm.hand_cost, 1.0])
+    smear = _solve(pts, feet, need, com, prm, moments=True,
+                   costs=[prm.hand_cost, prm.smear_cost])
+    assert np.linalg.norm(smear[1]) < np.linalg.norm(hold[1])
+    assert np.linalg.norm(smear[0]) > np.linalg.norm(hold[0])

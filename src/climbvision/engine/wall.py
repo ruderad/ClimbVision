@@ -74,17 +74,18 @@ class Anchor:
     spread_px: float  # 80th percentile distance of the limb from pos while anchored
     hold: int = -1  # hold id (-1 = none: ground, smear)
     ground: bool = False
-    smear: bool = False  # resting on the wall with no detected hold under it
+    smear: bool = False  # on the wall with no detected hold under it, proven to touch
     box: int = -1  # the detected hold (holddetect.py) it rests on, if any
+    flag: bool = False  # still, off any hold, not proven to touch: a flag (no contact)
 
     @property
     def on_hold(self) -> bool:
-        return not (self.ground or self.smear)
+        return not (self.ground or self.smear or self.flag)
 
     @property
     def on_wall_contact(self) -> bool:
         """On a hold or smearing: part of the base of support."""
-        return not self.ground
+        return not (self.ground or self.flag)
 
 
 @dataclass
@@ -108,6 +109,8 @@ class WallParams:
     hold_radius: float = 0.09  # body lengths (~11 cm): anchors this close = one hold
     hold_margin: float = 0.05  # body lengths (~5 cm): a rest this close to a detected hold
     #                            is on it (the grip point / toe sits at the hold's edge)
+    smear_proof_m: float = 0.10  # a still limb off any hold touches the wall (a smear) only
+    #                              if the COM moved this far meanwhile; else it's a flag
     min_move: float = 0.1  # body lengths: shorter re-placements are adjustments, not moves
     floor_lab_tol: float = 25.0  # Lab colour distance to the floor colour
     floor_frac: float = 0.6  # share of floor-coloured pixels below the toe -> ground
@@ -501,22 +504,39 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                 low = np.nanmedian(pts[h][seg, 1]) > np.nanmedian(sh[seg])
             if on_ground[seg].mean() > 0.5 and low:
                 an.ground = True
-    # a rest counts as a hold only on a detected hold; elsewhere it is a smear
+    # a rest counts as a hold only on a detected hold; elsewhere it is a smear if the
+    # body moved over it (friction held it: it touches), else a flag (no contact)
+    com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
     detected_holds = hold_boxes is not None and len(hold_boxes) > 0
     if detected_holds:
         margin = prm.hold_margin * body_px
+        proof = prm.smear_proof_m * body_px / body_m
         for limb in LIMBS:
             for an in anchors[limb]:
                 if an.ground:
                     continue
                 an.box = hold_boxes.containing(an.pos, margin)
-                an.smear = an.box < 0
+                if an.box < 0:
+                    moved = _com_moved(com[an.start:an.end])
+                    an.smear = bool(moved >= proof)
+                    an.flag = not an.smear
+        # a foot "smearing" with no hand on a hold is standing on the floor (start or end of
+        # a clip whose floor the camera doesn't show; a mat the floor test missed): nobody
+        # climbs on a single smear with no hands
+        hands_on = _on_mask([a for h in ("l_hand", "r_hand") for a in anchors[h]
+                             if a.on_hold], n)
+        for f in ("l_foot", "r_foot"):
+            for an in anchors[f]:
+                if (an.smear or an.flag) and hands_on[an.start:an.end].mean() < 0.4:
+                    an.smear = an.flag = False
+                    an.ground = True
+                    on_wall[an.start:an.end] = False
+                    on_ground[an.start:an.end] = True
     hold_anchors = [an for limb in LIMBS for an in anchors[limb] if an.on_hold]
     holds = cluster_holds(hold_anchors, prm.hold_radius * body_px)
     on_hold = {limb: _on_mask([a for a in anchors[limb] if a.on_hold], n) for limb in LIMBS}
     on_smear = {limb: _on_mask([a for a in anchors[limb] if a.smear], n) for limb in LIMBS}
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
-    com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
     # metres on the wall: perspective corrected with the body as the ruler (metric.py)
     ground_px = np.array([a.pos for f in ("l_foot", "r_foot") for a in anchors[f]
                           if a.ground]).reshape(-1, 2)
@@ -554,6 +574,17 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                        floor_seen, prm.min_move * body_px, metric=metric, com_m=com_m,
                        com_v=com_v, com_a=com_a, on_smear=on_smear, hold_boxes=hold_boxes,
                        holds_source="detected" if detected_holds else "rests")
+
+
+def _com_moved(com: np.ndarray) -> float:
+    """How far the COM got from where it was when the limb settled (wall px): the
+    largest distance from its first steady position (median of the first 3 frames)."""
+    ok = np.isfinite(com).all(axis=1)
+    if ok.sum() < 3:
+        return 0.0
+    c = com[ok]
+    start = np.median(c[:3], axis=0)
+    return float(np.max(np.linalg.norm(c - start, axis=1)))
 
 
 def _label_with_smears(on_hold: dict, on_smear: dict, i: int) -> str:
@@ -635,6 +666,9 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
         sm = {LABEL[limb]: round(float(dt[ws.on_smear[limb] & on].sum()), 1) for limb in LIMBS}
         out["smears"] = {"count": sum(a.smear for limb in LIMBS for a in ws.anchors[limb]),
                          "time_s": {k: v for k, v in sm.items() if v > 0}}
+        out["flags"] = {"count": sum(a.flag for limb in LIMBS for a in ws.anchors[limb]),
+                        "note": "still limbs off any hold that the body didn't move over: "
+                                "not counted as contacts"}
         if ws.hold_boxes is not None:
             out["holds_detected"] = len(ws.hold_boxes)
     warn = []

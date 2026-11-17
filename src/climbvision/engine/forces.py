@@ -20,7 +20,17 @@ contacts can do:
 - a foot can only push (the hold pushes the foot up, never pulls it down) and only
   within friction: sideways force <= `mu` x upward force;
 - a hand can pull in any direction (a jug pulls up, an undercling pushes down on the
-  body's hand, a sidepull sideways).
+  body's hand, a sidepull sideways);
+- a **smear** (a foot or palm on bare wall, proven to touch: wall.py) holds by friction,
+  which depends on how hard it presses into the wall — invisible in the wall plane. So it
+  is a weak contact: its force counts `smear_cost` x a foothold's, and it carries load
+  only when nothing better can; a smear load above `smear_cap_bw` is flagged uncertain
+  (drawn hollow with "~"). A *flag* (still limb not proven to touch) carries nothing.
+
+No forces in impacts and dismounts: when the COM's acceleration with gravity exceeds
+`impact_g` (a landing, a fall, a drop onto the mat) or no hand is on a hold while the
+COM drops faster than `falling_ms` (stepping or jumping down) — no climbing contact
+explains those, and the readings went to 100-1000 % on the test clips.
 
 The constrained least-cost split is found exactly by trying each foot free, off, or on
 either edge of its friction cone (at most 16 small linear solves).
@@ -52,6 +62,12 @@ FEET = ("l_foot", "r_foot")
 @dataclass
 class ForceParams:
     hand_cost: float = 3.0  # hand force counts this much more than foot force
+    smear_cost: float = 6.0  # a smear (foot or palm on bare wall) counts this much: it's
+    #                          used when nothing better can carry the load
+    smear_cap_bw: float = 0.30  # above this a smear's load is flagged as uncertain
+    impact_g: float = 2.5  # COM acceleration (in g, with gravity) above this: an impact
+    #                        (landing, fall), no forces computed
+    falling_ms: float = 1.0  # no hand on a hold and the COM dropping faster: getting off
     mu: float = 0.8  # rubber on a hold: friction coefficient
     swing_m: float = 0.05  # a moment the holds don't balance costs like a force of
     #                        moment / swing_m: the body swings instead (barn door)
@@ -65,13 +81,16 @@ class Forces:
     hands_bw: np.ndarray  # (n,) both hands together, % body weight
     feet_bw: np.ndarray
     mass_kg: float | None
+    on_smear: dict | None = None  # limb -> (n,) bool: the load is on a smear (uncertain)
+    smear_cap_pct: float = 30.0  # smear loads above this are flagged
 
     def newtons(self, pct_bw: np.ndarray) -> np.ndarray | None:
         return None if not self.mass_kg else np.asarray(pct_bw) / 100 * self.mass_kg * G
 
 
 def _solve(points: list[np.ndarray], feet: list[bool], need: np.ndarray, com: np.ndarray,
-           prm: ForceParams, moments: bool) -> np.ndarray | None:
+           prm: ForceParams, moments: bool, costs: list[float] | None = None
+           ) -> np.ndarray | None:
     """Least-cost forces (k, 2) for contacts at `points` balancing `need` (force sum) and
     zero moment about `com`. None if nothing feasible."""
     k = len(points)
@@ -82,7 +101,7 @@ def _solve(points: list[np.ndarray], feet: list[bool], need: np.ndarray, com: np
         cols, owners, weights = [], [], []
         for i in range(k):
             m = mode.get(i, "free")
-            w = 1.0 if feet[i] else prm.hand_cost
+            w = costs[i] if costs is not None else (1.0 if feet[i] else prm.hand_cost)
             if m == "free":
                 cols += [np.array([1.0, 0.0]), np.array([0.0, 1.0])]
                 owners += [i, i]
@@ -142,23 +161,32 @@ def compute_forces(ws, t: np.ndarray, mass_kg: float | None = None,
             if an.on_wall_contact:  # holds and smears both carry load
                 pos_at[limb][an.start:an.end] = ws.to_m(an.pos)
     force = {limb: np.full((n, 2), np.nan) for limb in LIMBS}
+    vel = ws.com_v if ws.com_v is not None else np.zeros((n, 2))
+    smear = ws.on_smear or {limb: np.zeros(n, bool) for limb in LIMBS}
     for i in range(n):
         if not ws.on_wall[i] or not np.isfinite(ws.com_m[i]).all():
             continue
         on = [limb for limb in LIMBS
-              if (ws.on_hold[limb][i] or (ws.on_smear is not None and ws.on_smear[limb][i]))
+              if (ws.on_hold[limb][i] or smear[limb][i])
               and np.isfinite(pos_at[limb][i]).all()]
         a = acc[i] if np.isfinite(acc[i]).all() else np.zeros(2)
         need = (a + np.array([0.0, G])) / G  # in body weights
+        if np.linalg.norm(need) > prm.impact_g:
+            continue  # a landing or a fall: no climbing move pulls this hard
+        hands_on = ws.on_hold["l_hand"][i] or ws.on_hold["r_hand"][i]
+        if not hands_on and np.isfinite(vel[i, 1]) and vel[i, 1] < -prm.falling_ms:
+            continue  # getting off the wall (a step or jump down): not climbing
         if not on:
             for limb in LIMBS:
                 force[limb][i] = 0.0  # in the air
             continue
+        costs = [prm.smear_cost if smear[limb][i] else
+                 (1.0 if limb in FEET else prm.hand_cost) for limb in on]
         f = _solve([pos_at[limb][i] for limb in on], [limb in FEET for limb in on], need,
-                   ws.com_m[i], prm, moments=True)
+                   ws.com_m[i], prm, moments=True, costs=costs)
         if f is None:  # e.g. feet only and the COM outside them: no static balance
             f = _solve([pos_at[limb][i] for limb in on], [limb in FEET for limb in on],
-                       need, ws.com_m[i], prm, moments=False)
+                       need, ws.com_m[i], prm, moments=False, costs=costs)
         if f is None:
             continue
         for limb in LIMBS:
@@ -170,7 +198,8 @@ def compute_forces(ws, t: np.ndarray, mass_kg: float | None = None,
     feet = load["l_foot"] + load["r_foot"]
     with np.errstate(invalid="ignore", divide="ignore"):
         share = 100 * hands / (hands + feet)
-    return Forces(force, load, share, hands, feet, mass_kg)
+    return Forces(force, load, share, hands, feet, mass_kg, on_smear=smear,
+                  smear_cap_pct=100 * prm.smear_cap_bw)
 
 
 def forces_summary(fz: Forces, ws, t: np.ndarray, route=None) -> dict:
@@ -188,6 +217,12 @@ def forces_summary(fz: Forces, ws, t: np.ndarray, route=None) -> dict:
         "time_hands_over_50pct_bw_s": round(float(dt[on & (fz.hands_bw > 50)].sum()), 1),
         "model": "in the wall plane only; out-of-plane pull (steep walls) not included",
     }
+    if fz.on_smear is not None:
+        dt_ = np.gradient(t) if len(t) > 1 else np.ones(len(t))
+        over = np.zeros(len(t), bool)
+        for limb, sm in fz.on_smear.items():
+            over |= sm & (np.nan_to_num(fz.load[limb]) > fz.smear_cap_pct)
+        out["smear_overloaded_s"] = round(float(dt_[over].sum()), 1)
     if fz.mass_kg:
         out["mass_kg"] = fz.mass_kg
         out["hands_load_n_peak"] = round(float(fz.mass_kg * G * out["hands_load_pct_bw_peak"]

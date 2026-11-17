@@ -452,7 +452,7 @@ dotted). Click or drag to jump. Your layer choice is remembered in that browser.
 
 | Layer | Drawing | Meaning |
 |---|---|---|
-| forces | Disc + arrow + % on a hand or foot | Load on that limb, % body weight (disc size and colour: green light → yellow half → red all of it); the arrow is the force the hold gives the body (up for a jug, sideways for a sidepull). Wall plane only (§6.19) |
+| forces | Disc + arrow + % on a hand or foot | Load on that limb, % body weight; on a smear the disc is hollow and the number has a "~" (an estimate, §6.19) (disc size and colour: green light → yellow half → red all of it); the arrow is the force the hold gives the body (up for a jug, sideways for a sidepull). Wall plane only (§6.19) |
 | velocity | Blue arrow + m/s from the COM | Where the COM is heading: the arrow tip is where it would be 0.25 s later at this speed |
 | timeline | Strip under the video | See above; the *phase* row colours each hand move: push (orange), reach (blue), catch (red) — §6.23 |
 | speed | COM dot + trail coloured by speed | blue still, white 1 m/s, red 2 m/s and faster |
@@ -1234,6 +1234,19 @@ unbalanced moment costs like a force of moment / 5 cm, so levers of a hand span 
 balance it and matched hands let the body swing. Peaks came down to 110–210 % (a dyno
 catch on coordination ~2× body weight).
 
+**Smears are weak contacts.** A smear holds by friction, which depends on how hard the
+foot presses into the wall — invisible in the plane of the wall. So a smear's force
+costs 6x a foothold's (`smear_cost`; a hand costs 3x): it carries load only when nothing
+better can. Smear loads above 30 % body weight count as `forces.smear_overloaded_s`, and
+the video draws every smear load hollow with "~" (an estimate). Before this (1.5) smears
+counted like footholds and took 40–60 % of the body weight on the test clips; now 4–20 % (median) on the
+overhang, slab and steep-wall clips.
+
+**No forces in impacts and dismounts.** When the COM's acceleration with gravity exceeds
+2.5 g (a landing, a fall) or no hand is on a hold while the COM drops faster than
+1 m/s (stepping or jumping off), no forces are computed: no climbing contact explains
+those, and they read 100–1000 % on the test clips.
+
 **What it is and isn't.** Forces *in the wall plane* (up/down, sideways). On steep walls
 the hands also pull *outwards* to keep the hips in; that needs the wall angle and the
 hips-to-wall distance (depth, 1.6), so on overhangs the hand loads here are too low. In
@@ -1259,22 +1272,33 @@ foot chips. Boxes are stored in wall coordinates in `holds_detected.json` with a
 `holds_detected.jpg` (look at it first when a hold seems wrong). The cache is redone
 when `wall.jpg` or the model changes.
 
-**Holds vs smears.** A rest whose grip point / toe is on a detected hold (box grown by
-0.05 body lengths, ~5 cm: the grip point sits at the hold's edge) is **on a hold**; a
-rest on the wall with no hold under it is a **smear**. Then:
+**Holds, smears and flags.** A rest whose grip point / toe is on a detected hold (box
+grown by 0.05 body lengths, ~5 cm: the grip point sits at the hold's edge) is **on a
+hold**. A rest with no hold under it is either:
 
-| | hold | smear |
-|---|---|---|
-| route map, hold ids, moves, hold usage | yes | no |
-| technique (quiet feet, re-grips, ...) | yes | no |
-| base of support, COM over the feet, balance colours | yes | yes |
-| forces (a smear carries load) | yes | yes |
-| `annotated.mp4` | as before | dashed white ring |
-| `report.png` contacts | solid bar | hatched bar |
+- a **smear** — the foot (or palm) presses on bare wall and friction holds it. Proven by
+  the body moving over it: while the limb stays put, the COM moves at least 10 cm
+  (`smear_proof_m`) — something must have held the limb there;
+- a **flag** — a limb held still in the air (counterweight, no contact). In a 2D picture it
+  looks exactly like a smear until the body moves, so a still limb the body *didn't* move
+  over is a flag: not a contact, it carries nothing (drawn as a small grey "flag?").
+- A foot "smearing" while no hand is on a hold is **standing on the floor** (the start or
+  end of a clip whose floor the camera doesn't show, a mat the floor test missed): nobody
+  climbs on a single smear with no hands.
+
+| | hold | smear | flag |
+|---|---|---|---|
+| route map, hold ids, moves, hold usage | yes | no | no |
+| technique (quiet feet, re-grips, ...) | yes | no | no |
+| base of support, COM over the feet, balance colours | yes | yes | no |
+| forces | yes | yes, as a weak contact (§6.19) | no |
+| video | ring | dashed white ring | small grey dashed ring "flag?" |
+| `report.png` contacts | solid bar | hatched bar | — |
 
 With detected holds each detected hold is one hold id (two holds 5 cm apart stay
 apart; one big volume touched in two places stays one). `metrics.json` → `wall`:
-`holds_from` (`detected` or `rests`), `holds_detected`, `smears {count, time_s}`.
+`holds_from` (`detected` or `rests`), `holds_detected`, `smears {count, time_s}`,
+`flags {count}`.
 
 **How good it is.** On the test walls: the moonboard (220 boxes), traverse and slab
 are well covered. On the overhang, coordination_failed and gardash2 walls (big volumes,
