@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-11-17
+
+Overlays, the interactive viewer and dynamics: what a climber sees, rebuilt around
+dynamic climbing; plus the reliability fixes that came from looking at it.
 
 ### Sound
 - `annotated.mp4`, `annotated_<preset>.mp4` and `viewer.mp4` keep the original clip's

@@ -528,6 +528,35 @@ LiDAR: recorded at 4.7–5 m, only 35–43 % of pixels confident (C1 at 3.6 m: 5
 Still needed: horizontal tape distances, C2, recordings at 3–3.5 m, the force test
 (at home, pull-up bar + scale).
 
+## v1.5.0 — overlays, viewer, dynamics (2026-11-17)
+What a climber sees, rebuilt around dynamic climbing (iman's clips: the base of support
+says little in dynos, campusing and cut feet):
+
+- **Overlay layers and the viewer** (`output/scene.py`, `render.py`, `viewer.py`):
+  every drawing is a layer; presets clean / balance / load / dynamics / form / all;
+  `viewer.html` with live toggles, slow motion, frame stepping, a clickable timeline;
+  **Export MP4** in the browser; the clip's sound kept everywhere. This is the planned
+  1.8 "HTML report", done early as the viewer.
+- **Dynamics** (GUIDE §6.23): move phases (push / reach / catch), push power, catch vs
+  the deadpoint, momentum arc, swing with the feet off, joint effort (Nm/kg), joint
+  angles, COM coloured by speed.
+- **Reliability fixes**: smears must be proven (the body moves ≥ 10 cm over them),
+  else flags (no contact); smears are weak contacts in the force model (loads 40–60 % →
+  4–20 %); no forces in impacts and dismounts; hanging with the feet off is on the wall
+  (iman5, iman6 had no forces for most of the clip).
+
+Climbers: traverse, slab, moonboard(2), overhang(2), coordination, the steep-wall
+session = the default profile (Radmehr); **coordination_failed and all gardash clips =
+Rouzbeh** (`--climber rouzbeh`); iman clips = Iman.
+
+Known weak spots: floor test misses textured concrete and some mats; the hand / foot
+split and joint effort are unvalidated (force test); regression fixtures still hold the
+pre-1.5 pose.
+
+Next, in order: better floor test; rebuild the regression fixtures from `outputs_v14`;
+force-test mode (pull-up bar + scale) and calibrating the force model; **1.6 depth
+layer** (needs the 3–3.5 m recordings); 1.7 comparing attempts.
+
 ## Test clips to record (for M1–M5)
 
 Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on of each:

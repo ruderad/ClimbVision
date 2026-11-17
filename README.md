@@ -3,9 +3,11 @@
 Movement analysis from video: a generic engine (pose → canonical skeleton → centre of
 mass, angles, contacts, support) plus **recipes** — small YAML files that say what to
 measure for one movement. It analyses floor exercises and climbing: handheld wall
-video, holds, moves, the route, rests and balance on the wall, technique (quiet feet,
-straight arms, hesitation, smoothness) and the load on each hand and foot, in your real
-units once it knows who is climbing. See [CHANGELOG.md](CHANGELOG.md).
+video, holds and smears, moves, the route, rests and balance on the wall, technique
+(quiet feet, straight arms, hesitation, smoothness), the load on each hand and foot,
+move phases, the deadpoint, swing and joint effort, in your real units once it knows who
+is climbing — in an interactive viewer where every overlay switches on and off and any
+mix of them exports as video (with the clip's sound). See [CHANGELOG.md](CHANGELOG.md).
 See [PLAN.md](PLAN.md) for the milestones and **[docs/GUIDE.md](docs/GUIDE.md) for the
 complete guide**: recording tips, every output explained, the science behind each
 measurement, the architecture, and how to extend the package.
@@ -29,8 +31,13 @@ climbvision analyze data/videos            # every video in the folder
 
 # re-run the analysis on existing results (seconds), e.g. after changing a recipe
 climbvision metrics outputs/*
-# redraw the annotated video from existing results
+# the interactive viewer (also written by analyze); --open serves it and opens the browser
+climbvision view outputs/traverse --open
+climbvision view outputs --keep-video      # redo only the overlays, after `metrics`
+# redraw the annotated video from existing results (default: the balance preset)
 climbvision render outputs/squat_side
+climbvision render outputs/iman3 --preset dynamics      # annotated_dynamics.mp4
+climbvision render outputs/iman3 --layers skeleton,forces,timeline --out mine.mp4
 climbvision render outputs                 # every results folder
 # camera layer for clips analysed before it existed (handheld wall videos)
 climbvision camera outputs/traverse
@@ -65,7 +72,7 @@ The recipe is guessed from the file name, otherwise pass `--recipe` (a name or a
 | `pullup` | `pullup`, `chinup` | reps, COM rise (cm), chin over bar, tempo, swing, kipping |
 | `leg_raise` | `leg_raise`, `toes_to_bar`, `knee_raise` | reps, hip/knee angle, toes to bar |
 | `dead_hang` | `dead_hang`, `hang…` (not `overhang`) | hang time, arm straightness, swing |
-| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route`, `slab`, `crimp`, `dyno` — and **any name that matches nothing else** | hands/feet on holds (still ~0.5 s on the wall), holds used, the route move by move (`moves.csv`, `route.png`), rests, feet cuts, COM over the feet and inside the base of support, heights above the floor and COM speed, technique (quiet feet, straight arms, pause before moves, COM path), load on each hand and foot (`forces.csv`) |
+| `climb` | `climb`, `traverse`, `boulder`, `moonboard`, `overhang`, `coordination`, `route`, `slab`, `crimp`, `dyno` — and **any name that matches nothing else** | hands/feet on holds (still ~0.5 s on the wall), smears and flags, holds used, the route move by move (`moves.csv`, `route.png`), rests, feet cuts, COM over the feet and inside the base of support, heights above the floor and COM speed, technique (quiet feet, straight arms, pause before moves, COM path), load on each hand and foot (`forces.csv`), dynamics (move phases, push power, deadpoint timing, swing, joint effort) |
 | `none` | `lunge`, `standing_still`, `walk`, `stretch` | angles, stability and jumps only |
 
 Every clip also gets jumps (flight time, jump height from flight time), stances and
@@ -83,8 +90,8 @@ Each video gets a folder `outputs/<video name>/` with:
 
 | File | What's in it |
 |---|---|
-| `viewer.html` + `viewer.mp4` | the interactive viewer: the clip with overlays you switch on and off (presets clean / balance / load / dynamics / all: forces on each hand and foot, COM velocity, a timeline of contacts, moves and load), slow motion, frame stepping. Open in any browser; `climbvision view` redoes it |
-| `annotated.mp4` | the `balance` preset burnt in (`climbvision render --preset dynamics` etc. for others): skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, smears (dashed white rings), the base of support (yellow), the latest move. The trunk is the shoulder bar, hip bar and a curved spine; grey joints are hidden or guessed |
+| `viewer.html` + `viewer.mp4` | the interactive viewer: the clip (with sound) and overlays you switch on and off — presets clean / balance / load / dynamics / form / all: forces on each hand and foot, joint effort, joint angles, COM speed and velocity, dyno arc, swing, a timeline of contacts, moves, phases and load — slow motion, frame stepping, and **Export MP4** of what you see. Open in any browser; `climbvision view` redoes it |
+| `annotated.mp4` | the `balance` preset burnt in, with the clip's sound (`climbvision render --preset dynamics` etc. for others): skeleton, COM with a 2-second trail (green = inside the base of support, red = outside, pink = no base), floor line, ground contacts (cyan rings), support span on the floor and the COM's plumb line. On the wall: limbs on holds, smears (dashed white rings), the base of support (yellow), the latest move. The trunk is the shoulder bar, hip bar and a curved spine; grey joints are hidden or guessed |
 | `landmarks.csv` | the pose backend's raw points per frame (MediaPipe: 33): pixel coords, 3D world coords (m), visibility |
 | `com.csv` | whole-body COM per frame and a confidence score. `com_*_px` = position in the image; `com_*_m` = 3D position in metres **relative to the hip centre** (shows body shape, not where the body is in the room) |
 | `summary.json` | detection rate, COM mean / spread / range |
@@ -115,7 +122,7 @@ climbvision summary outputs/*     # one line per clip + outputs/summary.csv
 ## Tests
 
 ```bash
-pytest                      # synthetic tests + 26 real-clip regression tests (~45 s)
+pytest                      # synthetic tests + 26 real-clip regression tests (~1 min)
 pytest -m "not regression"  # synthetic only
 ```
 
@@ -144,11 +151,13 @@ See [docs/RECIPES.md](docs/RECIPES.md) for everything a recipe can do.
 src/climbvision/
   engine/          the layers: video, camera (wall registration), pose + backends/,
                    cleanup (pose repair), skeleton (canonical joints, no face), track,
-                   biomech (COM, angles), scale, surfaces (floor), contacts (floor,
-                   bar grips), support, wall (anchors, holds), route (moves, rests),
-                   events, signals
+                   smoothing, biomech (COM, angles), scale, surfaces (floor), contacts
+                   (floor, bar grips), support, holddetect, wall (anchors, holds, smears),
+                   metric + profile + kinematics (metres), route (moves, rests),
+                   technique, forces, dynamics, events, signals
   recipes/         recipe runner + expression language; library/*.yaml = shipped recipes
-  output/          report.png, CSV tables, drawing, annotated video, one-line summary
+  output/          scene (overlay layers) -> render (MP4) and viewer (HTML); report.png,
+                   route map, CSV tables, wall view, one-line summary
   analysis.py      results folder -> all analysis outputs
   cli.py           command line
 tests/             synthetic + real-clip regression tests

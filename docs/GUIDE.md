@@ -4,17 +4,21 @@
 
 ClimbVision turns an ordinary phone video of one person moving into numbers about
 how that body moves: a skeleton of the main joints, the whole-body centre of mass, joint
-angles, what is touching the floor or a bar, how stable the person is, and
-movement-specific results such as squat depth, plank form, jump height or pull-up range
-of motion.
+angles, what is touching the floor, a bar or the wall, how stable the person is, and
+movement-specific results. On the wall: holds and smears, the route move by move,
+balance, technique, the load on each hand and foot, move phases, the deadpoint, swing
+and joint effort — shown in an interactive viewer where every overlay can be switched
+on and off, and exported as video.
 
 It is built as a **generic movement-analysis engine** (layers that measure the body)
 plus **recipes** (small YAML files that say what to measure for one kind of movement).
 Adding an exercise or a climbing analysis means writing a recipe, not engine code.
 
-The long-term goal is climbing analysis on a wall. The current version deliberately
-works **off the wall first** (floor exercises and bar exercises), so that every
-measurement can be checked on simple movements before it is trusted on a climb.
+It started **off the wall** (floor and bar exercises), so that every measurement could
+be checked on simple movements before it was trusted on a climb; since 1.0 the climbing
+layers have been built on that base and checked against real clips, a tape measure
+(§6.22) and — next — a bathroom scale. Each estimate's reliability is stated where it is
+described, and summarised in section 9.
 
 ---
 
@@ -339,12 +343,14 @@ Every clip gets a folder `outputs/<clip>/`:
 | `stability.csv` | `metrics` | Contacts, support, margin, swing per frame |
 | `metrics.json` | `metrics` | All clip-level results |
 | `report.png` | `metrics` | Four-panel plot |
-| `annotated.mp4` | `render` | The video with everything drawn on it |
+| `annotated.mp4` | `render` | The video with the `balance` overlays drawn on it, with the clip's sound; `annotated_<preset>.mp4` with `render --preset` (5.1) |
+| `viewer.html`, `viewer.mp4` | `analyze`, `view` | The interactive viewer: the clip (with sound) and every overlay layer, switched on and off live; Export MP4 (5.1, 3.3a) |
+| `holds_detected.json`, `holds_detected.jpg` | `metrics` (wall scene, with the hold model) | Holds found in `wall.jpg` and a picture of them (§6.20) |
 | `camera.csv`, `camera.json` | `camera` | The camera layer: one homography per frame (frame → wall) and its quality (4.7) |
 | `wall.jpg`, `wall.json` | `camera` | The wall without the climber, in wall coordinates; `wall.json` holds the mapping from wall coordinates to its pixels |
 | `wall_view.mp4` | `camera` | The video in wall coordinates: the wall stands still, hands/feet leave trails; with the wall layer also holds, limbs on holds, the COM, and the route building up move by move |
 | `wall.csv` | `metrics` (wall scene) | Per frame: limbs on holds, hold ids, limb and COM positions on the wall, margins (5.5) |
-| `moves.csv` | `metrics` (wall scene) | One row per move: limb, from/to hold, times, distance, direction, what the other limbs did, balance before/after, tags (5.6) |
+| `moves.csv` | `metrics` (wall scene) | One row per move: limb, from/to hold, times, distance, direction, what the other limbs did, balance before/after, tags (5.6); technique (§6.18), catch load, push time and power, deadpoint timing (§6.23) |
 | `holds.csv` | `metrics` (wall scene) | One row per hold: position, used as hand/foot hold, first use, time per limb, matched (5.6) |
 | `route.png` | `metrics` (wall scene) | The route map: holds numbered in order of use and every move as an arrow, on the wall image (5.6) |
 | `forces.csv` | `metrics` (wall scene) | Per frame: force on each hand and foot (body weights, x right, y up; % body weight; newtons when the mass is known), hands' share (§6.19) |
@@ -407,6 +413,9 @@ Always present:
 | `angle_ranges` | min / median / max of the main angles |
 | `stability` | See 5.2 (floor and bar scenes) |
 | `wall` | Instead of `stability` for wall scenes (the `climb` recipe), see 5.5 |
+| `route`, `technique`, `forces`, `dynamics` | Wall scenes: the route (5.6), technique (§6.18), forces (§6.19), dynamics — move phases, power, deadpoint, swing, joint effort (§6.23) |
+| `scale` | Who climbed, the height used, perspective correction (§6.17) |
+| `pose_cleanup`, `pose_smoothing` | Climbing models: what the clean-up (§6.15) and smoothing (§6.21) layers changed |
 
 Plus the recipe's results (5.3), and `camera` when the camera layer ran: `static`,
 `registered_pct` (frames lined up with the wall), `keyframes`, `pan_px` / `pan_m`
@@ -1132,6 +1141,36 @@ it can't: a limb wrong for a long stretch in a consistent way (the median then f
 the wrong position), or a body part out of the frame. The rules are deliberately
 conservative: nothing is invented without good frames of the same limb on both sides.
 
+### 6.16 The route (`engine/route.py`)
+
+The wall layer says *when* each limb is on *which* hold. The route layer turns that into
+the climb as a climber would tell it: moves in order, what each move took, rests.
+
+**A move** is a limb leaving one hold and next resting on a different hold at least 0.1
+body lengths away (shorter re-placements are adjustments). It is timed from the last
+frame on the old hold to the first
+frame on the new one: the time the limb was *off holds*. Because an anchor lasts as long
+as the limb stays within ~7 cm of the spot, this is shorter than the whole reach
+(typically 0.3–0.5 s for a hand). Moves from or to the ground (stepping on or off) don't
+count.
+
+**What the other limbs did** is the weakest moment of the move: the fewest other limbs
+on holds while it travelled ("2 feet" = a hand move with the other hand off too). With
+the COM over the feet before and after and the COM's peak speed this is the raw material
+for the tags (5.6). The tags use only what the data shows reliably:
+
+- *match / foot on handhold* compare hold ids — as good as the holds;
+- *cross* compares the two hands' x on the wall (assumes the climber faces the wall);
+- *dyno / jump* need both hands off holds **and** a fast COM (≥ 0.8 m/s): hands off
+  alone also happens when a hand anchor is missed, and gave false dynos on the traverse;
+- *high step* compares the foot hold with the COM height (the COM sits near the hips);
+- *feet cut* is "both feet off holds", which also happens when the pose misses the feet:
+  check it in the video.
+
+**Rests**: all four limbs on holds and the COM slower than 0.12 body lengths/s for at
+least 1 s. **Hold usage**: per hold, the seconds each limb spent on it, and whether it
+was matched (both hands or both feet on it at once).
+
 ### 6.17 Metres on the wall (`engine/metric.py`, `engine/profile.py`, `engine/kinematics.py`)
 
 **The scale.** Distances in pixels become metres through the climber's body: trunk + leg
@@ -1464,35 +1503,6 @@ ignored (small next to the contact forces except in hard swings); out-of-plane f
 on steep walls are missing as in §6.19; it inherits every error of the pose and the
 force split. Compare moves and attempts; don't read single values as measurements.
 
-### 6.16 The route (`engine/route.py`)
-
-The wall layer says *when* each limb is on *which* hold. The route layer turns that into
-the climb as a climber would tell it: moves in order, what each move took, rests.
-
-**A move** is a limb leaving one hold and next resting on a different hold at least 0.1
-body lengths away (shorter re-placements are adjustments). It is timed from the last
-frame on the old hold to the first
-frame on the new one: the time the limb was *off holds*. Because an anchor lasts as long
-as the limb stays within ~7 cm of the spot, this is shorter than the whole reach
-(typically 0.3–0.5 s for a hand). Moves from or to the ground (stepping on or off) don't
-count.
-
-**What the other limbs did** is the weakest moment of the move: the fewest other limbs
-on holds while it travelled ("2 feet" = a hand move with the other hand off too). With
-the COM over the feet before and after and the COM's peak speed this is the raw material
-for the tags (5.6). The tags use only what the data shows reliably:
-
-- *match / foot on handhold* compare hold ids — as good as the holds;
-- *cross* compares the two hands' x on the wall (assumes the climber faces the wall);
-- *dyno / jump* need both hands off holds **and** a fast COM (≥ 0.8 m/s): hands off
-  alone also happens when a hand anchor is missed, and gave false dynos on the traverse;
-- *high step* compares the foot hold with the COM height (the COM sits near the hips);
-- *feet cut* is "both feet off holds", which also happens when the pose misses the feet:
-  check it in the video.
-
-**Rests**: all four limbs on holds and the COM slower than 0.12 body lengths/s for at
-least 1 s. **Hold usage**: per hold, the seconds each limb spent on it, and whether it
-was matched (both hands or both feet on it at once).
 
 ---
 
@@ -1534,17 +1544,25 @@ was matched (both hands or both feet on it at once).
 | Pose | `engine/pose.py`, `engine/backends/` | a backend's raw points per frame → `landmarks.csv` | ✅ MediaPipe |
 | Skeleton | `engine/skeleton.py`, `engine/track.py` | canonical joints as arrays (`Track`) | ✅ |
 | Clean-up | `engine/cleanup.py` | swaps, flicker and impossible limbs repaired (§6.15) | ✅ 2D backends |
+| Smoothing | `engine/smoothing.py` | steady joints without lag; hidden stretches filled (§6.21) | ✅ 2D backends |
 | Biomechanics | `engine/biomech.py` | centre of mass, joint angles, view, near side | ✅ |
 | Scale | `engine/scale.py` | pixels per metre, body length | ✅ |
 | Surfaces | `engine/surfaces.py` | the floor line (later: wall plane, holds) | floor ✅ |
 | Contacts | `engine/contacts.py` | anchors: floor contacts, bar grips (later: holds), stance labels | floor/bar ✅ |
 | Support | `engine/support.py` | base of support, margin, sway, flight, hanging, swing | ✅ off the wall |
-| Wall | `engine/wall.py` | anchors on holds, holds used, moves, ground, contacts, COM over the feet, support polygon | ✅ |
+| Holds | `engine/holddetect.py` | holds found in the wall image (pretrained detector) | ✅ optional model |
+| Wall | `engine/wall.py` | anchors on holds, smears and flags, moves, ground, contacts, COM over the feet, support polygon | ✅ |
+| Metres | `engine/metric.py`, `engine/profile.py`, `engine/kinematics.py` | perspective-corrected metres, climber profiles, COM velocity / acceleration | ✅ |
 | Route | `engine/route.py` | moves in order with tags, rests, feet cuts, hold usage | ✅ |
+| Technique | `engine/technique.py` | quiet feet, re-grips, straight arms, pauses, COM path | ✅ |
+| Forces | `engine/forces.py` | load on each hand and foot (wall plane) | ✅ model, to validate |
+| Dynamics | `engine/dynamics.py` | move phases, power, deadpoint, momentum arc, swing, joint effort | ✅ model, to validate |
 | Events | `engine/events.py` | runs, cycles (reps), longest holds | ✅ |
 | Signals | `engine/signals.py` | named per-frame series: the recipes' vocabulary | ✅ |
 | Analyses | `recipes/` | recipe runner + `library/*.yaml` | ✅ 9 recipes |
-| Output | `analysis.py`, `output/` | metrics.json, CSVs, report.png, annotated.mp4, summary | ✅ |
+| Output | `analysis.py`, `output/` | metrics.json, CSVs, report.png, route.png, summary | ✅ |
+| Scene | `output/scene.py` | every overlay as layers of simple shapes per frame, presets | ✅ |
+| Drawing | `output/render.py`, `output/viewer.py` | the same scene burnt into an MP4, or drawn live in the browser viewer (export, sound) | ✅ |
 
 Each layer only reads the layers above it. Because recipes only see *signals*, they
 don't change when a layer improves (a better pose model, the clean-up layer).
@@ -1563,12 +1581,18 @@ flowchart LR
   Y[recipe .yaml] --> R[recipe runner]
   C --> R
   R --> O[(metrics.json · angles.csv<br/>stability.csv · report.png)]
-  C --> AV[render → annotated.mp4]
+  C --> SC[scene<br/>layers of shapes]
+  SC --> AV[render → annotated.mp4]
+  SC --> VW[viewer → viewer.html]
   V --> AV
+  V --> VW
 ```
 
 In words: **video → pose → CSVs → Track → engine layers → Clip (signals) → recipe →
-results**, and **video + CSVs → annotated video**.
+results**, and **Clip → scene (overlay layers) → annotated video and viewer**. The scene
+is built once in Python; `render.py` draws it with OpenCV, the viewer with a canvas in
+the browser — so both always show the same thing. A new overlay is a new layer in
+`scene.py`, nothing else.
 
 ### 7.4 Modules
 
@@ -1585,14 +1609,21 @@ results**, and **video + CSVs → annotated video**.
 | `engine/surfaces.py` | Floor | `estimate_floor`, `Floor`, `FLOOR_PARTS` |
 | `engine/contacts.py` | Floor contacts, grips, stance labels | `detect_contacts`, `detect_grips`, `Contacts` |
 | `engine/support.py` | Support, margin, sway, jumps, bar summary | `compute_stability`, `stability_summary` |
-| `engine/wall.py` | Wall layer: anchors, holds, moves, ground, wall support | `detect_anchors`, `compute_wall_support`, `wall_summary`, `WallParams` |
+| `engine/wall.py` | Wall layer: anchors, holds, smears / flags, moves, ground, wall support | `detect_anchors`, `compute_wall_support`, `wall_summary`, `WallParams` |
+| `engine/smoothing.py` | Robust confidence-weighted smoothing of the joints | `smooth_track`, `SmoothParams` |
+| `engine/holddetect.py` | Hold detector (ONNX) on the wall image | `load_or_detect`, `HoldBoxes` |
+| `engine/metric.py`, `engine/profile.py`, `engine/kinematics.py` | Metres on the wall, climber profiles, derivatives | `fit_wall_metric`, `find_climber`, `derivatives` |
+| `engine/route.py`, `engine/technique.py` | Moves, rests, hold usage; technique | `compute_route`, `compute_technique` |
+| `engine/forces.py`, `engine/dynamics.py` | Contact forces; phases, power, swing, joint effort | `compute_forces`, `compute_dynamics` |
 | `engine/events.py` | Generic event detectors | `runs`, `clean_runs`, `longest_run`, `find_cycles` |
 | `engine/signals.py` | Named signals; the `Clip` bundle | `Clip.build`, `Clip.signal`, `register`, `describe` |
 | `recipes/__init__.py` | Load, match and run recipes | `load_recipes`, `guess_recipe`, `run_recipe` |
 | `recipes/expr.py` | The safe expression language | `evaluate` |
 | `recipes/library/` | Shipped recipes | `squat.yaml`, `pullup.yaml`, … |
 | `analysis.py` | Results folder → all analysis outputs | `run_analysis`, `load_clip` |
-| `output/` | report.png, CSV tables, drawing, video, wall view, summary | `plot_report`, `render`, `render_wall_view`, `headline` |
+| `output/` | report.png, CSV tables, route map, wall view, summary | `plot_report`, `draw_route_map`, `render_wall_view`, `headline` |
+| `output/scene.py` | Overlay layers and presets | `build_scene`, `LAYERS`, `PRESETS`, `resolve_layers` |
+| `output/render.py`, `output/viewer.py` | MP4 from the scene; the browser viewer (+ export, `serve`) | `render`, `write_viewer`, `serve` |
 | `cli.py` | Command line | `main` |
 
 ### 7.5 Key data structures
@@ -1627,7 +1658,9 @@ Clip           # what a recipe sees
   .track .angles .stability .camera (CameraTrack or None) .t
   .wall (n,23,2)            # joints in wall coordinates
   .wall_support             # WallSupport: anchors {limb: [Anchor]}, holds, on_hold,
-                            #   n_contacts, on_wall, com, com_over_feet_cm, labels
+                            #   on_smear, n_contacts, on_wall, com, com_m/_v/_a,
+                            #   com_over_feet_cm, labels, metric
+  .route .technique .forces .dynamics   # wall scenes, computed on first use
   .signal("knee") -> (n,)   # cached; `climbvision signals` lists every name
 ```
 
@@ -1639,7 +1672,7 @@ Clip           # what a recipe sees
 
 ```bash
 conda activate climbvision
-pytest                       # all tests, ~5 s, no video or model needed
+pytest                       # all tests, ~1 min, no video or model needed
 pytest -m "not regression"   # only the fast synthetic tests
 pytest -m regression         # only the real-clip regression tests
 ruff check src tests
@@ -1737,6 +1770,15 @@ def _wrist_above_head(c: Clip) -> np.ndarray:
 It is computed on first use and cached. Angle signals need no registration: every
 angle in `biomech.JOINT_ANGLES` is available as `knee`, `knee_l`, `knee_l_2d`, etc.
 `climbvision signals` lists them all.
+
+### 8.4b Adding an overlay layer
+
+An overlay is a layer in `output/scene.py`: add its name to `LAYERS` (and to a preset
+if it belongs there), and in `build_scene` (or `_wall_layers`) append shapes for it to
+`F["<name>"][i]` for each frame — lines, polylines, circles, arrows, text (the shape
+list is in the module's docstring), in image pixels, sizes in 1/1000 of the frame. Both
+renderers draw it as is: add its place in `DRAW_ORDER` (render.py) and `ORDER`, a
+label and a help line in `viewer.py`. Nothing else changes.
 
 ### 8.5 Adding a pose backend
 
@@ -1921,7 +1963,10 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Hold detection misses | A foot or hand on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer | Check `holds_detected.jpg`; smears still count for balance and forces |
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
-| Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing | Film the start and end from the floor |
+| Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing. Textured concrete and some mats are missed (steep wall side view, iman3's orange mat): a foot on them with a hand on a hold reads as a smear | Film the start and end from the floor; a better floor test is planned |
+| Smears and flags | A still limb off any hold is a smear only if the body moves ≥ 10 cm over it, else a flag (no contact). A real smear held while the body is still is missed (counted as a flag); a foot on a missed hold is a weak contact (load reads low) | Watch the viewer's "flag?" rings; depth (1.6) can tell a touching foot from one in the air |
+| Joint effort, move phases | Quasi-static moments (segment inertia ignored), from the force model's split: core and hip values on steep walls look high. Phases resolve to one frame (33 ms at 30 fps); pushes shorter than ~0.1 s blur | Compare moves and attempts rather than single values; film fast moves at 60 fps |
+| Viewer export | Needs WebCodecs (Chrome, Edge, Safari 16.4+); a page opened from disk may have to be pointed at `viewer.mp4` once; slow-motion exports are silent | `climbvision view … --open`, or `climbvision render --preset …` |
 | COM over the feet on steep walls | On overhangs the body hangs away from the wall, so "over the feet" in the picture means little (0–5 % on the overhang clips vs 30–70 % on vertical walls and the slab) | 3D, later |
 | Wall not flat | Volumes and changes of wall angle don't follow one homography: a few cm of parallax when the filmer moves sideways | Film from one spot and turn the phone; later: one plane per panel |
 | Several people / wall features | MediaPipe can jump to another person or onto holds | Use the climbing models (top-down tracking locks the climber); one climber in frame |
@@ -1966,6 +2011,12 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | **Anchor** (on the wall) | A hand or foot still on the wall for ~0.5 s: on a hold |
 | **Move** | A limb leaving one hold and anchoring on another |
 | **Keyframe** | A stored frame the camera layer re-aligns to, so errors don't build up |
+| **Smear** | A foot or palm pressed on bare wall (no hold), held by friction; proven when the body moves over it |
+| **Flag** | A limb held still in the air as a counterweight — no contact |
+| **Deadpoint** | The moment the COM stops rising in a move; catching a hold there costs least |
+| **Push / reach / catch** | The phases of a hand move: driving the body, momentum carrying it, the hand absorbing it |
+| **Joint effort** | Net joint moment (Nm per kg of body mass): how hard the muscles around a joint work |
+| **Layer / preset** | One kind of overlay on the video; a named set of layers (clean, balance, load, dynamics, form, all) |
 
 ---
 
@@ -1998,3 +2049,6 @@ Change one and run `pytest`: the regression tests show which real clips it affec
   Biomedical Engineering*, 43(9), 956–966. — sway measures (6.8)
 - Hof, A. L., Gazendam, M. G. J. & Sinke, W. E. (2005). The condition for dynamic
   stability. *Journal of Biomechanics*, 38(1), 1–8. — margins of stability
+- Cleveland, W. S. (1979). Robust locally weighted regression and smoothing
+  scatterplots. *JASA*, 74(368), 829–836. — the smoothing layer (6.21)
+- Winter, D. A. (2009), chapter 5: inverse dynamics. — joint effort (6.23)
