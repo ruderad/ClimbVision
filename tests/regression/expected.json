@@ -1151,7 +1151,7 @@
           "wall",
           "on_wall_s"
         ],
-        "approx": 27.7,
+        "approx": 30.6,
         "tol": 2.0
       },
       {
@@ -1189,7 +1189,7 @@
         "path": [
           "feet_on_holds_pct"
         ],
-        "approx": 79.4,
+        "approx": 71.0,
         "tol": 6
       },
       {
@@ -1252,7 +1252,7 @@
           "forces",
           "hands_load_pct_bw_peak"
         ],
-        "approx": 109.5,
+        "approx": 167.9,
         "tol": 40
       }
     ]

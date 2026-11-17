@@ -253,3 +253,16 @@ def test_without_a_detector_every_rest_is_a_hold():
     ws = compute_wall_support(pts, t, BODY, PPM)
     assert ws.holds_source == "rests" and not any(
         a.smear for limb in ws.anchors for a in ws.anchors[limb])
+
+
+def test_hanging_with_the_feet_off_is_on_the_wall():
+    """Both hands on holds above the shoulders, legs swinging (campusing, kicking for a
+    heel hook): on the wall the whole time, even though no foot ever rests."""
+    def plan(ti):
+        swing = 150 * np.sin(2 * np.pi * 0.8 * ti)
+        return H["A"], H["B"], (420 + swing, 950), (600 + swing, 960)
+
+    pts, t = climb(plan, seconds=6)
+    ws = compute_wall_support(pts, t, BODY, PPM)
+    assert ws.on_wall.mean() > 0.95 and not ws.on_ground.any()
+    assert ws.on_hold["l_hand"].mean() > 0.9 and not ws.on_hold["l_foot"].any()

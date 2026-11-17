@@ -579,7 +579,7 @@ id (grey = on the ground).
 
 | Key | Meaning |
 |---|---|
-| `on_wall_s` | Time on the wall (from the first to the last foot on a hold, minus time on the ground) |
+| `on_wall_s` | Time on the wall (from the first to the last foot on a hold or hand hanging on one, minus time on the ground) |
 | `ground` | `stood on` (feet on the floor at some point), `in view, not stood on`, or `not seen` |
 | `holds_used`, `hand_holds`, `foot_holds` | Distinct holds (a matched hold counts for both) |
 | `on_hold_pct` | Per limb, % of the climb on a hold |
@@ -1080,7 +1080,10 @@ of holds: when the camera is close to the wall, the bottom band of `wall.jpg` is
 (Floors in the test clips have up to ~14 objects: shoes, bags, mat edges.)
 
 Footholds have wall below them. The climb (`on_wall`) runs from the first to the last
-moment with a foot on a hold and none on the ground.
+moment with a foot on a hold — or a hand on a hold above the shoulders (hanging with the
+feet off: campusing, a cut, kicking for a heel hook) — and none on the ground. (Before
+1.5 only feet counted, so a clip starting in a hang, like iman6's first 12 s, had no
+forces or balance until a foot settled.)
 
 **Support on the wall** (gravity = "down" in the first registered frame; hold the phone
 upright at the start):

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Hanging counts as climbing
+- A hand on a hold above the shoulders now starts / keeps the climb (`on_wall`) even
+  with no foot on a hold: clips that start in a hang or campus long sections (iman5,
+  iman6) had no forces or balance until a foot settled.
+
 ### Smears you can trust (GUIDE §6.20, §6.19)
 - A still limb off any hold is a **smear** only if the body moved over it (≥ 10 cm);
   otherwise a **flag** (no contact: not in the base of support, no force), drawn grey

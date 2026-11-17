@@ -487,7 +487,18 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     for f in ("l_foot", "r_foot"):
         for an in anchors[f]:
             (foot_ground if an.ground else foot_hold)[an.start:an.end] = True
-    climbing = foot_hold & ~foot_ground
+    # hands above the shoulders on a hold also mean climbing: hanging with the feet off
+    # (campusing, a cut, kicking for a heel hook) is on the wall, not on the ground
+    hand_hang = np.zeros(n, bool)
+    for h, sh in (("l_hand", J.L_SHOULDER), ("r_hand", J.R_SHOULDER)):
+        for an in anchors[h]:
+            seg = slice(an.start, an.end)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                above = np.nanmedian(pts[h][seg, 1]) < np.nanmedian(wall_points[seg, sh, 1])
+            if above:
+                hand_hang[seg] = True
+    climbing = (foot_hold | hand_hang) & ~foot_ground
     on_wall = np.zeros(n, bool)
     if climbing.any():
         a, b = np.flatnonzero(climbing)[[0, -1]]
