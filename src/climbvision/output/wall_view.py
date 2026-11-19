@@ -27,6 +27,7 @@ from climbvision.engine.skeleton import BONES, J
 from climbvision.engine.track import Track
 from climbvision.engine.video import VideoReader, VideoWriter
 from climbvision.output.draw import draw_label, draw_spine
+from climbvision.output.watermark import apply_watermark
 
 TRAIL = {"L hand": ((J.L_WRIST, J.L_HAND), (255, 90, 160)),
          "R hand": ((J.R_WRIST, J.R_HAND), (255, 170, 0)),
@@ -36,7 +37,7 @@ TRAIL = {"L hand": ((J.L_WRIST, J.L_HAND), (255, 90, 160)),
 
 def render_wall_view(video_path: str | Path, result_dir: str | Path,
                      out_path: str | Path | None = None, max_side: int = 1280,
-                     trail_seconds: float = 2.0) -> Path:
+                     trail_seconds: float = 2.0, watermark: bool = True) -> Path:
     result_dir = Path(result_dir)
     out_path = Path(out_path) if out_path else result_dir / "wall_view.mp4"
     from climbvision.engine.video import warn_if_changed
@@ -122,7 +123,7 @@ def render_wall_view(video_path: str | Path, result_dir: str | Path,
                         cv2.circle(frame, tuple(int(v) for v in pts[-1]), max(4, int(7 * s)),
                                    col, -1, cv2.LINE_AA)
                 draw_label(frame, lines)
-                writer.write(frame)
+                writer.write(apply_watermark(frame) if watermark else frame)
     return out_path
 
 

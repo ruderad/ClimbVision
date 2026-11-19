@@ -174,3 +174,18 @@ def test_annotated_video_keeps_the_sound(tmp_path):
     probe2 = subprocess.run([exe, "-i", str(render(silent, out2))], capture_output=True,
                             text=True).stderr
     assert "Audio:" not in probe2
+
+
+def test_watermark_bottom_right_only():
+    import numpy as np
+
+    from climbvision.output.watermark import apply_watermark
+
+    img = np.full((1920, 1080, 3), 120, np.uint8)
+    out = apply_watermark(img.copy())
+    changed = np.any(out != 120, axis=2)
+    ys, xs = np.nonzero(changed)
+    assert changed.any()
+    assert ys.min() > 1920 * 0.8 and xs.min() > 1080 * 0.5  # bottom-right corner only
+    tiny = np.full((80, 80, 3), 120, np.uint8)
+    assert (apply_watermark(tiny.copy()) == 120).all()  # too small: left alone

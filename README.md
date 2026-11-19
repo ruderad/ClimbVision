@@ -39,6 +39,7 @@ climbvision render outputs/squat_side
 climbvision render outputs/iman3 --preset dynamics      # annotated_dynamics.mp4
 climbvision render outputs/iman3 --layers skeleton,forces,timeline --out mine.mp4
 climbvision render outputs                 # every results folder
+climbvision render outputs/iman3 --no-watermark   # without the ClimbVision watermark
 # camera layer for clips analysed before it existed (handheld wall videos)
 climbvision camera outputs/traverse
 climbvision --version                      # version + where the code is loaded from

@@ -190,9 +190,11 @@ def draw_timeline(width: int, timeline: dict, t: float, unit: float) -> np.ndarr
 
 def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path | None = None,
            layers: str | list[str] | None = None, preset: str | None = None,
-           scene: Scene | None = None) -> Path:
-    """Draw the chosen layers on the video (default: the `balance` preset)."""
+           scene: Scene | None = None, watermark: bool = True) -> Path:
+    """Draw the chosen layers on the video (default: the `balance` preset), with the
+    ClimbVision watermark unless `watermark=False`."""
     from climbvision.engine.video import VideoReader, VideoWriter, warn_if_changed
+    from climbvision.output.watermark import apply_watermark
 
     result_dir = Path(result_dir)
     out_path = Path(out_path) if out_path else result_dir / "annotated.mp4"
@@ -220,6 +222,8 @@ def render(video_path: str | Path, result_dir: str | Path, out_path: str | Path 
                     if name in chosen:
                         draw_shapes(img, scene.frames[name][i], unit, info)
                 draw_info(img, info, unit)
+                if watermark:
+                    apply_watermark(img)
                 if band_h:
                     img = np.vstack([img, draw_timeline(size[0], scene.timeline,
                                                         scene.t[i], unit)])

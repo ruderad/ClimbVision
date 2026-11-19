@@ -23,6 +23,11 @@
 - A foot off any hold with no hand on one counts as the floor only near the bottom
   (radmehr1's top section read as 8 s on the ground).
 
+### Watermark
+- Output videos (annotated MP4s, `viewer.mp4` and so the viewer's exports, `wall_view.mp4`)
+  carry the ClimbVision video watermark (identity v1, Snow) in the bottom-right corner;
+  `--no-watermark` on `analyze`, `render`, `view`, `camera` turns it off (GUIDE §3.2b).
+
 ### Climb windows from annotations
 - The drop to the mat ends the climb when the camera doesn't see the landing (a fast
   fall of the COM with no limb on a hold, that stays down): arya1 23.6 -> 20.5 s

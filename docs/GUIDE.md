@@ -206,6 +206,7 @@ climbvision analyze VIDEO [VIDEO ...] [--out DIR] [--recipe NAME|FILE] [--recipe
 | `--model` | per backend | Model size. MediaPipe: `lite`, `full` (default), `heavy`; RTMPose: `m` (default), `x`; RTMW: `x` |
 | `--no-camera` | off | Skip the camera layer (6.13); the camera is then assumed fixed |
 | `--no-video` | off | Skip `annotated.mp4` and `wall_view.mp4` (faster) |
+| `--no-watermark` | off | Leave the ClimbVision watermark off the output videos (also on `render`, `view`, `camera`) |
 | `--max-frames` | all | Only process the first N frames (quick tests) |
 
 ### 3.2 `climbvision metrics`
@@ -219,10 +220,23 @@ Reads `landmarks.csv` (+ `com.csv`, `summary.json`) and rewrites `angles.csv`,
 `stability.csv`, `metrics.json` and `report.png`. Folders without `landmarks.csv`
 are skipped.
 
+### 3.2b The watermark
+
+Every video ClimbVision writes — `annotated*.mp4`, `viewer.mp4` (so the viewer and its
+Export MP4 too) and `wall_view.mp4` — carries the ClimbVision watermark in the bottom-right
+corner of the picture: the identity's video watermark (Snow, monochrome: chalk on the
+footage, so it never competes with the overlay colours), 30 % of the frame's short side
+wide, at 75 % opacity over a soft Alpine-night shadow. It is never drawn on the timeline
+strip. `--no-watermark` on `analyze`, `render`, `view` or `camera` leaves it off. The
+image is `src/climbvision/output/assets/watermark.png`, from
+`visual-identity/CURRENT/colour/png/climbvision_video_watermark_snow_800.png`; to change it,
+replace that file (RGBA, transparent background).
+
 ### 3.3 `climbvision render`
 
 ```
 climbvision render outputs/CLIP [--video PATH] [--preset NAME] [--layers a,b,...] [--out FILE]
+                   [--no-watermark]
 ```
 
 Redraws `annotated.mp4` with the chosen overlays (§5.1): `--preset` clean, balance
@@ -238,7 +252,7 @@ without sound stays silent).
 ### 3.3a `climbvision view`
 
 ```
-climbvision view outputs/CLIP [--video PATH] [--open] [--keep-video]
+climbvision view outputs/CLIP [--video PATH] [--open] [--keep-video] [--no-watermark]
 ```
 
 Writes `viewer.html` and `viewer.mp4` (the clip without drawings) in the results

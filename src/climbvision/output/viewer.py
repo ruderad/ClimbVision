@@ -19,9 +19,12 @@ from climbvision.output.scene import Scene, build_scene
 
 
 def write_viewer(video_path: str | Path, result_dir: str | Path,
-                 scene: Scene | None = None, video: bool = True) -> Path:
-    """viewer.html (+ viewer.mp4 unless `video=False` and it exists) in result_dir."""
+                 scene: Scene | None = None, video: bool = True,
+                 watermark: bool = True) -> Path:
+    """viewer.html (+ viewer.mp4 unless `video=False` and it exists) in result_dir.
+    The watermark is in viewer.mp4 itself, so the viewer and its exports carry it."""
     from climbvision.engine.video import VideoReader, VideoWriter, warn_if_changed
+    from climbvision.output.watermark import apply_watermark
 
     result_dir = Path(result_dir)
     scene = scene or build_scene(result_dir)
@@ -43,6 +46,8 @@ def write_viewer(video_path: str | Path, result_dir: str | Path,
                         break
                     if resize:
                         img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+                    if watermark:
+                        apply_watermark(img)
                     w.write(img)
     data = scene.to_json().replace("</", "<\\/")
     muxer = (Path(__file__).parent / "vendor" / "mp4-muxer.min.js").read_text(encoding="utf-8")

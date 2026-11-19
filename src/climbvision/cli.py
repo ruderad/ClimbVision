@@ -31,7 +31,12 @@ def _print_metrics(m: dict) -> None:
     print(json.dumps(keep, indent=2))
 
 
-def _camera(video: Path, out: Path, video_out: bool) -> None:
+def _add_watermark_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--no-watermark", action="store_true",
+                   help="leave the ClimbVision watermark off the output videos")
+
+
+def _camera(video: Path, out: Path, video_out: bool, watermark: bool = True) -> None:
     from climbvision.engine.camera import run_camera
 
     cam = run_camera(video, out)
@@ -41,7 +46,7 @@ def _camera(video: Path, out: Path, video_out: bool) -> None:
     if video_out:
         from climbvision.output.wall_view import render_wall_view
 
-        print(f"[climbvision] wrote {render_wall_view(video, out)}")
+        print(f"[climbvision] wrote {render_wall_view(video, out, watermark=watermark)}")
 
 
 def _add_climber_arg(p: argparse.ArgumentParser) -> None:
@@ -118,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="skip writing annotated.mp4 / wall_view.mp4")
     a.add_argument("--no-camera", action="store_true",
                    help="skip the camera layer (assume a fixed camera)")
+    _add_watermark_arg(a)
     a.add_argument("--max-frames", type=int, default=None)
     _add_climber_arg(a)
 
@@ -138,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", default=None,
                    help="file name in the results folder (default annotated.mp4, or "
                    "annotated_<preset>.mp4 with --preset)")
+    _add_watermark_arg(r)
 
     vw = sub.add_parser("view", help="interactive viewer: viewer.html (+ viewer.mp4)")
     vw.add_argument("results", nargs="+", type=Path, help=RESULTS_HELP)
@@ -149,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
                     "viewer.mp4")
     vw.add_argument("--keep-video", action="store_true",
                     help="reuse viewer.mp4 if it's there (only the layers are redone)")
+    _add_watermark_arg(vw)
 
     po = sub.add_parser("pose", help="pose pass only, resumable (long videos, time limits)")
     po.add_argument("video", type=Path)
@@ -169,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--video", type=Path, default=None,
                    help="source video (default: the path stored in summary.json)")
     c.add_argument("--no-video", action="store_true", help="skip wall_view.mp4")
+    _add_watermark_arg(c)
 
     sm = sub.add_parser("summary", help="one-line result per clip (table + CSV)")
     sm.add_argument("results", nargs="+", type=Path, help="result folders")
@@ -276,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
                 set_climber(out, args.climber)
             print(json.dumps(summary, indent=2))
             if not args.no_camera:
-                _camera(video, out, not args.no_video)
+                _camera(video, out, not args.no_video, not args.no_watermark)
             _print_metrics(run_analysis(out, args.recipe, recipe_dirs=args.recipes))
             if not args.no_video:
                 from climbvision.output.render import render
@@ -284,8 +293,10 @@ def main(argv: list[str] | None = None) -> int:
                 from climbvision.output.viewer import write_viewer
 
                 scene = build_scene(out)
-                print(f"[climbvision] wrote {render(video, out, scene=scene)}")
-                print(f"[climbvision] wrote {write_viewer(video, out, scene=scene)}")
+                wm = not args.no_watermark
+                print(f"[climbvision] wrote {render(video, out, scene=scene, watermark=wm)}")
+                print(f"[climbvision] wrote "
+                      f"{write_viewer(video, out, scene=scene, watermark=wm)}")
 
     elif args.cmd == "metrics":
         for d in args.results:
@@ -303,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
             if not video.exists():
                 print(f"[climbvision] {d}: source video {video} not found, use --video")
                 continue
-            _camera(video, d, not args.no_video)
+            _camera(video, d, not args.no_video, not args.no_watermark)
 
     elif args.cmd == "render":
         from climbvision.output.render import render
@@ -317,7 +328,9 @@ def main(argv: list[str] | None = None) -> int:
             if not video.exists():
                 print(f"[climbvision] {d}: source video {video} not found, use --video")
                 continue
-            print(f"[climbvision] wrote {render(video, d, d / name, args.layers, args.preset)}")
+            out_mp4 = render(video, d, d / name, args.layers, args.preset,
+                             watermark=not args.no_watermark)
+            print(f"[climbvision] wrote {out_mp4}")
 
     elif args.cmd == "view":
         from climbvision.output.viewer import write_viewer
@@ -329,7 +342,8 @@ def main(argv: list[str] | None = None) -> int:
             if not video.exists() and not (args.keep_video and (d / "viewer.mp4").exists()):
                 print(f"[climbvision] {d}: source video {video} not found, use --video")
                 continue
-            out = write_viewer(video, d, video=not args.keep_video)
+            out = write_viewer(video, d, video=not args.keep_video,
+                               watermark=not args.no_watermark)
             print(f"[climbvision] wrote {out}")
             pages.append(out.resolve())
         if args.open and pages:
