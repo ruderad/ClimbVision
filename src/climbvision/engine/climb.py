@@ -20,6 +20,9 @@ mat. In frames (per attempt):
     - no limb on a hold for `max_air_s` (a dyno or a cut lasts well under a second;
       longer means the climber has left the wall).
   The end is then the last contact plus `tail_s` (the drop).
+- A drop the camera sees but whose landing it doesn't (the floor out of view): a fall
+  of the COM of `drop_bl` body lengths or more, faster than `drop_speed`, with no limb
+  on a hold, ends the climb where the fall stops.
 
 **Attempts.** A clip can hold several attempts (a fall, then a second go): each
 stretch on the wall between touchdowns is one. The analysis measures one attempt, the
@@ -47,6 +50,9 @@ class ClimbParams:
     max_air_s: float = 2.0  # no limb on a hold this long: the climber left the wall
     tail_s: float = 0.5  # after the last contact (the drop), when no touchdown is seen
     touchdown_s: float = 1.5  # a touchdown this soon after the last contact ends it there
+    drop_bl: float = 0.6  # body lengths: the COM falling this far, fast (drop_speed
+    drop_speed: float = 1.5  # body lengths/s), starting with no limb on a hold, is the
+    #                          drop to the mat: the climb ends where the fall stops
     merge_s: float = 1.0  # two stretches on the wall this close, no ground in between: one
     min_climb_s: float = 2.0  # shorter stretches are not attempts
 
@@ -103,6 +109,35 @@ def _persistent(mask: np.ndarray, min_len: int) -> np.ndarray:
         if b - a >= min_len:
             out[a:b] = True
     return out
+
+
+def _drop(com_y: np.ndarray, held: np.ndarray, a: int, b: int, fps: float, ref: float,
+          prm: ClimbParams) -> int | None:
+    """The frame where the drop to the mat ends, if the attempt [a, b) has one: a fall
+    of the COM of `drop_bl` body lengths or more, faster than `drop_speed`, with no limb
+    on a hold for most of its fast part. None if there is none."""
+    y = np.asarray(com_y[a:b], float)
+    if len(y) < 5 or not np.isfinite(y).any():
+        return None
+    ok = np.isfinite(y)
+    y = np.interp(np.arange(len(y)), np.flatnonzero(ok), y[ok])
+    k = max(1, int(round(0.1 * fps)))
+    ys = np.convolve(y, np.ones(2 * k + 1) / (2 * k + 1), "same")
+    v = np.gradient(ys) * fps / max(ref, 1e-6)  # body lengths/s, + = falling (y down)
+    fast = v > prm.drop_speed
+    for s0, s1 in _runs(fast):
+        i = s0
+        while i > 0 and v[i - 1] > 0.2:  # back to where the fall began
+            i -= 1
+        j = s1
+        while j < len(v) and v[j] > 0.2:  # on to where it stops
+            j += 1
+        j = min(j, len(ys) - 1)
+        after = ys[j: j + max(2, int(round(0.5 * fps)))]  # and it stays down (a pose
+        stays = np.min(after) - ys[i] >= 0.7 * prm.drop_bl * ref  # glitch springs back)
+        if ys[j] - ys[i] >= prm.drop_bl * ref and stays and held[a + s0: a + s1].mean() < 0.5:
+            return a + j + 1
+    return None
 
 
 def find_climb(on_wall: np.ndarray, on_ground: np.ndarray, contact: np.ndarray,
@@ -173,6 +208,11 @@ def find_climb(on_wall: np.ndarray, on_ground: np.ndarray, contact: np.ndarray,
                                              else "touchdown")
                 end = min(b, last + 1 + frames(prm.tail_s))
         end = max(end, last + 1)
+        # the drop to the mat, when the camera doesn't see the touchdown (annotated:
+        # arya1 landed at 20.6 s, then stood about; read as climbing until 23.6 s)
+        drop = _drop(com_y, held, a, end, fps, ref, prm)
+        if drop is not None:
+            end, reason = drop, "touchdown (the drop)"
         if t[min(end, n) - 1] - t[a] < prm.min_climb_s:
             continue
         with warnings.catch_warnings():

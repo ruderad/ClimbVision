@@ -95,3 +95,29 @@ def test_scale_learnt_from_the_climb_only():
     assert np.nanpercentile(chain_len(img), 90) == 900
     frames = np.arange(n) < 70
     assert estimate_scale(tr, 1.36, frames=frames).body_px == 300
+
+
+def test_the_drop_ends_the_climb_when_the_landing_isnt_seen():
+    t, c = _clip(30)
+    _climb(t, c, 2, 20, rise=-600)  # climbs up: COM y goes from 1000 to 400
+    # then lets go and drops 1.5 body lengths in 0.4 s; the floor isn't seen, the climber
+    # stands about and the wall layer still says "on the wall"
+    after = t >= 20
+    c["on_wall"][after] = True
+    c["contact"][after & (t > 21)] = 1
+    fall = (t >= 20) & (t < 20.4)
+    c["com_y"][fall] = 400 + 600 * (t[fall] - 20) / 0.4
+    c["com_y"][t >= 20.4] = 1000
+    cw = _run(t, c)
+    b = cw.attempt.span_s(t)[1]
+    assert 20.3 <= b <= 20.8 and "drop" in cw.attempt.end_reason
+
+
+def test_a_pose_glitch_that_springs_back_is_not_a_drop():
+    t, c = _clip(30)
+    _climb(t, c, 2, 25, rise=-600)
+    glitch = (t >= 15) & (t < 15.3)
+    c["contact"][glitch] = 0
+    c["com_y"][glitch] += 600  # one bad stretch of pose, then back
+    cw = _run(t, c)
+    assert cw.attempt.span_s(t)[1] > 24.5

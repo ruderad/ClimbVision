@@ -1172,8 +1172,16 @@ the climb's frames only, and the second pass measures only the climb.
   visibility < 0.3); the person's size leaves 0.55-1.6 x their size on the wall (walking
   towards the camera, or someone else); or no limb on a hold for 2 s (a dyno or a cut
   lasts well under a second). The end is then the last contact + 0.5 s (the drop).
+- *The drop* when the landing isn't seen (the floor out of view, the climber then
+  stands about with the feet read as on holds): a fall of the COM of 0.6 body lengths or
+  more, faster than 1.5 body lengths/s, with no limb on a hold, that stays down (a pose
+  glitch springs back), ends the climb where the fall stops (arya1: 23.6 -> 20.5 s,
+  annotated 20.6 s).
 - A shorter break (a camera glitch under 1 s) doesn't end the climb, but its frames
   count for nothing.
+- Checked against annotations (`climbs.csv`, all 23 clips): 22 of 23 windows within
+  0.5 s of the annotated start and end. Left: iman4's jump start (feet leave the floor at
+  3.4 s; the climb starts at 5.4 s, when the hands settle).
 - *Attempts*: each stretch on the wall between touchdowns (2 s or longer) is one. One
   is measured, the one whose COM rose most (the one that got highest); the others are
   listed in `metrics.json` (`climb.attempts`) with a warning. Best practice: one
@@ -2019,6 +2027,8 @@ Where does the climb start? `tools/annotate.py` turns them into spreadsheets:
 ```bash
 python tools/annotate.py make  data/annotations/<date>  outputs_v14/iman3 ...
 python tools/annotate.py score data/annotations/grips_truth.csv outputs_v14/iman3 ...
+python tools/annotate.py score data/annotations/feet.csv   outputs_v14/slab ...
+python tools/annotate.py score data/annotations/climbs.csv outputs_v14/*
 ```
 
 `make` writes four pre-filled sheets, one row per thing the system found, with empty

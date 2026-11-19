@@ -23,6 +23,12 @@
 - A foot off any hold with no hand on one counts as the floor only near the bottom
   (radmehr1's top section read as 8 s on the ground).
 
+### Climb windows from annotations
+- The drop to the mat ends the climb when the camera doesn't see the landing (a fast
+  fall of the COM with no limb on a hold, that stays down): arya1 23.6 -> 20.5 s
+  (annotated 20.6). Annotated windows (23 clips): 22 within 0.5 s (was 21);
+  `tools/annotate.py score climbs.csv`.
+
 ### Grips from annotations (GUIDE §6.14 steps 4-5, §8.7b)
 - Annotated brief touches showed most were not separate events: one grip broken up
   when the hand was hidden for a moment. Pieces of one grip are now joined (same hold

@@ -4,6 +4,7 @@
                                                          holds_tape.csv (pre-filled)
     python tools/annotate.py score grips.csv  results... -> how well the grips match
     python tools/annotate.py score feet.csv   results... -> how well the feet match
+    python tools/annotate.py score climbs.csv results... -> how well the climb windows match
 
 Each sheet lists what ClimbVision found, one row per item, with empty columns for you.
 Fill what you can; leave the rest empty. Times are the viewer's clock (seconds from the
@@ -222,6 +223,38 @@ def score_feet(sheet: Path, results: list[Path]) -> dict:
                                                        conf.items() if v}}
 
 
+def score_climbs(sheet: Path, results: list[Path]) -> dict:
+    """Compare a filled climbs.csv with the climb windows as they are now. The truth is
+    true_start_s / true_end_s where given, else the sheet's own start_s / end_s (rows
+    marked ok)."""
+    rows = {r["clip"]: r for r in csv.DictReader(sheet.open()) if r.get("verdict", "").strip()}
+    errs = []
+    for d in results:
+        r = rows.get(d.name)
+        if r is None:
+            continue
+        c = _clip(d)
+        if c.climb is None:
+            continue
+        a, b = c.climb.attempt.span_s(c.t)
+        ts = _f(r.get("true_start_s")) if r.get("true_start_s") else _f(r.get("start_s"))
+        te = _f(r.get("true_end_s")) if r.get("true_end_s") else _f(r.get("end_s"))
+        if ts is None or te is None:
+            continue
+        errs.append((d.name, a - ts, b - te))
+        if abs(a - ts) > 0.5 or abs(b - te) > 0.5:
+            print(f"  {d.name:20s} start {a:6.2f} (true {ts:6.2f})  end {b:6.2f} (true {te:6.2f})")
+    e = np.array([[x[1], x[2]] for x in errs]) if errs else np.zeros((0, 2))
+    out = {"clips": len(errs),
+           "within_0.5s_pct": round(100 * float(np.mean(np.all(np.abs(e) <= 0.5, axis=1))), 1)
+           if len(e) else 0.0,
+           "start_err_median_s": round(float(np.median(np.abs(e[:, 0]))), 2) if len(e) else 0.0,
+           "end_err_median_s": round(float(np.median(np.abs(e[:, 1]))), 2) if len(e) else 0.0}
+    for k, v in out.items():
+        print(f"  {k:22s} {v}")
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -235,7 +268,10 @@ def main(argv=None) -> int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore")
     if args.cmd == "make":
         make(args.out, args.results)
-    elif "truth" in (next(csv.reader(args.sheet.open())) or []):
+    elif "true_end_s" in (head := next(csv.reader(args.sheet.open())) or []) and \
+            "attempts_found" in head:
+        score_climbs(args.sheet, args.results)
+    elif "truth" in head:
         score_feet(args.sheet, args.results)
     else:
         score(args.sheet, args.results)
