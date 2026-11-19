@@ -37,6 +37,10 @@
 - On the 18 annotated grips: found 67 % -> 100 %, pieces per grip 1.39 -> 1.22,
   coverage 48 % -> 90 %. moonboard2: 11 -> 8 hand moves (the right hand stayed on one
   hold 21.6-30.5 s); iman3: 7 -> 11 (its brief real grips).
+- Heel hooks: a foot at or above the hip with its heel on a detected hold (or, held
+  1 s with the body moving, on a missed hold) is on a hold, not a smear
+  (`wall.foot_hooks`). Annotated feet (46, slab / overhang / gardash2): 70 -> 74 %
+  agree; `tools/annotate.py score feet.csv`.
 - `tools/annotate.py`: pre-filled annotation sheets (grips, feet, climbs, hold
   heights) from results folders, and `score` for a filled grips sheet.
 

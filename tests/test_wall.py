@@ -382,3 +382,31 @@ def test_local_pace_in_body_lengths_per_second():
     com[:, 1] = -200.0 * t  # rising 200 px/s
     pace = _local_pace(com, t, 400.0, 0.5)
     assert abs(pace[45] - 0.5) < 1e-6  # 200 px/s on a 400 px body
+
+
+def test_heel_hook_counts_as_a_hold():
+    """A foot above the hip whose heel (not toe) is on a detected hold is hooking."""
+    from climbvision.engine.holddetect import HoldBoxes
+    from climbvision.engine.skeleton import N_JOINTS
+
+    n = 120
+    t = np.arange(n) / 30.0
+    p = np.full((n, N_JOINTS, 2), np.nan)
+    base = {J.L_SHOULDER: (380, 400), J.R_SHOULDER: (420, 400), J.L_HIP: (385, 560),
+            J.R_HIP: (415, 560), J.L_KNEE: (385, 700), J.L_ANKLE: (385, 820),
+            J.L_TOE: (385, 850), J.L_HEEL: (380, 830), J.L_WRIST: (370, 250),
+            J.R_WRIST: (430, 250), J.L_ELBOW: (375, 330), J.R_ELBOW: (425, 330),
+            J.R_KNEE: (560, 520), J.R_ANKLE: (640, 470), J.R_HEEL: (650, 480),
+            J.R_TOE: (700, 470)}
+    for j, xy in base.items():
+        p[:, j] = xy
+    p[:, :, 0] += np.linspace(0, 60, n)[:, None]  # the body moves over the feet ...
+    for j in (J.R_ANKLE, J.R_HEEL, J.R_TOE, J.L_TOE, J.L_HEEL, J.L_ANKLE, J.L_WRIST,
+              J.R_WRIST):
+        p[:, j] = base[j]  # ... while the hands and feet stay put
+    boxes = np.array([[640, 465, 665, 495],  # the hold under the right heel
+                      [360, 235, 385, 265], [420, 235, 445, 265],  # hand holds
+                      [370, 835, 400, 865]], float)  # left foot hold
+    ws = compute_wall_support(p, t, 500, 370, hold_boxes=HoldBoxes(boxes, np.ones(4), "t"))
+    hooks = [a for a in ws.anchors["r_foot"] if a.hook]
+    assert hooks and hooks[0].on_hold

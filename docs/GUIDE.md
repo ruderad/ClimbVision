@@ -1441,6 +1441,17 @@ hold**. A rest with no hold under it is either:
   ~11 cm, else a hold of its own) and counts for moves and forces like any hold.
   `wall.holds_missed_by_detector` counts them (1.5.1: radmehr1 3, slab 2, iman2 1,
   overhang 1). A palm at the hip or below stays a smear.
+- A **foot at or above the hip** (heel ≥ 0.1 body lengths above it) is **hooking**: on a
+  hold if its *heel* is on a detected hold (a heel hook: the toe point is off the hold),
+  or, held 1 s or more with the body moving, on a hold the detector missed (a heel or
+  toe hook). `wall.foot_hooks` counts them. Annotated: the overhang's heel hooks read as
+  smears before.
+
+**Checked against annotations** (`tools/annotate.py score feet.csv`; slab, overhang,
+gardash2: 46 still feet): 74 % agree (70 % before the hook rule). The rest: a foot
+brushing or smearing on the wall right next to a hold reads as on it (6: whether the foot
+carries weight doesn't show in 2D); a hold the detector missed (gardash2's foot rail);
+smear vs flag both ways (2); the slab's yellow mat start (floor read as a smear).
 
 | | hold | smear | flag |
 |---|---|---|---|

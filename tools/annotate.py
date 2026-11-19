@@ -3,6 +3,7 @@
     python tools/annotate.py make  OUT_DIR results...   -> grips.csv, feet.csv, climbs.csv,
                                                          holds_tape.csv (pre-filled)
     python tools/annotate.py score grips.csv  results... -> how well the grips match
+    python tools/annotate.py score feet.csv   results... -> how well the feet match
 
 Each sheet lists what ClimbVision found, one row per item, with empty columns for you.
 Fill what you can; leave the rest empty. Times are the viewer's clock (seconds from the
@@ -169,6 +170,58 @@ def score(sheet: Path, results: list[Path]) -> dict:
     return out
 
 
+FOOT_TRUTH = (("brush", "smear"), ("smear", "smear"), ("flag", "air"), ("air", "air"),
+              ("floor", "floor"), ("hold", "hold"))
+
+
+def _norm_foot(v: str) -> str | None:
+    v = v.strip().lower()
+    if not v or " then " in v or " and " in v or "pose" in v:
+        return None  # mixed rows (flag, then hold) and pose errors are not scored
+    for key, cat in FOOT_TRUTH:
+        if key in v:
+            return cat
+    return None
+
+
+def _sys_foot(a) -> str:
+    return "floor" if a.ground else "air" if a.flag else "smear" if a.smear else "hold"
+
+
+def score_feet(sheet: Path, results: list[Path]) -> dict:
+    """Compare a filled feet.csv (truth: hold / smear / air / floor) with the foot
+    anchors as they are now (the anchor overlapping each row most)."""
+    rows = list(csv.DictReader(sheet.open()))
+    cats = ("hold", "smear", "air", "floor")
+    conf = {(a, b): 0 for a in cats for b in cats + ("none",)}
+    for d in results:
+        rs = [r for r in rows if r["clip"] == d.name]
+        if not rs:
+            continue
+        c = _clip(d)
+        ws, t = c.wall_support, c.t
+        for r in rs:
+            truth = _norm_foot(r.get("truth", ""))
+            limb = NAME_LIMB.get(r["limb"].strip().lower())
+            s, e = _f(r.get("start_s")), _f(r.get("end_s"))
+            if truth is None or limb is None or s is None or e is None:
+                continue
+            best, ov = None, 0.0
+            for a in ws.anchors[limb]:
+                o = min(e, t[a.end - 1]) - max(s, t[a.start])
+                if o > ov:
+                    best, ov = a, o
+            conf[(truth, _sys_foot(best) if best is not None else "none")] += 1
+    n = sum(conf.values())
+    right = sum(conf[(a, a)] for a in cats)
+    print(f"  feet rows scored       {n}")
+    print(f"  system agrees          {right} ({100 * right / max(n, 1):.0f} %)")
+    print("  truth -> system: " + ", ".join(f"{a}->{b} {v}" for (a, b), v in conf.items()
+                                            if v and a != b))
+    return {"rows": n, "agree": right, "confusion": {f"{a}->{b}": v for (a, b), v in
+                                                       conf.items() if v}}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -182,6 +235,8 @@ def main(argv=None) -> int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore")
     if args.cmd == "make":
         make(args.out, args.results)
+    elif "truth" in (next(csv.reader(args.sheet.open())) or []):
+        score_feet(args.sheet, args.results)
     else:
         score(args.sheet, args.results)
     return 0

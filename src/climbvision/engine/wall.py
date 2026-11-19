@@ -78,6 +78,7 @@ class Anchor:
     box: int = -1  # the detected hold (holddetect.py) it rests on, if any
     flag: bool = False  # still, off any hold, not proven to touch: a flag (no contact)
     missed: bool = False  # on a hold the detector missed (a hand above the shoulder)
+    hook: bool = False  # a foot at or above the hip on a hold: a heel or toe hook
 
     @property
     def on_hold(self) -> bool:
@@ -133,6 +134,8 @@ class WallParams:
     frag_b_max_s: float = 1.5  # ... B (this short) was the pose losing the limb, if it sat
     #                            on the other hand (the model put both wrists on one) or
     #                            was hidden: one grip on A
+    hook_above_hip: float = 0.1  # body lengths: a foot's heel this far above the hip
+    #                              is hooking (heel or toe hook)
     missed_hold_s: float = 1.0  # a hand still this long above the shoulder, off any
     #                             detected hold, the body moving: a missed hold
     ground_band: float = 0.3  # body lengths: a foot off any hold, no hands on holds, is on
@@ -752,6 +755,27 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                         if above:
                             an.smear = False
                             an.missed = True
+                    # a foot at or above the hip is hooking: a heel hook (the toe point
+                    # is off the hold, the heel on it) or a toe hook on a hold the
+                    # detector missed. Annotated: heel hooks read as smears
+                    if limb.endswith("foot") and not an.ground:
+                        side = "L" if limb == "l_foot" else "R"
+                        seg = slice(an.start, an.end)
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", RuntimeWarning)
+                            heel = np.nanmedian(wall_points[seg, getattr(J, side + "_HEEL")],
+                                                axis=0)
+                            hip = np.nanmedian((wall_points[seg, J.L_HIP]
+                                                + wall_points[seg, J.R_HIP]) / 2, axis=0)
+                        high = bool(np.isfinite(heel).all() and np.isfinite(hip).all()
+                                    and hip[1] - heel[1] >= prm.hook_above_hip * body_px)
+                        if high:
+                            hb = hold_boxes.containing(heel, margin) \
+                                if np.isfinite(heel).all() else -1
+                            if hb >= 0:
+                                an.box, an.smear, an.flag, an.hook = hb, False, False, True
+                            elif an.smear and t[an.end - 1] - t[an.start] >= prm.missed_hold_s:
+                                an.smear, an.missed, an.hook = False, True, True
         # a foot "smearing" with no hand on a hold is standing on the floor (start or end of
         # a clip whose floor the camera doesn't show; a mat the floor test missed): nobody
         # climbs on a single smear with no hands
@@ -935,6 +959,9 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
         missed = sum(1 for h in ws.holds if h.box < 0)
         if missed:
             out["holds_missed_by_detector"] = missed
+        hooks = sum(a.hook for f in ("l_foot", "r_foot") for a in ws.anchors[f])
+        if hooks:
+            out["foot_hooks"] = hooks
     warn = []
     if wall_s < 0.5 * (t[-1] - t[0]) if n > 1 else False:
         warn.append(f"on the wall only {wall_s:.1f} s of {t[-1] - t[0]:.1f} s")
