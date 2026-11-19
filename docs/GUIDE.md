@@ -1183,10 +1183,12 @@ shouldn't be trusted as they are. In `metrics.json` (`checks`):
 plane. Someone standing on the mat 1 m in front of the wall is nearer the camera: with
 the camera 5 m away they project onto the wall plane ~1.25x bigger, and their feet
 *below* the real floor. The floor height comes from those feet, so heights above the
-floor read high: by 0.0-0.8 m on the test clips, judged against where the floor meets
-the wall in the wall image (and up to 1.2 m on radmehr2, whose floor comes from the
-landing). `standing_com` sits at 0.50-0.67 x stature on the clips that pass, above the
-true 0.55, for the same reason. The rise during the climb (`com_height_gain_m`), and
+floor read high. Taking all the standing feet, that was 0.0-0.8 m on the test clips
+(judged against where the floor meets the wall in the wall image), and `standing_com`
+sat at 0.50-0.67 x stature, above the true 0.55. Since 1.5.1 the floor comes from the
+feet that push off for the climb, the ones closest to the wall (§6.14 `_floor_points`;
+the landing, usually further out, only when no push-off is seen): `standing_com` now
+centres on 0.56 (0.44-0.79), and up to ~0.5 m of the error is left. The rise during the climb (`com_height_gain_m`), and
 distances between holds, don't depend on the floor. Fixing heights above the floor
 needs depth: a wall scan (LiDAR) or a second camera, or tape-measured holds to
 calibrate.
@@ -1406,7 +1408,13 @@ hold**. A rest with no hold under it is either:
   over is a flag: not a contact, it carries nothing (drawn as a small grey "flag?").
 - A foot "smearing" while no hand is on a hold is **standing on the floor** (the start or
   end of a clip whose floor the camera doesn't show, a mat the floor test missed): nobody
-  climbs on a single smear with no hands.
+  climbs on a single smear with no hands. Only near the bottom, though (§6.14a).
+- A **hand** "smearing" above its shoulder for 1 s or more (`missed_hold_s`), with the
+  body moving under it, is on a **hold the detector missed** (a volume, a big sloper,
+  the top): hands don't smear up there. It becomes a hold (nearest detected hold within
+  ~11 cm, else a hold of its own) and counts for moves and forces like any hold.
+  `wall.holds_missed_by_detector` counts them (1.5.1: radmehr1 3, slab 2, iman2 1,
+  overhang 1). A palm at the hip or below stays a smear.
 
 | | hold | smear | flag |
 |---|---|---|---|
@@ -2039,10 +2047,13 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped either way, so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
-| Hold detection misses | A foot or hand on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer | Check `holds_detected.jpg`; smears still count for balance and forces |
+| Hold detection misses | A foot, or a hand low down, on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer. A hand held above the shoulder is caught (a missed hold, §6.20) | Check `holds_detected.jpg`; smears still count for balance and forces |
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
-| Ground from the image | The floor is recognised at the bottom of the wall image; a camera that never shows the floor relies on the standing cue alone; feet level on the lowest holds at the very end of a clip count as standing. Textured concrete and some mats are missed (steep wall side view, iman3's orange mat): a foot on them with a hand on a hold reads as a smear | Film the start and end from the floor; a better floor test is planned |
+| Ground from the image | The floor is recognised at the bottom of the wall image (concrete and speckled mats too, since 1.5.1); a camera that never shows the floor relies on the standing cue alone, and a climb with no standing on the floor within 3 s of it has no floor height (rise only) | Film the start from the floor |
+| Heights above the floor | Measured on the wall plane: feet on the mat in front of the wall project below the real floor, so heights above the floor read high. Since 1.5.1 the floor comes from the push-off (the feet closest to the wall), which roughly halves it: up to ~0.5 m left on the test clips. Rises and distances between holds aren't affected | Tape-measured holds per wall (the benchmark); depth (1.6) |
+| Several attempts in one clip | Only one is measured (the highest); the others are listed in `climb.attempts` | One attempt per clip |
+| Perspective on some clips | On 6 of 23 clips body sizes still differ ~10 % across the wall (`checks.body_size`): the perspective correction found was too small to trust and was not applied. Distances there are uncertain by about as much | Waits for the tape benchmark to tell how far to trust smaller corrections |
 | Smears and flags | A still limb off any hold is a smear only if the body moves ≥ 10 cm over it, else a flag (no contact). A real smear held while the body is still is missed (counted as a flag); a foot on a missed hold is a weak contact (load reads low) | Watch the viewer's "flag?" rings; depth (1.6) can tell a touching foot from one in the air |
 | Joint effort, move phases | Quasi-static moments (segment inertia ignored), from the force model's split: core and hip values on steep walls look high. Phases resolve to one frame (33 ms at 30 fps); pushes shorter than ~0.1 s blur | Compare moves and attempts rather than single values; film fast moves at 60 fps |
 | Viewer export | Needs WebCodecs (Chrome, Edge, Safari 16.4+); a page opened from disk may have to be pointed at `viewer.mp4` once; slow-motion exports are silent | `climbvision view … --open`, or `climbvision render --preset …` |

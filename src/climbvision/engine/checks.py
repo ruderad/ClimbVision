@@ -13,9 +13,9 @@ are. The checks run on every climbing clip and land in `metrics.json` (`checks`)
   floor together. Accepted: 0.45-0.75, because standing *in front of* the wall reads
   high: everything is measured on the wall plane, and a body 1 m nearer the camera
   than the wall projects onto it ~1.25x taller, its feet lower than the real floor
-  (a 5 m camera distance; this is one camera's depth blind spot). On
-  the test clips the ratio is 0.50-0.67 when it passes; heights above the floor read
-  0-0.8 m high (GUIDE §6.14b).
+  (a 5 m camera distance; this is one camera's depth blind spot). With the
+  floor from the push-off feet (closest to the wall) the test clips centre on 0.56
+  (0.44-0.79); heights above the floor may still read up to ~0.5 m high (GUIDE §6.14b).
 - **com_vs_top_hold**: hanging from the highest hand hold with straight arms, the COM is
   ~0.65 x stature below the hands; bent arms bring it to ~0.3 x. A COM much higher
   than the top hand hold (more than 0.3 x stature: unless the climber topped out) or

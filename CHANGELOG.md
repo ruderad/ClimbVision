@@ -23,6 +23,18 @@
 - A foot off any hold with no hand on one counts as the floor only near the bottom
   (radmehr1's top section read as 8 s on the ground).
 
+### Low-cost fixes from the limitations review
+- The floor height comes from the feet that push off for the climb (closest to the
+  wall), not from all standing: feet further out on the mat project below the floor and
+  made heights read high. The standing COM check now centres on 0.56 x stature (true
+  0.55; was 0.61); gardash2's highest point 4.18 -> 3.82 m, arch1 3.37 -> 3.02 m.
+- A hand held above the shoulder for 1 s or more off any detected hold, with the body
+  moving under it, is on a hold the detector missed (a volume, the top), not a smear:
+  it counts for moves and forces (`wall.holds_missed_by_detector`; radmehr1 +3 hand
+  moves, slab +2, iman2 +2, overhang +1).
+- GUIDE §9: limitations brought up to date (floor, heights above the floor, attempts,
+  perspective on some clips).
+
 ### Plausibility checks (GUIDE §6.14b)
 - Every climbing clip checks what physics and anatomy tie together: the floor against
   the rise, the standing COM against stature, the top COM against the top hand hold,

@@ -77,6 +77,7 @@ class Anchor:
     smear: bool = False  # on the wall with no detected hold under it, proven to touch
     box: int = -1  # the detected hold (holddetect.py) it rests on, if any
     flag: bool = False  # still, off any hold, not proven to touch: a flag (no contact)
+    missed: bool = False  # on a hold the detector missed (a hand above the shoulder)
 
     @property
     def on_hold(self) -> bool:
@@ -117,6 +118,8 @@ class WallParams:
     stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
     level_tol: float = 0.06  # body lengths: both feet this level = standing
     ground_near_s: float = 3.0  # with a climb window: ground anchors this close count
+    missed_hold_s: float = 1.0  # a hand still this long above the shoulder, off any
+    #                             detected hold, the body moving: a missed hold
     ground_band: float = 0.3  # body lengths: a foot off any hold, no hands on holds, is on
     #                           the floor only this close to the lowest foot position
 
@@ -391,14 +394,24 @@ def cluster_holds(anchors: list[Anchor], radius_px: float) -> list[Hold]:
     per detected box; without, greedy clustering of anchor positions (anchors closer
     than radius_px = one hold)."""
     holds: list[Hold] = []
-    if anchors and all(a.box >= 0 for a in anchors):
+    if anchors and any(a.box >= 0 for a in anchors):
+        # detected holds: one hold per box; a hand hold the detector missed (box -1,
+        # see compute_wall_support) joins the nearest hold within radius_px, else is new
         by_box: dict[int, Hold] = {}
         for an in sorted(anchors, key=lambda a: a.start):
-            h = by_box.get(an.box)
-            if h is None:
-                h = Hold(len(holds), an.pos.copy(), box=an.box)
-                by_box[an.box] = h
-                holds.append(h)
+            if an.box >= 0:
+                h = by_box.get(an.box)
+                if h is None:
+                    h = Hold(len(holds), an.pos.copy(), box=an.box)
+                    by_box[an.box] = h
+                    holds.append(h)
+            else:
+                near = [(float(np.linalg.norm(x.pos - an.pos)), x) for x in holds]
+                near = [nx for nx in near if nx[0] < radius_px]
+                h = min(near, key=lambda nx: nx[0])[1] if near else None
+                if h is None:
+                    h = Hold(len(holds), an.pos.copy())
+                    holds.append(h)
             h.anchors.append(an)
             h.limbs.add(an.limb)
             h.pos = np.mean([a.pos for a in h.anchors], axis=0)
@@ -578,6 +591,19 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                     moved = _com_moved(com[an.start:an.end])
                     an.smear = bool(moved >= proof)
                     an.flag = not an.smear
+                    # a hand held still above the shoulder for a while, with the body
+                    # moving under it, is holding something: a hold the detector missed
+                    # (a volume, a big sloper, the top). Hands don't smear up there
+                    if an.smear and limb.endswith("hand") and \
+                            t[an.end - 1] - t[an.start] >= prm.missed_hold_s:
+                        sh = J.L_SHOULDER if limb == "l_hand" else J.R_SHOULDER
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", RuntimeWarning)
+                            above = np.nanmedian(pts[limb][an.start:an.end, 1]) < \
+                                np.nanmedian(wall_points[an.start:an.end, sh, 1])
+                        if above:
+                            an.smear = False
+                            an.missed = True
         # a foot "smearing" with no hand on a hold is standing on the floor (start or end of
         # a clip whose floor the camera doesn't show; a mat the floor test missed): nobody
         # climbs on a single smear with no hands
@@ -601,8 +627,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     on_smear = {limb: _on_mask([a for a in anchors[limb] if a.smear], n) for limb in LIMBS}
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
     # metres on the wall: perspective corrected with the body as the ruler (metric.py)
-    ground_px = np.array([a.pos for f in ("l_foot", "r_foot") for a in anchors[f]
-                          if a.ground]).reshape(-1, 2)
+    ground_px = _floor_points(anchors, window, t)
     metric = fit_wall_metric(wall_points, on_wall, body_m, ground_px,
                              correct=correct_perspective, px_per_m=px_per_m)
     com_m = metric.to_m(com)
@@ -632,14 +657,36 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
               if on_wall[i] else ("on the ground" if on_ground[i] else
                                   "outside the climb" if window is not None else "–")
               for i in range(n)]
-    ground = [a.pos[1] for f in ("l_foot", "r_foot") for a in anchors[f] if a.ground]
-    ground_y = float(np.median(ground)) if ground else None
+    ground_y = float(np.median(ground_px[:, 1])) if len(ground_px) else None
     return WallSupport(pts, anchors, holds, on_hold, on_ground, on_wall, ground_y, com,
                        n_contacts, feet_m, poly_m, metric.s * metric.per_m, body_px, labels,
                        floor_seen, prm.min_move * body_px, metric=metric, com_m=com_m,
                        com_v=com_v, com_a=com_a, on_smear=on_smear, hold_boxes=hold_boxes,
                        holds_source="detected" if detected_holds else "rests",
                        window=window)
+
+
+def _floor_points(anchors: dict[str, list[Anchor]], window: np.ndarray | None,
+                  t: np.ndarray, last_s: float = 0.5) -> np.ndarray:
+    """Wall px of the feet that set the floor height. Everything is measured on the wall
+    plane, and a foot standing on the mat in front of the wall projects below the real
+    floor (nearer the camera; GUIDE §6.14b). The feet that push off for the climb stand
+    closest to the wall: with a climb window, the floor comes from the ground contacts
+    that end last before the climb (within `last_s` of the latest), else from the
+    first ones after it (the landing, usually further out), else from all."""
+    ground = [a for f in ("l_foot", "r_foot") for a in anchors[f] if a.ground]
+    if window is not None and window.any() and ground:
+        idx = np.flatnonzero(window)
+        a0, a1 = idx[0], idx[-1]
+        pre = [a for a in ground if a.end <= a0 + 1]
+        post = [a for a in ground if a.start >= a1 - 1]
+        if pre:
+            e = max(t[a.end - 1] for a in pre)
+            ground = [a for a in pre if t[a.end - 1] >= e - last_s]
+        elif post:
+            s = min(t[a.start] for a in post)
+            ground = [a for a in post if t[a.start] <= s + last_s]
+    return np.array([a.pos for a in ground]).reshape(-1, 2)
 
 
 def _com_moved(com: np.ndarray) -> float:
@@ -737,6 +784,9 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
                                 "not counted as contacts"}
         if ws.hold_boxes is not None:
             out["holds_detected"] = len(ws.hold_boxes)
+        missed = sum(1 for h in ws.holds if h.box < 0)
+        if missed:
+            out["holds_missed_by_detector"] = missed
     warn = []
     if wall_s < 0.5 * (t[-1] - t[0]) if n > 1 else False:
         warn.append(f"on the wall only {wall_s:.1f} s of {t[-1] - t[0]:.1f} s")

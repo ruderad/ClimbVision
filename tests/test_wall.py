@@ -305,3 +305,33 @@ def test_hanging_with_the_feet_off_is_on_the_wall():
     ws = compute_wall_support(pts, t, BODY, PPM)
     assert ws.on_wall.mean() > 0.95 and not ws.on_ground.any()
     assert ws.on_hold["l_hand"].mean() > 0.9 and not ws.on_hold["l_foot"].any()
+
+
+def test_floor_from_the_push_off_not_from_standing_back_or_landing():
+    """Feet standing back from the wall (or landing) project below the real floor on
+    the wall plane: the floor comes from the last ground contact before the climb."""
+    from climbvision.engine.wall import Anchor, _floor_points
+
+    t = np.arange(300) / 30.0
+    window = np.zeros(300, bool)
+    window[120:240] = True
+    a = dict(limb="l_foot", spread_px=1.0, ground=True)
+    anchors = {"l_foot": [Anchor(start=0, end=60, pos=np.array([0.0, 1100.0]), **a),  # back
+                          Anchor(start=90, end=119, pos=np.array([0.0, 1000.0]), **a),  # push-off
+                          Anchor(start=250, end=300, pos=np.array([0.0, 1150.0]), **a)],
+               "r_foot": [], "l_hand": [], "r_hand": []}
+    assert _floor_points(anchors, window, t)[:, 1].tolist() == [1000.0]
+    assert sorted(_floor_points(anchors, None, t)[:, 1].tolist()) == [1000.0, 1100.0, 1150.0]
+    anchors["l_foot"] = anchors["l_foot"][2:]  # only the landing: use it
+    assert _floor_points(anchors, window, t)[:, 1].tolist() == [1150.0]
+
+
+def test_a_hand_on_a_hold_the_detector_missed_joins_or_makes_a_hold():
+    from climbvision.engine.wall import Anchor, cluster_holds
+
+    mk = lambda limb, s, x, box: Anchor(limb, s, s + 10, np.array([x, 100.0]), 1.0, box=box)  # noqa: E731
+    holds = cluster_holds([mk("l_hand", 0, 0.0, 3), mk("r_hand", 20, 5.0, -1),
+                           mk("r_hand", 40, 300.0, -1), mk("l_foot", 60, 600.0, 7)], 20.0)
+    assert len(holds) == 3
+    assert holds[0].box == 3 and holds[0].limbs == {"l_hand", "r_hand"}  # joined
+    assert holds[1].box == -1 and holds[2].box == 7
