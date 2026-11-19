@@ -63,7 +63,8 @@ class Clip:
         return compute_wall_support(
             self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
             camera_ok=self.camera.ok if self.camera is not None else None,
-            wall_image=self.wall_image, hold_boxes=self.hold_boxes, window=window)
+            wall_image=self.wall_image, hold_boxes=self.hold_boxes, window=window,
+            visibility=self.track.visibility)
 
     @property
     def wall_support(self) -> WallSupport:

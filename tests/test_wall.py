@@ -335,3 +335,40 @@ def test_a_hand_on_a_hold_the_detector_missed_joins_or_makes_a_hold():
     assert len(holds) == 3
     assert holds[0].box == 3 and holds[0].limbs == {"l_hand", "r_hand"}  # joined
     assert holds[1].box == -1 and holds[2].box == 7
+
+
+def _anc(limb, t0, t1, x, box=-1, fps=30):
+    from climbvision.engine.wall import Anchor
+
+    return Anchor(limb, int(t0 * fps), int(t1 * fps), np.array([x, 100.0]), 1.0, box=box)
+
+
+def test_a_grip_broken_by_a_hidden_moment_is_one_grip():
+    from climbvision.engine.wall import WallParams, merge_fragments
+
+    t = np.arange(600) / 30.0
+    other = np.full((600, 2), 900.0)  # the other hand, far away
+    vis = np.ones(600)
+    a, b = _anc("r_hand", 1, 4, 100, box=5), _anc("r_hand", 4.6, 7, 104, box=5)
+    out = merge_fragments([a, b], other, t, 500, WallParams(), vis)
+    assert len(out) == 1 and out[0].start == a.start and out[0].end == b.end
+    # a real let-go (shaking out, 2 s away) stays two grips
+    c = _anc("r_hand", 9, 12, 104, box=5)
+    assert len(merge_fragments([a, c], other, t, 500, WallParams(), vis)) == 2
+
+
+def test_the_pose_putting_both_wrists_on_one_hand_is_not_a_move():
+    from climbvision.engine.wall import WallParams, merge_fragments
+
+    t = np.arange(600) / 30.0
+    other = np.full((600, 2), 100.0)
+    other[:, 0] = 400.0  # the other hand sits at x = 400
+    vis = np.ones(600)
+    a = _anc("l_hand", 1, 4, 100, box=1)
+    b = _anc("l_hand", 4.3, 5.3, 400, box=2)  # "on" the other hand's hold for 1 s
+    c = _anc("l_hand", 5.6, 9, 102, box=1)
+    out = merge_fragments([a, b, c], other, t, 500, WallParams(), vis)
+    assert len(out) == 1 and out[0].box == 1
+    # B on a hold of its own, visible and long enough: a real move and back
+    other[:, 0] = 900.0
+    assert len(merge_fragments([a, b, c], other, t, 500, WallParams(), vis)) == 3

@@ -744,7 +744,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 75.2,
+        "approx": 74.7,
         "tol": 8
       },
       {
@@ -819,7 +819,7 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 54.2,
+        "approx": 55.6,
         "tol": 6
       },
       {
@@ -849,7 +849,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 49.4,
+        "approx": 47.3,
         "tol": 6
       },
       {
@@ -865,7 +865,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 39.3,
+        "approx": 39.4,
         "tol": 8
       },
       {
@@ -881,7 +881,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 27.2,
+        "approx": 27.4,
         "tol": 8
       },
       {
@@ -940,7 +940,7 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 59.4,
+        "approx": 59.5,
         "tol": 6
       },
       {
@@ -970,7 +970,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 54.6,
+        "approx": 60.7,
         "tol": 6
       },
       {
@@ -986,7 +986,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 59.1,
+        "approx": 59.0,
         "tol": 8
       },
       {
@@ -1002,7 +1002,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 49.8,
+        "approx": 50.2,
         "tol": 8
       },
       {
@@ -1159,7 +1159,7 @@
           "wall",
           "holds_used"
         ],
-        "approx": 22,
+        "approx": 20,
         "tol": 3
       },
       {
@@ -1167,7 +1167,7 @@
           "route",
           "hand_moves"
         ],
-        "approx": 11,
+        "approx": 8,
         "tol": 2
       },
       {
@@ -1182,7 +1182,7 @@
         "path": [
           "pct_4_contacts"
         ],
-        "approx": 44.8,
+        "approx": 47.9,
         "tol": 6
       },
       {
@@ -1212,7 +1212,7 @@
           "route",
           "hand_move_cm_median"
         ],
-        "approx": 61.9,
+        "approx": 82.8,
         "tol": 6
       },
       {
@@ -1228,7 +1228,7 @@
           "technique",
           "straight_arms_pct"
         ],
-        "approx": 50.1,
+        "approx": 48.9,
         "tol": 8
       },
       {
@@ -1236,7 +1236,7 @@
           "technique",
           "pause_before_hand_move_s_median"
         ],
-        "approx": 1.37,
+        "approx": 1.53,
         "tol": 0.4
       },
       {
@@ -1244,7 +1244,7 @@
           "forces",
           "hands_share_pct_median"
         ],
-        "approx": 34.4,
+        "approx": 34.7,
         "tol": 8
       },
       {

@@ -35,7 +35,7 @@ Support on the wall (gravity = "down" in the reference view):
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
@@ -118,6 +118,17 @@ class WallParams:
     stand_edge_s: float = 2.0  # standing cue: within this long of the clip's start/end
     level_tol: float = 0.06  # body lengths: both feet this level = standing
     ground_near_s: float = 3.0  # with a climb window: ground anchors this close count
+    hand_window_s: float = 0.2  # with detected holds: a hand still this long ON a
+    #                             detected hold is anchored (fast climbing: brief grips);
+    #                             off any hold the usual window_s applies
+    frag_gap_s: float = 1.0  # same limb, same place, back within this long: one grip
+    #                          (the hand was hidden for a moment, not let go)
+    frag_dist: float = 0.06  # body lengths: "same place" (~7 cm; or the same detected hold)
+    frag_dist_hidden: float = 0.25  # ... when either piece was hidden (visibility < 0.5)
+    frag_aba_s: float = 2.5  # A, then a short B elsewhere, then A again within this long:
+    frag_b_max_s: float = 1.5  # ... B (this short) was the pose losing the limb, if it sat
+    #                            on the other hand (the model put both wrists on one) or
+    #                            was hidden: one grip on A
     missed_hold_s: float = 1.0  # a hand still this long above the shoulder, off any
     #                             detected hold, the body moving: a missed hold
     ground_band: float = 0.3  # body lengths: a foot off any hold, no hands on holds, is on
@@ -341,6 +352,103 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
     return mask | holes
 
 
+def merge_fragments(anchors: list[Anchor], other: np.ndarray, t: np.ndarray, body_px: float,
+                    prm: WallParams, vis: np.ndarray | None = None,
+                    own: np.ndarray | None = None) -> list[Anchor]:
+    """Join the pieces of one grip that the pose broke apart. A hand (or foot) on a hold
+    is often hidden for a moment behind the body, the other arm or a volume: the pose
+    then loses it, guesses it elsewhere or puts it on the other hand, and one grip reads
+    as several short ones (annotated: most brief "touches" were exactly that).
+
+    - *A, gap, A*: same limb back at the same place (`frag_dist` body lengths, or the
+      same detected hold; `frag_dist_hidden` when either piece was hidden, visibility
+      < 0.5) within `frag_gap_s`, and in the gap the limb was hidden or never got
+      further than `drift_tol` from A (`own`: the limb's positions): one anchor. A limb
+      seen lifting off and coming back (a re-grip, a foot re-placed, feet cut) stays two.
+    - *A, B, A*: a short B (<= `frag_b_max_s`) between two pieces at the same place
+      within `frag_aba_s`, where B sat on the other hand (both wrists put on one spot) or
+      was hidden: B was the pose losing the limb; one anchor on A. A brief B (under
+      `window_s`, kept only because it sat on a detected hold) that the hand left to go
+      straight back is a tap, not two moves: also one anchor on A.
+
+    The relaxed rules (hidden pieces, A-B-A) are for hands, which the annotations
+    checked; feet are hidden far more often (drop knees, heel hooks) and step between
+    footholds a few cm apart, so a foot is only joined back at the same detected hold or
+    the same spot. Ground anchors are never joined. The joined anchor keeps the longer
+    piece's place."""
+    if len(anchors) < 2:
+        return anchors
+    seq = sorted(anchors, key=lambda a: a.start)
+    hand = seq[0].limb.endswith("hand")
+
+    def dur(a):
+        return float(t[a.end - 1] - t[a.start])
+
+    def hidden(a):
+        if vis is None or not hand:
+            return False
+        v = vis[a.start:a.end]
+        return bool(np.isfinite(v).any() and np.nanmean(v) < 0.5)
+
+    def same_place(a, b):
+        if a.box >= 0 and a.box == b.box:
+            return True
+        lim = prm.frag_dist_hidden if (hidden(a) or hidden(b)) else prm.frag_dist
+        return float(np.linalg.norm(a.pos - b.pos)) <= lim * body_px
+
+    def on_other(b):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            d = np.nanmedian(np.linalg.norm(other[b.start:b.end] - b.pos, axis=1))
+        return bool(np.isfinite(d) and d <= prm.frag_dist * body_px)
+
+    def stayed(a, b):
+        """In the gap between a and b the limb was hidden, or never really left."""
+        if own is None:
+            return True
+        g = slice(a.end, b.start)
+        if b.start <= a.end:
+            return True
+        if vis is not None and hand:
+            v = vis[g]
+            if np.isfinite(v).any() and np.nanmean(v) < 0.5:
+                return True
+        d = np.linalg.norm(own[g] - a.pos, axis=1)
+        d = d[np.isfinite(d)]
+        return not len(d) or float(d.max()) <= prm.drift_tol * body_px
+
+    def join(a, b):
+        keep = a if dur(a) >= dur(b) else b
+        return replace(keep, start=a.start, end=max(a.end, b.end),
+                       spread_px=max(a.spread_px, b.spread_px))
+
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(seq) - 1):  # A, gap, A
+            a, b = seq[i], seq[i + 1]
+            if a.ground or b.ground:
+                continue
+            if t[b.start] - t[a.end - 1] <= prm.frag_gap_s and same_place(a, b) \
+                    and stayed(a, b):
+                seq[i:i + 2] = [join(a, b)]
+                changed = True
+                break
+        if changed:
+            continue
+        for i in range(len(seq) - 2 if hand else 0):  # A, B, A (hands)
+            a, b, c = seq[i:i + 3]
+            if a.ground or b.ground or c.ground:
+                continue
+            if (t[c.start] - t[a.end - 1] <= prm.frag_aba_s and dur(b) <= prm.frag_b_max_s
+                    and same_place(a, c)
+                    and (on_other(b) or hidden(b) or dur(b) < prm.window_s)):
+                seq[i:i + 3] = [join(a, c)]
+                changed = True
+                break
+    return seq
+
+
 def mark_standing(anchors: dict[str, list[Anchor]], t: np.ndarray, body_px: float,
                   prm: WallParams) -> None:
     """Second ground cue, from the pose: at the very start or end of the clip both feet
@@ -516,15 +624,29 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                          wall_image=None, prm: WallParams | None = None,
                          body_m: float = ASSUMED_BODY_M,
                          correct_perspective: bool = True, hold_boxes=None,
-                         window: np.ndarray | None = None) -> WallSupport:
+                         window: np.ndarray | None = None,
+                         visibility: np.ndarray | None = None) -> WallSupport:
     """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall).
     `window`: (n,) bool, the climb (engine/climb.py): frames outside it are not on the
     wall, and their anchors count for nothing (but standing on the ground just before or
-    after the climb still sets the floor)."""
+    after the climb still sets the floor). `visibility`: (n, N_JOINTS) joint visibility
+    (hidden limbs: their anchors are joined more readily, `merge_fragments`)."""
     prm = prm or WallParams()
     n = len(t)
     pts = limb_points(wall_points)
-    anchors = {limb: detect_anchors(pts[limb], t, body_px, limb, prm) for limb in LIMBS}
+    detected_holds = hold_boxes is not None and len(hold_boxes) > 0
+    hand_prm = replace(prm, window_s=prm.hand_window_s) if detected_holds else prm
+    anchors = {limb: detect_anchors(pts[limb], t, body_px, limb,
+                                    hand_prm if limb.endswith("hand") else prm)
+               for limb in LIMBS}
+    if detected_holds:
+        margin = prm.hold_margin * body_px
+        for limb in LIMBS:
+            for an in anchors[limb]:
+                an.box = hold_boxes.containing(an.pos, margin)
+            if limb.endswith("hand"):  # brief stops count only on a detected hold
+                anchors[limb] = [an for an in anchors[limb] if an.box >= 0 or
+                                 t[an.end - 1] - t[an.start] >= prm.window_s]
     floor_seen = mark_ground(anchors, wall_image, body_px, prm, t, hold_boxes)
     if window is not None:
         window = np.asarray(window, bool)
@@ -536,6 +658,15 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
         for limb in LIMBS:
             anchors[limb] = [a for a in anchors[limb]
                              if (near if a.ground else window)[a.start:a.end].any()]
+    vis = None
+    if visibility is not None:
+        vis = {"l_hand": visibility[:, J.L_WRIST], "r_hand": visibility[:, J.R_WRIST],
+               "l_foot": np.fmax(visibility[:, J.L_ANKLE], visibility[:, J.L_TOE]),
+               "r_foot": np.fmax(visibility[:, J.R_ANKLE], visibility[:, J.R_TOE])}
+    other = {"l_hand": "r_hand", "r_hand": "l_hand", "l_foot": "r_foot", "r_foot": "l_foot"}
+    for limb in LIMBS:
+        anchors[limb] = merge_fragments(anchors[limb], pts[other[limb]], t, body_px, prm,
+                                        None if vis is None else vis[limb], pts[limb])
     detected = np.isfinite(wall_points[:, J.L_SHOULDER, 0])
     ok = detected if camera_ok is None else detected & camera_ok
     foot_hold = np.zeros(n, bool)
@@ -578,15 +709,12 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     # a rest counts as a hold only on a detected hold; elsewhere it is a smear if the
     # body moved over it (friction held it: it touches), else a flag (no contact)
     com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
-    detected_holds = hold_boxes is not None and len(hold_boxes) > 0
     if detected_holds:
-        margin = prm.hold_margin * body_px
         proof = prm.smear_proof_m * body_px / body_m
         for limb in LIMBS:
             for an in anchors[limb]:
                 if an.ground:
                     continue
-                an.box = hold_boxes.containing(an.pos, margin)
                 if an.box < 0:
                     moved = _com_moved(com[an.start:an.end])
                     an.smear = bool(moved >= proof)

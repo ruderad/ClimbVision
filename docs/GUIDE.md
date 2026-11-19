@@ -1068,6 +1068,23 @@ moment a limb leaves sharp).
    body lengths of the spot; brief excursions (≤ 0.25 s, never further than 0.08 body
    lengths) are bridged as jitter.
 3. *Merge*: the same limb back at the same spot within 0.4 s is one anchor.
+4. *Brief grips* (with detected holds): a hand still for 0.2 s (`hand_window_s`) **on a
+   detected hold** is anchored too; off any hold the 0.5 s stays. Fast climbing has
+   real grips this short (iman3: a match and a catch of 0.4-0.5 s each).
+5. *Pieces of one grip* (`merge_fragments`): a hand on a hold is often hidden for a
+   moment behind the body, the other arm or a volume; the pose then loses it, guesses
+   it elsewhere or puts it on the other hand, and one grip reads as several (in the
+   annotated clips most brief "touches" were exactly that). Joined into one anchor:
+   - the same limb back at the same place (the same detected hold, ~7 cm, or ~30 cm
+     when either piece was hidden) within 1 s, if in the gap the limb was hidden or
+     never left (a hand seen lifting off and coming back is a re-grip: two anchors);
+   - for hands, A then a short B (≤ 1.5 s) then A again within 2.5 s, where B sat on the
+     other hand (both wrists put on one spot), was hidden, or was a brief stop kept only
+     because it was on a detected hold (a tap, not two moves).
+
+   Scored against hand-annotated grips (iman3, iman5, iman6, moonboard2, radmehr2:
+   18 grips): found 67 % -> 100 %, pieces per grip 1.39 -> 1.22, share of each grip
+   covered 48 % -> 90 %. See §8.7b.
 
 **Holds** are places where a limb rested: anchors (of any limb) within 0.09 body lengths
 (~11 cm) of each other are one hold. A hand and a foot using the same hold (a hand-foot
@@ -1973,6 +1990,27 @@ and add an entry to `expected.json` (recipe under `exercise`, `verified` note, c
 `approx` values can be `null` and filled by `--update-snapshots`). Good candidates are
 clips that once failed: they keep the fix from silently breaking again.
 
+### 8.7b Annotation sheets: human feedback where the pose can't settle it
+
+Some questions only a person watching the video can answer: did the hand really
+grip there, or was it hidden for a moment? Was that foot on the wall or in the air?
+Where does the climb start? `tools/annotate.py` turns them into spreadsheets:
+
+```bash
+python tools/annotate.py make  data/annotations/<date>  outputs_v14/iman3 ...
+python tools/annotate.py score data/annotations/grips_truth.csv outputs_v14/iman3 ...
+```
+
+`make` writes four pre-filled sheets, one row per thing the system found, with empty
+columns to fill (times are the viewer's clock): `grips.csv` (hands on holds: verdict
+ok / partly / wrong / swap, true times; add `missed` rows), `feet.csv` (still feet:
+hold / smear / air / floor / pose error), `climbs.csv` (start, end, attempts, plus
+grade and sent: the labels habit) and `holds_tape.csv` (hold heights to check with a
+tape). `score` compares a filled `grips.csv` with the analysis as it is now: grips
+found, pieces per grip, coverage, grips reported where there was none. Re-run it after
+changing the wall layer: it is the test that the change helped. Filled sheets live in
+`data/annotations/` (git-ignored: they name the climbers).
+
 ### 8.8 Thresholds — where to tune
 
 | What | Value | Where |
@@ -1992,7 +2030,7 @@ clips that once failed: they keep the fix from silently breaking again.
 | Pull-up rep / chin tolerance | 0.12 / 0.05 body; ±5 cm | `pullup.yaml` |
 | Raised-leg hold | hip < 120° for ≥ 3 s | `leg_raise.yaml` |
 | Smoothing | angles 1/6 s (recipes), positions 0.1 s (engine) | recipes' `signals:`, engine |
-| Wall anchors: window, still / stay / jitter, merge, hold size, move, ground | 0.5 s; 0.05 / 0.06 / 0.08 body; 0.4 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
+| Wall anchors: window (hand on a detected hold), still / stay / jitter, merge, pieces of a grip, hold size, move, ground | 0.5 s (0.2 s); 0.05 / 0.06 / 0.08 body; 0.4 s; 1 s at the same hold or 0.06 body (0.25 hidden), A-B-A within 2.5 s; 0.09 body; 0.1 body; floor below the toe (colours of the bottom band, flat: local sd < 5, connected), standing level within 0.06 body in the first/last 2 s | `wall.WallParams`, `wall.floor_mask` |
 | Route: rest, dyno, cross, feet cut, label | 4 on + COM < 0.12 body/s for ≥ 1 s; COM ≥ 0.8 m/s within ≤ 1.5 s; 0.03 body; ≥ 0.3 s; 1.2 s on the video | `route.RouteParams` |
 | Wall perspective correction | used when body-size spread ≥ 0.07, drops by ≥ 25 %, trunk agrees; at most 0.3 per body length | `metric.fit_wall_metric(min_spread, max_ab)` |
 | Velocity / acceleration | quadratic over 0.2 s | `kinematics.derivatives(window_s)` |
@@ -2046,7 +2084,8 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Handheld camera, off the wall | Floor, contacts and sway are still measured in the image | Use a fixed camera for floor/bar work (the camera layer could stabilise these later) |
 | 2D-only backends (RTMPose, RTMW) | cm values from an assumed body size; front-view angles in 2D | Use MediaPipe off the wall; a height option later |
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
-| Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped either way, so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
+| Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped (with the hold model: 0.2 s for a hand on a detected hold), so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
+| Grips broken by hidden hands | Mostly joined since 1.5.1 (§6.14 step 5). Left: the pose swapping hands for a moment (iman5: a right-hand catch read as the left) and a big hold detected as two boxes can still split a grip | Annotate (`tools/annotate.py`, §8.7b) |
 | Hold detection misses | A foot, or a hand low down, on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer. A hand held above the shoulder is caught (a missed hold, §6.20) | Check `holds_detected.jpg`; smears still count for balance and forces |
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |

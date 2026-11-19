@@ -23,6 +23,20 @@
 - A foot off any hold with no hand on one counts as the floor only near the bottom
   (radmehr1's top section read as 8 s on the ground).
 
+### Grips from annotations (GUIDE §6.14 steps 4-5, §8.7b)
+- Annotated brief touches showed most were not separate events: one grip broken up
+  when the hand was hidden for a moment. Pieces of one grip are now joined (same hold
+  or spot, back within 1 s with the hand hidden or never gone; for hands also A-B-A
+  where B sat on the other hand, was hidden, or was a brief tap). A hand seen lifting
+  off and coming back stays a re-grip.
+- With detected holds, a hand still 0.2 s on a detected hold is a grip (fast
+  climbing); off any hold 0.5 s as before.
+- On the 18 annotated grips: found 67 % -> 100 %, pieces per grip 1.39 -> 1.22,
+  coverage 48 % -> 90 %. moonboard2: 11 -> 8 hand moves (the right hand stayed on one
+  hold 21.6-30.5 s); iman3: 7 -> 11 (its brief real grips).
+- `tools/annotate.py`: pre-filled annotation sheets (grips, feet, climbs, hold
+  heights) from results folders, and `score` for a filled grips sheet.
+
 ### Low-cost fixes from the limitations review
 - The floor height comes from the feet that push off for the climb (closest to the
   wall), not from all standing: feet further out on the mat project below the floor and
