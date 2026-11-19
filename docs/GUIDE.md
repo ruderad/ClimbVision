@@ -229,8 +229,10 @@ footage, so it never competes with the overlay colours), 30 % of the frame's sho
 wide, at 75 % opacity over a soft Alpine-night shadow. It is never drawn on the timeline
 strip. `--no-watermark` on `analyze`, `render`, `view` or `camera` leaves it off. The
 image is `src/climbvision/output/assets/watermark.png`, from
-`visual-identity/CURRENT/colour/png/climbvision_video_watermark_snow_800.png`; to change it,
-replace that file (RGBA, transparent background).
+`ClimbVision-brand/identity/CURRENT/colour/png/climbvision_video_watermark_snow_800.png` (the
+brand and social folder, next to this repository, not in it: the brand is the source, the
+code keeps a copy). To change it, export the new watermark there and replace this file
+(RGBA, transparent background).
 
 ### 3.3 `climbvision render`
 

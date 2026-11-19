@@ -1,7 +1,8 @@
 """The ClimbVision watermark on output videos (annotated MP4s, viewer.mp4, wall_view.mp4).
 
 On by default; `--no-watermark` turns it off. The mark is the identity's video
-watermark (`visual-identity/CURRENT/colour/png/climbvision_video_watermark_snow_800.png`:
+watermark (`ClimbVision-brand/identity/CURRENT/colour/png/climbvision_video_watermark_snow_800.png`
+(the brand folder next to this repo):
 Snow #F4F8FA, monochrome — "chalk on footage", so it doesn't clash with the overlay
 colours). It sits in the bottom-right corner of the video picture (never on the timeline
 strip), 30 % of the frame's short side wide, at 75 % opacity, over a soft Alpine-night
