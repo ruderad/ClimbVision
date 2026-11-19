@@ -121,6 +121,10 @@ class WallParams:
     hand_window_s: float = 0.2  # with detected holds: a hand still this long ON a
     #                             detected hold is anchored (fast climbing: brief grips);
     #                             off any hold the usual window_s applies
+    brief_pace: float = 0.25  # body lengths/s: COM speed around a brief stop (mean over
+    #                           +-pace_s) from which it counts as a grip (annotated: brief
+    #                           grips came at 0.3-1.5, hovering hands at 0.07-0.17)
+    pace_s: float = 0.5
     frag_gap_s: float = 1.0  # same limb, same place, back within this long: one grip
     #                          (the hand was hidden for a moment, not let go)
     frag_dist: float = 0.06  # body lengths: "same place" (~7 cm; or the same detected hold)
@@ -350,6 +354,17 @@ def floor_mask(wall_image, tol: float = 25.0, flat_sd: float = 5.0,
             return None
         comp, holes = holes_of(mask)
     return mask | holes
+
+
+def _local_pace(com: np.ndarray, t: np.ndarray, body_px: float, half_s: float) -> np.ndarray:
+    """(n,) COM speed in body lengths/s, averaged over +-half_s."""
+    n = len(t)
+    if n < 3:
+        return np.zeros(n)
+    fps = 1.0 / float(np.median(np.diff(t)))
+    v = np.linalg.norm(np.gradient(com, axis=0), axis=1) * fps / max(body_px, 1e-6)
+    k = max(1, int(round(half_s * fps)))
+    return np.convolve(np.nan_to_num(v), np.ones(2 * k + 1) / (2 * k + 1), "same")
 
 
 def merge_fragments(anchors: list[Anchor], other: np.ndarray, t: np.ndarray, body_px: float,
@@ -636,6 +651,8 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     pts = limb_points(wall_points)
     detected_holds = hold_boxes is not None and len(hold_boxes) > 0
     hand_prm = replace(prm, window_s=prm.hand_window_s) if detected_holds else prm
+    com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
+    pace = _local_pace(com, t, body_px, prm.pace_s)
     anchors = {limb: detect_anchors(pts[limb], t, body_px, limb,
                                     hand_prm if limb.endswith("hand") else prm)
                for limb in LIMBS}
@@ -644,9 +661,13 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
         for limb in LIMBS:
             for an in anchors[limb]:
                 an.box = hold_boxes.containing(an.pos, margin)
-            if limb.endswith("hand"):  # brief stops count only on a detected hold
-                anchors[limb] = [an for an in anchors[limb] if an.box >= 0 or
-                                 t[an.end - 1] - t[an.start] >= prm.window_s]
+            if limb.endswith("hand"):  # brief stops: only on a detected hold, while the
+                # body moves fast (annotated: a brief stop in fast climbing is a grip; in
+                # slow climbing it is a hand hovering, waiting) or cut short by the clip
+                anchors[limb] = [an for an in anchors[limb]
+                                 if t[an.end - 1] - t[an.start] >= prm.window_s
+                                 or (an.box >= 0 and (pace[an.start] >= prm.brief_pace
+                                                      or an.start == 0 or an.end >= n))]
     floor_seen = mark_ground(anchors, wall_image, body_px, prm, t, hold_boxes)
     if window is not None:
         window = np.asarray(window, bool)
@@ -708,7 +729,6 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                 an.ground = True
     # a rest counts as a hold only on a detected hold; elsewhere it is a smear if the
     # body moved over it (friction held it: it touches), else a flag (no contact)
-    com = whole_body_com(wall_points, sex)  # type: ignore[arg-type]
     if detected_holds:
         proof = prm.smear_proof_m * body_px / body_m
         for limb in LIMBS:

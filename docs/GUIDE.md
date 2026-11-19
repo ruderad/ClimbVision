@@ -1069,8 +1069,11 @@ moment a limb leaves sharp).
    lengths) are bridged as jitter.
 3. *Merge*: the same limb back at the same spot within 0.4 s is one anchor.
 4. *Brief grips* (with detected holds): a hand still for 0.2 s (`hand_window_s`) **on a
-   detected hold** is anchored too; off any hold the 0.5 s stays. Fast climbing has
-   real grips this short (iman3: a match and a catch of 0.4-0.5 s each).
+   detected hold, while the body moves fast** (COM ≥ 0.25 body lengths/s over ±0.5 s,
+   `brief_pace`) is anchored too; otherwise 0.5 s stays. Fast climbing has real grips
+   this short (iman3: a match and a catch of 0.4-0.5 s each); in slow climbing a brief
+   stop is a hand hovering, waiting (traverse: four in a row). Annotated: brief grips
+   came at a pace of 0.3-1.5, hovering hands at 0.07-0.17.
 5. *Pieces of one grip* (`merge_fragments`): a hand on a hold is often hidden for a
    moment behind the body, the other arm or a volume; the pose then loses it, guesses
    it elsewhere or puts it on the other hand, and one grip reads as several (in the
@@ -1084,7 +1087,13 @@ moment a limb leaves sharp).
 
    Scored against hand-annotated grips (iman3, iman5, iman6, moonboard2, radmehr2:
    18 grips): found 67 % -> 100 %, pieces per grip 1.39 -> 1.22, share of each grip
-   covered 48 % -> 90 %. See §8.7b.
+   covered 48 % -> 90 %. With radmehr1, traverse and iman2 added (48 grips, 10 places
+   with no grip): 98 % found, 1.17 pieces, 90 % covered; grips reported where the hand
+   was in the air 10 -> 5 with the pace rule. See §8.7b.
+
+   Left: a hand held still in the air near a hold (hovering, shaking out) looks like a
+   grip in 2D (radmehr1, traverse: 4 of the 5). Telling them apart needs the hand's
+   distance from the wall: depth.
 
 **Holds** are places where a limb rested: anchors (of any limb) within 0.09 body lengths
 (~11 cm) of each other are one hold. A hand and a foot using the same hold (a hand-foot
@@ -2086,6 +2095,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Pose errors on the feet | A "foot" point lying on the shin or hip while the body is still becomes a false anchor (~3 in 10 foot anchors on the traverse) | E5: a pose backend with better feet |
 | Holds from rests | Without the hold model a hold is "where a limb rested": smears count as holds; two holds closer than ~11 cm merge. A hold touched for less than 0.5 s is skipped (with the hold model: 0.2 s for a hand on a detected hold), so a move can look longer than it was | Install the hold model (§1.1, §6.20) |
 | Grips broken by hidden hands | Mostly joined since 1.5.1 (§6.14 step 5). Left: the pose swapping hands for a moment (iman5: a right-hand catch read as the left) and a big hold detected as two boxes can still split a grip | Annotate (`tools/annotate.py`, §8.7b) |
+| Hands hovering near a hold | A hand held still in the air next to a hold (waiting, shaking out) reads as a grip: 5 of 10 annotated places with no grip (brief ones are filtered by pace, §6.14 step 4) | Depth (hand-to-wall distance) |
 | Hold detection misses | A foot, or a hand low down, on a hold the detector missed (big volumes, holds coloured like the panel) is called a smear: one move and one hold fewer. A hand held above the shoulder is caught (a missed hold, §6.20) | Check `holds_detected.jpg`; smears still count for balance and forces |
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |

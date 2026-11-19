@@ -29,8 +29,11 @@
   or spot, back within 1 s with the hand hidden or never gone; for hands also A-B-A
   where B sat on the other hand, was hidden, or was a brief tap). A hand seen lifting
   off and coming back stays a re-grip.
-- With detected holds, a hand still 0.2 s on a detected hold is a grip (fast
-  climbing); off any hold 0.5 s as before.
+- With detected holds, a hand still 0.2 s on a detected hold is a grip when the body
+  moves fast (COM >= 0.25 body lengths/s around it: your pace idea, confirmed by the
+  annotations: brief grips at 0.3-1.5, hovering hands at 0.07-0.17); otherwise 0.5 s as
+  before. Annotated grips (48, 8 clips): hands reported on a hold while in the air
+  10 -> 5.
 - On the 18 annotated grips: found 67 % -> 100 %, pieces per grip 1.39 -> 1.22,
   coverage 48 % -> 90 %. moonboard2: 11 -> 8 hand moves (the right hand stayed on one
   hold 21.6-30.5 s); iman3: 7 -> 11 (its brief real grips).

@@ -372,3 +372,13 @@ def test_the_pose_putting_both_wrists_on_one_hand_is_not_a_move():
     # B on a hold of its own, visible and long enough: a real move and back
     other[:, 0] = 900.0
     assert len(merge_fragments([a, b, c], other, t, 500, WallParams(), vis)) == 3
+
+
+def test_local_pace_in_body_lengths_per_second():
+    from climbvision.engine.wall import _local_pace
+
+    t = np.arange(90) / 30.0
+    com = np.zeros((90, 2))
+    com[:, 1] = -200.0 * t  # rising 200 px/s
+    pace = _local_pace(com, t, 400.0, 0.5)
+    assert abs(pace[45] - 0.5) < 1e-6  # 200 px/s on a 400 px body
