@@ -14,6 +14,7 @@ dependencies = [
     "matplotlib>=3.7",
     "pyyaml>=6",
     "imageio-ffmpeg>=0.4",  # H.264 videos that play in any browser (viewer, annotated.mp4)
+    "scipy>=1.10",  # wall scans: grouping landmark blobs
 ]
 
 [project.optional-dependencies]
