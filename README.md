@@ -42,6 +42,10 @@ climbvision render outputs                 # every results folder
 climbvision render outputs/iman3 --no-watermark   # without the ClimbVision watermark
 # camera layer for clips analysed before it existed (handheld wall videos)
 climbvision camera outputs/traverse
+# real 3D metres from a scan of the wall (once per wall, then per clip on it)
+climbvision wall add steep-overhang scan.ply
+climbvision wall mark steep-overhang outputs/radmehr4 --open      # pair 5-8 landmarks
+climbvision wall fit  steep-overhang outputs/radmehr4 --marks ~/Downloads/wall_marks.csv
 climbvision --version                      # version + where the code is loaded from
 ```
 

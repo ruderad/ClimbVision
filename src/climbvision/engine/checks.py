@@ -67,13 +67,18 @@ def wall_checks(clip, wall_out: dict) -> dict:
             idx = np.flatnonzero(ws.window)
             stand &= (t >= t[idx[0]] - 3.0) & (t <= t[idx[-1]] + 3.0)
         if stand.sum() >= 5:
-            h = float(np.median(ws.height_m(ws.com[stand])))
+            hs = ws.height_m(ws.com[stand])
+            hs = hs[np.isfinite(hs)]
+            h = float(np.median(hs)) if len(hs) >= 5 else float("nan")
             r = h / stature
             ok = 0.45 <= r <= 0.75
+            if not np.isfinite(r):
+                ok = None  # off the scan / no reading: not judged
             items.append(_item("standing_com", ok,
                                {"com_m": round(h, 2), "x_stature": round(r, 2)},
                                "0.45-0.75 x stature (~0.55 on the wall plane)",
                                "consistent" if ok else
+                               "no reading (off the wall scan)" if ok is None else
                                "scale or floor off: standing COM "
                                f"{'too low' if r < 0.45 else 'too high'}"
                                + ("" if r < 0.45 else " (standing far from the wall: "

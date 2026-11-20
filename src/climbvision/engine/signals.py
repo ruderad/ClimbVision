@@ -44,6 +44,7 @@ class Clip:
     frame_size: tuple[int, int] | None = None
     find_climb: bool = True  # wall scenes: measure only the climb (engine/climb.py)
     climb: object = None  # ClimbWindow, after wall_support (None = whole clip)
+    scan: object = None  # wallmodel.ScanMetric: the clip mapped onto a wall scan, or None
     _cache: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -64,7 +65,7 @@ class Clip:
             self.wall, self.t, sc.body_px, sc.px_per_m, self.sex, body_m=self.climber.body_m,
             camera_ok=self.camera.ok if self.camera is not None else None,
             wall_image=self.wall_image, hold_boxes=self.hold_boxes, window=window,
-            visibility=self.track.visibility)
+            visibility=self.track.visibility, scan=self.scan)
 
     @property
     def wall_support(self) -> WallSupport:

@@ -23,6 +23,15 @@
 - A foot off any hold with no hand on one counts as the floor only near the bottom
   (radmehr1's top section read as 8 s on the ground).
 
+### Wall scans: real 3D metres (1.6, GUIDE §6.24, §3.4b)
+- `climbvision wall add / list / mark / fit / remove`: store a wall scan (PLY point cloud from
+  Scaniverse or Stray Scanner) in a standard frame with numbered landmarks; a page to pair
+  5-8 landmarks with a clip's wall picture; fit the clip's camera (focal searched), refine
+  it by matching the picture against renders of the scan, and map every wall pixel to 3D.
+- `metrics` uses the scan when a clip has `wall_fit.json`: heights above the real floor,
+  distances in true metres, `wall_angle_deg` per hold. radmehr4 on the steep overhang:
+  hold rises were 13-27 cm short from the picture alone.
+
 ### Watermark
 - Output videos (annotated MP4s, `viewer.mp4` and so the viewer's exports, `wall_view.mp4`)
   carry the ClimbVision video watermark (identity v1, Snow) in the bottom-right corner;

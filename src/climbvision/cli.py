@@ -49,6 +49,49 @@ def _camera(video: Path, out: Path, video_out: bool, watermark: bool = True) -> 
         print(f"[climbvision] wrote {render_wall_view(video, out, watermark=watermark)}")
 
 
+def _wall(args) -> None:
+    import csv
+
+    from climbvision.engine.wallmodel import WallModel, fit_clip, walls_dir
+
+    if args.wall_cmd == "add":
+        m = WallModel.from_scan(args.name, args.scan, args.up)
+        folder = m.save()
+        print(f"[climbvision] wall '{args.name}': {m.info['points']} points, "
+              f"{m.info['width_m']} m wide, {m.info['height_m']} m high, "
+              f"{len(m.landmarks)} landmarks -> {folder}/ (look at front.jpg)")
+    elif args.wall_cmd == "list":
+        root = walls_dir()
+        for d in sorted(root.glob("*/wall.json")) if root.exists() else []:
+            info = json.loads(d.read_text())
+            print(f"{info['name']:24s} {info.get('width_m', '?')} x {info.get('height_m', '?')} m, "
+                  f"{len(info.get('landmarks', []))} landmarks")
+    elif args.wall_cmd == "mark":
+        from climbvision.output.wallmark import write_mark_page
+
+        out = write_mark_page(WallModel.load(args.name), args.results)
+        print(f"[climbvision] wrote {out}")
+        if args.open:
+            import webbrowser
+
+            webbrowser.open(out.resolve().as_uri())
+    elif args.wall_cmd == "fit":
+        marks_file = args.marks or args.results / "wall_marks.csv"
+        marks = [(int(r["landmark"]), float(r["x"]), float(r["y"]))
+                 for r in csv.DictReader(marks_file.open())]
+        out = fit_clip(WallModel.load(args.name), args.results, marks,
+                       do_refine=not args.no_refine)
+        f = out["fit"]
+        print(f"[climbvision] {args.results.name} on wall '{args.name}': marks off by "
+              f"{f['marks_rms_px']} px (frame), {f['matches']} automatic matches "
+              f"(median {f['match_err_px']} px); camera {f['camera_m']} m -> wall_fit.json, "
+              f"wall_xyz.npz; check wall_fit.jpg, then run `climbvision metrics`")
+    elif args.wall_cmd == "remove":
+        for name in ("wall_fit.json", "wall_xyz.npz", "wall_fit.jpg"):
+            (args.results / name).unlink(missing_ok=True)
+        print(f"[climbvision] {args.results.name}: back to metres from the picture")
+
+
 def _add_climber_arg(p: argparse.ArgumentParser) -> None:
     p.add_argument("--climber", default=None,
                    help="who is climbing: a name in data/climbers.yaml (height, mass...); "
@@ -179,6 +222,27 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--no-video", action="store_true", help="skip wall_view.mp4")
     _add_watermark_arg(c)
 
+    wl = sub.add_parser("wall", help="wall scans: real 3D metres for clips on a scanned wall")
+    wsub = wl.add_subparsers(dest="wall_cmd", required=True)
+    wa = wsub.add_parser("add", help="store a wall scan (PLY point cloud) as data/walls/NAME")
+    wa.add_argument("name")
+    wa.add_argument("scan", type=Path, help="coloured point cloud (.ply: Scaniverse, Stray...)")
+    wa.add_argument("--up", default="auto", help="up axis of the scan: auto, x, y, z, -y ...")
+    wsub.add_parser("list", help="the stored walls")
+    wm = wsub.add_parser("mark", help="page to pair scan landmarks with a clip's wall picture")
+    wm.add_argument("name")
+    wm.add_argument("results", type=Path)
+    wm.add_argument("--open", action="store_true", help="open the page in the browser")
+    wf = wsub.add_parser("fit", help="map a clip onto the wall scan from the marked pairs")
+    wf.add_argument("name")
+    wf.add_argument("results", type=Path)
+    wf.add_argument("--marks", type=Path, default=None,
+                    help="wall_marks.csv from the marking page (default: in the clip folder)")
+    wf.add_argument("--no-refine", action="store_true",
+                    help="use the marked pairs only (no automatic matching)")
+    wr = wsub.add_parser("remove", help="stop using the scan for a clip (deletes wall_fit.*)")
+    wr.add_argument("results", type=Path)
+
     sm = sub.add_parser("summary", help="one-line result per clip (table + CSV)")
     sm.add_argument("results", nargs="+", type=Path, help="result folders")
     sm.add_argument("--csv", type=Path, default=None,
@@ -192,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if hasattr(args, "videos"):
         args.videos = expand_videos(args.videos)
-    if hasattr(args, "results"):
+    if hasattr(args, "results") and isinstance(args.results, list):
         args.results = expand_results(args.results)
 
     if args.cmd == "summary":
@@ -307,6 +371,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.climber:
                 set_climber(d, args.climber)
             _print_metrics(run_analysis(d, args.recipe, recipe_dirs=args.recipes))
+
+    elif args.cmd == "wall":
+        _wall(args)
 
     elif args.cmd == "camera":
         for d in args.results:

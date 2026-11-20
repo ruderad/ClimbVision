@@ -298,6 +298,29 @@ layer existed — and writes `camera.csv`, `camera.json`, `wall.jpg`, `wall.json
 `wall_view.mp4`. Needs the source video (path from `summary.json`, or `--video`).
 `analyze` runs it automatically unless `--no-camera`.
 
+### 3.4b `climbvision wall`: real 3D metres from a wall scan
+
+Scan a wall once and map every clip filmed on it onto the scan (§6.24):
+
+```bash
+climbvision wall add steep-overhang data/sessions/2026-11-16_steep-overhang/scaniverse/C1_wall-pan.ply
+climbvision wall list
+climbvision wall mark steep-overhang outputs/radmehr4 --open   # pair 5-8 landmarks, Download
+climbvision wall fit  steep-overhang outputs/radmehr4 --marks ~/Downloads/wall_marks.csv
+climbvision metrics outputs/radmehr4                             # now in scan metres
+climbvision wall remove outputs/radmehr4                         # back to picture metres
+```
+
+| Command | Does |
+|---|---|
+| `wall add NAME SCAN.ply [--up z]` | stores the scan in `data/walls/NAME/` (`wall.npz`, `wall.json`, `front.jpg` with numbered landmarks) in the standard frame: x right facing the wall, y into it, z up, floor (mat surface) at 0 |
+| `wall mark NAME outputs/CLIP [--open]` | writes `wall_marks.html`: click a numbered landmark on the scan, then the same spot on the clip's `wall.jpg`; 5-8 spread over the wall; **Download** gives `wall_marks.csv` |
+| `wall fit NAME outputs/CLIP [--marks FILE] [--no-refine]` | finds the clip's camera from the pairs, refines it by matching the picture against the scan, writes `wall_fit.json`, `wall_xyz.npz` and `wall_fit.jpg` (the scan over the picture, and height bands: check it) |
+| `wall remove outputs/CLIP` | deletes the fit: metres from the picture again |
+
+`metrics` (and `render`, `view`) use the scan whenever `wall_fit.json` is in the folder:
+`scale.scale_from` then says `wall scan '<name>'`.
+
 ### 3.5 `climbvision summary`
 
 ```
@@ -1654,6 +1677,52 @@ force split. Compare moves and attempts; don't read single values as measurement
 
 ---
 
+### 6.24 Wall scans: metres from a 3D model (`engine/wallmodel.py`)
+
+**Why.** From one picture, metres come from the body as a ruler and a perspective fit:
+10-15 % off on some clips (radmehr4 measured its holds' rise 13-27 cm short over 1-2.5 m),
+and heights above the floor read high because the floor comes from feet in front of the
+wall (§6.14b). A scan of the wall knows its true shape, size and vertical.
+
+**The scan.** Any coloured point cloud (PLY) from a phone's LiDAR: Scaniverse, Stray
+Scanner. `wall add` finds the up axis (the end of an axis where a big flat slab of points
+lies: the floor), the floor height, and the wall's direction (principal direction of the
+points above 0.3 m; "into the wall" = away from the floor in front of the wall's base, so an
+overhang leaning out over the floor doesn't flip it), and stores the points in the standard
+frame. Landmarks: blobs of saturated colour (holds, volumes), one hue family at a time,
+connected in 3 cm voxels, numbered top to bottom on `front.jpg`.
+
+**Mapping a clip.** The clip's wall picture (`wall.jpg`, the climber removed, §6.13) is in
+the first frame's view. From the marked pairs (landmark, picture point), perspective-n-point
+gives the camera; the focal length is searched (0.4-2.0 x the frame's long side) for the
+smallest reprojection error. Then the scan is rendered through that camera and matched to
+the picture (SIFT, ratio 0.8), and perspective-n-point on those matches (RANSAC, refined)
+replaces the camera while the marks still agree (their error at most doubles and stays under
+2 % of the frame). The final render gives the 3D scan point behind every pixel of the wall
+picture (`wall_xyz.npz`).
+
+**Metres.** `ScanMetric` replaces the picture metric (`metric.py`): a point on the wall
+picture maps to (x along the wall, height above the floor). Holds and contacts use the
+surface directly; the body (COM, joints) uses a smoothed surface (Gaussian, 1.5 % of the
+picture), because the body is in front of the wall and an edge of a volume behind it
+shouldn't make it jump. Heights are above the scan's floor, the mat surface, so there is no
+floor-from-feet error. Each hold in `metrics.json` also gets `wall_angle_deg`: the surface's
+angle from vertical (+ overhanging, - slab), from a plane through the scan points within
+~12 picture pixels.
+
+**Checked (steep overhang, radmehr4).** The scan against the tape: holds 1, 1' and 2
+within 5-7 cm; holds 4 and 5 23 and 33 cm low (the tripod LiDAR recording agrees with the
+scan there to 3 cm: to be re-measured). The clip mapped from 7 marked landmarks, refined
+on 58 automatic matches (median 5.5 px in the frame); camera found 4.9 m from the wall,
+1.5 m above the mat.
+
+**Limits.** The body is in front of the wall, not on it: its point on the wall behind it
+reads high near the top when the camera is below (~10 cm for a COM 0.4 m off the wall, 3 m
+up, camera 1.5 m up, 4.7 m away). Contacts (hands and feet on holds) don't have this.
+After a route reset the panels stay but holds and volumes move: matching uses many
+features, but a big change needs a new scan. A handheld clip's wall picture is a mosaic
+in the first frame's view: the fit is for that view.
+
 ## 7. Architecture and design philosophy
 
 ### 7.1 Principles
@@ -2137,6 +2206,7 @@ Change one and run `pytest`: the regression tests show which real clips it affec
 | Forces | In the wall plane only: outward pull on steep walls missing (hand loads too low on overhangs); a model of the least-effort split, not a measurement | Wall angle + depth (1.6); check with the dead-hang test on a scale |
 | Move tags | Built from anchors and the COM: a missed foot reads as "feet cut"; "cross" assumes the climber faces the wall. Chalking and shaking out aren't detected: a hand still at the chalk bag would count as on a hold (telling it from palming the wall or a mantle at the hip needs more than the hand's position) | Watch the moves in `annotated.mp4` (each move is labelled) |
 | Ground from the image | The floor is recognised at the bottom of the wall image (concrete and speckled mats too, since 1.5.1); a camera that never shows the floor relies on the standing cue alone, and a climb with no standing on the floor within 3 s of it has no floor height (rise only) | Film the start from the floor |
+| Metres from one picture | Body as the ruler + perspective fit: 10-15 % off on some clips | A wall scan (§6.24, `climbvision wall`) |
 | Heights above the floor | Measured on the wall plane: feet on the mat in front of the wall project below the real floor, so heights above the floor read high. Since 1.5.1 the floor comes from the push-off (the feet closest to the wall), which roughly halves it: up to ~0.5 m left on the test clips. Rises and distances between holds aren't affected | Tape-measured holds per wall (the benchmark); depth (1.6) |
 | Several attempts in one clip | Only one is measured (the highest); the others are listed in `climb.attempts` | One attempt per clip |
 | Perspective on some clips | On 6 of 23 clips body sizes still differ ~10 % across the wall (`checks.body_size`): the perspective correction found was too small to trust and was not applied. Distances there are uncertain by about as much | Waits for the tape benchmark to tell how far to trust smaller corrections |

@@ -568,3 +568,15 @@ Fixed camera, whole body in frame, 10–20 s each. One side-on and one front-on 
 5. Lunge or step forward/back
 
 Put them in `data/videos/` (git-ignored).
+
+## 1.6 Depth, part A: wall scans (2026-11-20, in progress)
+- LiDAR checked against the tape (steep overhang): Stray Scanner from 3.6-5 m covers half the
+  picture at best and can't tell a hovering hand from a gripping one at 5 m; heights of
+  holds 1-3 within ~5 cm, holds 4-5 20-40 cm low (both the tripod recording and the
+  Scaniverse scan: to re-measure with a laser).
+- `climbvision wall add / mark / fit`: a wall scan as the ruler (GUIDE §6.24). radmehr4
+  mapped onto the Scaniverse scan of the steep overhang from 7 marked landmarks + 58
+  automatic matches.
+- Next: forces with the wall angle under each contact (outward pull on overhangs); the COM
+  in front of the wall (correct its height from the contacts); automatic first match;
+  part B, hand-to-wall distance (3-3.5 m LiDAR or a second camera).

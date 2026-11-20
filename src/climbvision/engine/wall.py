@@ -643,7 +643,7 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
                          body_m: float = ASSUMED_BODY_M,
                          correct_perspective: bool = True, hold_boxes=None,
                          window: np.ndarray | None = None,
-                         visibility: np.ndarray | None = None) -> WallSupport:
+                         visibility: np.ndarray | None = None, scan=None) -> WallSupport:
     """wall_points: (n, N_JOINTS, 2) joints in wall coordinates (Clip.wall).
     `window`: (n,) bool, the climb (engine/climb.py): frames outside it are not on the
     wall, and their anchors count for nothing (but standing on the ground just before or
@@ -800,8 +800,11 @@ def compute_wall_support(wall_points: np.ndarray, t: np.ndarray, body_px: float,
     n_contacts = sum(on_hold[limb].astype(int) for limb in LIMBS)
     # metres on the wall: perspective corrected with the body as the ruler (metric.py)
     ground_px = _floor_points(anchors, window, t)
-    metric = fit_wall_metric(wall_points, on_wall, body_m, ground_px,
-                             correct=correct_perspective, px_per_m=px_per_m)
+    if scan is not None:  # a wall scan mapped onto this clip (wallmodel.py): real metres
+        metric = scan
+    else:
+        metric = fit_wall_metric(wall_points, on_wall, body_m, ground_px,
+                                 correct=correct_perspective, px_per_m=px_per_m)
     com_m = metric.to_m(com)
     com_v, com_a = derivatives(com_m, t)
     feet_m = np.full(n, np.nan)
@@ -942,8 +945,13 @@ def wall_summary(ws: WallSupport, t: np.ndarray) -> dict:
     out["holds"] = []
     for h in ws.holds:
         x, y = ws.hold_xy_m(h)
+        extra = {}
+        if hasattr(ws.metric, "wall_angle_deg"):
+            ang = ws.metric.wall_angle_deg(h.pos)
+            if np.isfinite(ang):
+                extra["wall_angle_deg"] = round(ang, 1)
         out["holds"].append({
-            "id": h.id, "x_m": round(x, 2), "y_m": round(y, 2),
+            "id": h.id, "x_m": round(x, 2), "y_m": round(y, 2), **extra,
             "limbs": sorted(LABEL[limb] for limb in h.limbs),
             "first_s": round(float(t[min(a.start for a in h.anchors)]), 2),
             "time_s": round(float(sum(t[a.end - 1] - t[a.start] for a in h.anchors)), 2)})

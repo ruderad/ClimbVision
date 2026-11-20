@@ -81,6 +81,9 @@ def load_clip(result_dir: str | Path, bar: bool = False, clean: bool | None = No
                       camera=cam, wall_image=wall, climber=climber_of(result_dir))
     clip.cleanup = report
     clip.smoothing = smooth_report
+    from climbvision.engine.wallmodel import load_scan_metric
+
+    clip.scan = load_scan_metric(result_dir)  # mapped onto a wall scan: real metres
     if wall is not None and detect_holds:
         try:
             from climbvision.engine.holddetect import load_or_detect

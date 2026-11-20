@@ -40,4 +40,5 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/climbvision/output/viewer.py" = ["E501"]  # the HTML/JS template
+"src/climbvision/output/viewer.py" = ["E501"]
+"src/climbvision/output/wallmark.py" = ["E501"]  # the HTML/JS template
